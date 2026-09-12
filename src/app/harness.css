@@ -1,0 +1,137 @@
+/* ── app-specific rules (not part of Beautiful UI) ──────── */
+
+/* thin, token-colored scrollbars everywhere the harness scrolls */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+
+/* markdown inside agent replies — set in Beautiful UI's reading measure */
+.md {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.md > * + * {
+  margin-top: 0.7em;
+}
+.md p {
+  text-wrap: pretty;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-top: 1.1em;
+}
+.md h1 {
+  font-size: 17px;
+}
+.md h2 {
+  font-size: 15.5px;
+}
+.md h3,
+.md h4 {
+  font-size: 14px;
+}
+.md ul,
+.md ol {
+  padding-left: 1.35em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li + li {
+  margin-top: 0.25em;
+}
+.md li::marker {
+  color: var(--ink-3);
+}
+.md a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
+  text-underline-offset: 2px;
+}
+.md a:hover {
+  text-decoration-color: currentColor;
+}
+.md blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 12px;
+  color: var(--ink-2);
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.md th,
+.md td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.md th {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.md strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.md img {
+  max-width: 100%;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* sheets (sidebar / rail below their breakpoints) */
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes sheet-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Beautiful UI's `.primitive-showcase` hooks are irrelevant here; keep the
+ * mobile drawer from selecting sidebar labels on tap instead. */
+@media (hover: none) and (pointer: coarse) {
+  [data-sidebar-drawer] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

@@ -1,34 +1,52 @@
-import { useConvexAuth } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import AppPage from "./pages/AppPage.tsx";
+import { api } from "../convex/_generated/api";
+import LoadingState from "@/components/primitives/LoadingState";
+import { useTheme } from "@/lib/theme";
+import ChatPage from "./pages/ChatPage.tsx";
+import HomePage from "./pages/HomePage.tsx";
+import InvitePage from "./pages/InvitePage.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
+import OrgLayout from "./pages/OrgLayout.tsx";
+import SettingsPage from "./pages/SettingsPage.tsx";
+import WelcomePage from "./pages/WelcomePage.tsx";
+
+function FullscreenLoader({ label }: { label: string }) {
+  return (
+    <div className="flex h-[100dvh] items-center justify-center bg-canvas">
+      <LoadingState label={label} variant="Dots" />
+    </div>
+  );
+}
+
+/* "/" → first org, or first-run */
+function RootRedirect() {
+  const orgs = useQuery(api.orgs.listMine);
+  if (orgs === undefined) return <FullscreenLoader label="読み込んでいます" />;
+  const first = orgs[0];
+  return <Navigate to={first ? `/o/${first.slug}` : "/welcome"} replace />;
+}
 
 export default function App() {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-stone-500">
-          <span className="bui-streaming-dot inline-block size-2 rounded-full bg-violet-600" />
-          読み込み中…
-        </div>
-      </div>
-    );
-  }
+  const [theme, toggleTheme] = useTheme();
+
+  if (isLoading) return <FullscreenLoader label="サインイン状態を確認しています" />;
+
+  const guard = (element: React.ReactElement) => (isAuthenticated ? element : <Navigate to="/login" replace />);
+
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/app" replace /> : <LoginPage />}
-      />
-      <Route
-        path="/app"
-        element={isAuthenticated ? <AppPage /> : <Navigate to="/login" replace />}
-      />
-      <Route
-        path="*"
-        element={<Navigate to={isAuthenticated ? "/app" : "/login"} replace />}
-      />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/invite/:token" element={<InvitePage />} />
+      <Route path="/welcome" element={guard(<WelcomePage />)} />
+      <Route path="/o/:orgSlug" element={guard(<OrgLayout theme={theme} onToggleTheme={toggleTheme} />)}>
+        <Route index element={<HomePage />} />
+        <Route path="c/:chatId" element={<ChatPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+      <Route path="/" element={guard(<RootRedirect />)} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

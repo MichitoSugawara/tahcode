@@ -1,0 +1,66 @@
+import { Building2, Cpu, Users } from "lucide-react";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { StatusPill } from "@/components/atoms/StatusPill";
+import { TextRow } from "@/components/atoms/TextRow";
+import { useOrg } from "@/harness/OrgContext";
+import { RuntimePane } from "@/harness/rail/RuntimePane";
+import { TeamPane } from "@/harness/rail/TeamPane";
+import { CopyButton } from "@/harness/ui/CopyButton";
+import { roleLabel } from "@/lib/format";
+
+/* ─────────────────────────────────────────────────────────
+ * ORG SETTINGS — minimal by design: identity, members and
+ * roles, runtimes and grants. The same panes as the rail,
+ * given room to breathe.
+ * ───────────────────────────────────────────────────────── */
+export default function SettingsPage() {
+  const { org, role, projects, chats } = useOrg();
+  const location = useLocation();
+  useEffect(() => {
+    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "start" });
+  }, [location.hash]);
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-4 py-8 sm:px-8">
+        <header style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both" }}>
+          <div className="flex items-center gap-2 text-[12px] text-ink-3">
+            <Building2 size={13} /> Org 設定
+          </div>
+          <h1 className="mt-1 text-[22px] font-normal tracking-[-0.02em] text-ink">{org.name}</h1>
+        </header>
+
+        <section className="rounded-card bg-surface shadow-card" style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 60ms both" }}>
+          <div className="primitive-card-bar border-b border-line text-[13px] font-medium text-ink">一般</div>
+          <div className="px-3 py-1">
+            <TextRow label="名前" value={org.name} />
+            <TextRow
+              label="スラッグ"
+              value={<code className="font-mono text-[12.5px]">{org.slug}</code>}
+              meta={<CopyButton text={`${window.location.origin}/o/${org.slug}`} label="URL" size="xs" variant="quiet" />}
+            />
+            <TextRow label="あなたのロール" value={<StatusPill tone={role === "owner" ? "accent" : role === "admin" ? "green" : "neutral"}>{roleLabel(role)}</StatusPill>} />
+            <TextRow label="プロジェクト / チャット" value={`${projects?.length ?? 0} / ${chats?.length ?? 0}`} meta="あなたに見える範囲" />
+          </div>
+          <div className="border-t border-line px-3 py-2 text-[12px] text-ink-3">名前変更・削除は Phase 1 の範囲外です（Owner のみ、後続フェーズ）。</div>
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section id="members" className="scroll-mt-4" style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 120ms both" }}>
+            <div className="mb-3 flex items-center gap-2 text-[12px] text-ink-3">
+              <Users size={13} /> メンバーとロール
+            </div>
+            <TeamPane />
+          </section>
+          <section id="runtimes" className="scroll-mt-4" style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 180ms both" }}>
+            <div className="mb-3 flex items-center gap-2 text-[12px] text-ink-3">
+              <Cpu size={13} /> ランタイムと利用許可
+            </div>
+            <RuntimePane />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

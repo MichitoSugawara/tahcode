@@ -1,0 +1,514 @@
+import { ArrowUp, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+
+/* ─────────────────────────────────────────────────────────
+ * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
+ * A composer with real controls: attach, @ mentions, / commands,
+ * pill pickers (provider · runtime), and send.
+ * Type @ or / to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
+ * Enter sends (IME-safe), Shift+Enter breaks a line.
+ *
+ * Changes from the registry copy: menus, pickers, and attachments
+ * are props instead of demo constants; the self-running walkthrough,
+ * dictation, and the glimm shader sweep are removed.
+ * ───────────────────────────────────────────────────────── */
+
+export type PromptMenuItem = {
+  key: string;
+  name: string;
+  desc?: string;
+  icon?: ReactNode;
+  /** text that replaces the typed token (e.g. "@codex ") */
+  insert?: string;
+  /** runs instead of inserting (attach, slash commands) */
+  action?: () => void;
+  trailing?: ReactNode;
+};
+
+export type PromptPickerItem = {
+  key: string;
+  name: string;
+  tag?: string;
+  disabled?: boolean;
+};
+
+export type PromptPicker = {
+  id: string;
+  ariaLabel: string;
+  icon?: ReactNode;
+  label: string;
+  items: PromptPickerItem[];
+  value: string | null;
+  onChange: (key: string) => void;
+  emptyHint?: string;
+  footer?: ReactNode;
+};
+
+export type PromptAttachment = { name: string; size?: number };
+
+type Token = { kind: "at" | "slash"; query: string; start: number };
+
+/* the last @word or /word being typed, if any */
+function parseToken(draft: string): Token | null {
+  const match = /(^|\s)([@/])([\w./-]*)$/.exec(draft);
+  if (!match) return null;
+  return {
+    kind: match[2] === "@" ? "at" : "slash",
+    query: (match[3] ?? "").toLowerCase(),
+    start: match.index + (match[1]?.length ?? 0),
+  };
+}
+
+const POP = "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both";
+const GLIDE = "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease";
+
+export default function PromptBar({
+  placeholder = "メッセージを入力…",
+  tall = false,
+  disabled = false,
+  busy = false,
+  mentions,
+  commands = [],
+  plusItems = [],
+  pickers = [],
+  attachments = [],
+  onRemoveAttachment,
+  onSend,
+  onDraftChange,
+  hint,
+  autoFocus,
+  menuFooter,
+}: {
+  placeholder?: string;
+  /** hero sizing: a multi-line input with controls on their own row */
+  tall?: boolean;
+  disabled?: boolean;
+  /** a send is in flight — keeps the button quiet without clearing the draft */
+  busy?: boolean;
+  /** rows in the @ menu (agents first, then people) */
+  mentions: PromptMenuItem[];
+  /** rows in the / menu */
+  commands?: PromptMenuItem[];
+  /** rows pinned to the top of the + menu (attach files, …) */
+  plusItems?: PromptMenuItem[];
+  /** pill pickers rendered left of the send button (provider, runtime) */
+  pickers?: PromptPicker[];
+  attachments?: PromptAttachment[];
+  onRemoveAttachment?: (index: number) => void;
+  onSend: (text: string) => void | Promise<void>;
+  onDraftChange?: (text: string) => void;
+  /** one quiet line under the controls (shortcuts, auto-mention notice) */
+  hint?: ReactNode;
+  autoFocus?: boolean;
+  /** footer copy under the @ menu */
+  menuFooter?: { at?: string; slash?: string };
+}) {
+  const [draft, setDraft] = useState("");
+  const [dismissed, setDismissed] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [openPicker, setOpenPicker] = useState<string | null>(null);
+  const [active, setActive] = useState(0);
+  const [engaged, setEngaged] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const wide = expanded || tall;
+  const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(null);
+  const [pickerBox, setPickerBox] = useState<{ top: number; height: number } | null>(null);
+  const [pickerHovered, setPickerHovered] = useState<number | null>(null);
+  const [pickerMenuLeft, setPickerMenuLeft] = useState(0);
+  const [pickerMenuBottom, setPickerMenuBottom] = useState(0);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const pickersRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const pickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pickerRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const token = dismissed ? null : parseToken(draft);
+  const menu: "at" | "slash" | null = plusOpen ? "at" : (token?.kind ?? null);
+  const query = plusOpen ? "" : (token?.query ?? "");
+
+  const rows: PromptMenuItem[] =
+    menu === "at"
+      ? [
+          ...(plusOpen ? plusItems : []),
+          ...mentions.filter(
+            (item) =>
+              item.name.toLowerCase().includes(query) ||
+              (item.desc ?? "").toLowerCase().includes(query) ||
+              (item.insert ?? "").toLowerCase().includes(query),
+          ),
+        ]
+      : menu === "slash"
+        ? commands.filter((item) => item.name.replace(/^\//, "").toLowerCase().startsWith(query))
+        : [];
+
+  useEffect(() => {
+    setActive(0);
+    setEngaged(false);
+  }, [menu, query]);
+
+  /* a single highlight glides to the active row instead of each row
+   * toggling its own background — matches the gliding pill in the nav */
+  useLayoutEffect(() => {
+    const target = rowRefs.current[active];
+    if (target) setRowBox({ top: target.offsetTop, height: target.offsetHeight });
+  }, [menu, query, active, rows.length]);
+
+  const picker = pickers.find((item) => item.id === openPicker) ?? null;
+  const pickerIndex = picker ? picker.items.findIndex((item) => item.key === picker.value) : -1;
+  useLayoutEffect(() => {
+    if (!picker) return;
+    const target = pickerRowRefs.current[pickerHovered ?? Math.max(pickerIndex, 0)];
+    if (target) setPickerBox({ top: target.offsetTop, height: target.offsetHeight });
+  }, [picker, pickerHovered, pickerIndex]);
+
+  /* The menu is outside the clipped composer, so align it to its trigger
+   * by measurement instead of pinning it to the far-right edge. */
+  useLayoutEffect(() => {
+    if (!picker || !anchorRef.current) return;
+    const trigger = pickerTriggerRefs.current[picker.id];
+    if (!trigger) return;
+    const anchorRect = anchorRef.current.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    setPickerMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 224)));
+    setPickerMenuBottom(anchorRect.bottom - triggerRect.top + 8);
+  }, [picker, wide]);
+
+  useEffect(() => {
+    if (!openPicker) setPickerHovered(null);
+  }, [openPicker]);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  /* Move wrapped text above the controls, then grow to a compact maximum. */
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    const controls = controlsRef.current;
+    const measure = measureRef.current;
+    if (!input || !controls || !measure) return;
+
+    const pickersWidth = pickersRef.current?.offsetWidth ?? 0;
+    const fixedControlsWidth = 28 * 2 + pickersWidth;
+    const inlineGaps = 4 * 3;
+    const inlineInputWidth = controls.clientWidth - fixedControlsWidth - inlineGaps;
+    const needsFullWidth = draft.includes("\n") || measure.offsetWidth + 8 > inlineInputWidth;
+    if (needsFullWidth !== expanded) setExpanded(needsFullWidth);
+
+    const minHeight = tall ? 68 : 28;
+    const maxHeight = tall ? 220 : 120;
+    input.style.height = "0px";
+    const contentHeight = input.scrollHeight;
+    input.style.height = `${Math.min(Math.max(contentHeight, minHeight), maxHeight)}px`;
+    input.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+  }, [draft, expanded, tall, pickers.length]);
+
+  /* clicking anywhere outside the composer closes the open menus */
+  useEffect(() => {
+    if (!openPicker && !plusOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!(event.target as Element).closest("[data-promptbar]")) {
+        setOpenPicker(null);
+        setPlusOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [openPicker, plusOpen]);
+
+  const closeMenus = () => {
+    setPlusOpen(false);
+    setOpenPicker(null);
+  };
+
+  const update = (next: string) => {
+    setDraft(next);
+    onDraftChange?.(next);
+  };
+
+  const pick = (row: PromptMenuItem) => {
+    if (row.action) {
+      if (token) update(draft.slice(0, token.start));
+      row.action();
+    } else if (row.insert !== undefined) {
+      const base = token ? draft.slice(0, token.start) : draft;
+      update(`${base}${row.insert}`);
+    }
+    setPlusOpen(false);
+    setDismissed(false);
+    inputRef.current?.focus();
+  };
+
+  const canSend = !disabled && !busy && (draft.trim().length > 0 || attachments.length > 0);
+  const send = () => {
+    if (!canSend) return;
+    const text = draft.trim();
+    update("");
+    closeMenus();
+    void onSend(text);
+  };
+
+  const footerAt = menuFooter?.at ?? "エージェントかメンバーを選択";
+  const footerSlash = menuFooter?.slash ?? "コマンドを選択";
+
+  return (
+    <div data-promptbar className="w-full">
+      {/* composer is the anchor — menus grow up from its top edge */}
+      <div ref={anchorRef} className="relative">
+        {/* ── @ / slash menu ─────────────────────────────── */}
+        {menu && (
+          <div
+            onMouseLeave={() => setEngaged(false)}
+            className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised"
+            style={{ animation: POP, transformOrigin: "bottom center" }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+              style={{
+                top: rowBox?.top ?? 0,
+                height: rowBox?.height ?? 0,
+                opacity: rowBox && engaged && rows.length > 0 ? 1 : 0,
+                transition: GLIDE,
+              }}
+            />
+            {rows.map((row, i) => (
+              <button
+                key={row.key}
+                type="button"
+                ref={(el) => {
+                  rowRefs.current[i] = el;
+                }}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => {
+                  setActive(i);
+                  setEngaged(true);
+                }}
+                onClick={() => pick(row)}
+                className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2 text-left"
+              >
+                {row.icon && <span className="flex size-5.5 shrink-0 items-center justify-center text-ink-2">{row.icon}</span>}
+                <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.name}</span>
+                {row.desc && <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{row.desc}</span>}
+                {row.trailing && <span className="ml-auto shrink-0 text-[11.5px] text-ink-3">{row.trailing}</span>}
+              </button>
+            ))}
+            {rows.length === 0 && (
+              <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">「{query}」に一致する候補はありません</div>
+            )}
+            <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
+              {menu === "at" ? footerAt : footerSlash}
+            </div>
+          </div>
+        )}
+
+        {/* ── picker menu ────────────────────────────────── */}
+        {picker && (
+          <div
+            onMouseLeave={() => setPickerHovered(null)}
+            className="absolute z-20 w-56 rounded-[10px] bg-surface p-1 shadow-raised"
+            style={{ left: pickerMenuLeft, bottom: pickerMenuBottom, animation: POP, transformOrigin: "bottom left" }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+              style={{
+                top: pickerBox?.top ?? 0,
+                height: pickerBox?.height ?? 0,
+                opacity: pickerBox && pickerHovered !== null ? 1 : 0,
+                transition: GLIDE,
+              }}
+            />
+            {picker.items.map((item, i) => (
+              <button
+                key={item.key}
+                type="button"
+                disabled={item.disabled}
+                ref={(el) => {
+                  pickerRowRefs.current[i] = el;
+                }}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setPickerHovered(i)}
+                onClick={() => {
+                  picker.onChange(item.key);
+                  setOpenPicker(null);
+                  inputRef.current?.focus();
+                }}
+                className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left disabled:opacity-45"
+              >
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{item.name}</span>
+                {item.tag && <span className="shrink-0 text-[11px] text-ink-3">{item.tag}</span>}
+                <span className={`shrink-0 text-ink ${item.key === picker.value ? "" : "invisible"}`}>
+                  <Check size={13} strokeWidth={2.5} />
+                </span>
+              </button>
+            ))}
+            {picker.items.length === 0 && (
+              <div className="px-2 py-2 text-[12px] leading-[1.5] text-ink-3">{picker.emptyHint ?? "候補がありません"}</div>
+            )}
+            {picker.footer && <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">{picker.footer}</div>}
+          </div>
+        )}
+
+        {/* ── composer ───────────────────────────────────── */}
+        <div
+          className={`relative isolate flex flex-col overflow-hidden border border-line bg-surface shadow-card transition-[border-color,border-radius,opacity] duration-150 focus-within:border-line-strong ${
+            tall ? "gap-2.5 rounded-[22px] p-3.5" : "gap-1.5 rounded-[14px] p-1.5"
+          } ${disabled ? "opacity-70" : ""}`}
+        >
+          <span ref={measureRef} aria-hidden="true" className="pointer-events-none invisible absolute whitespace-pre text-[13px] leading-[18px]">
+            {draft}
+          </span>
+
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-0.5 pt-0.5">
+              {attachments.map((file, i) => (
+                <span
+                  key={`${file.name}-${i}`}
+                  className="flex h-6.5 items-center gap-1.5 rounded-chip bg-field py-1 pr-1 pl-1.5 text-[11.5px] text-ink-2 shadow-hairline"
+                  style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both" }}
+                >
+                  <FileText size={12} />
+                  <span className="max-w-36 truncate">{file.name}</span>
+                  {onRemoveAttachment && (
+                    <button
+                      type="button"
+                      aria-label={`${file.name} を外す`}
+                      onClick={() => onRemoveAttachment(i)}
+                      className="-my-1 flex size-6 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink"
+                    >
+                      <X size={10} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div
+            ref={controlsRef}
+            className={`grid items-end gap-x-1 gap-y-1.5 ${
+              wide ? "grid-cols-[28px_auto_minmax(0,1fr)_28px]" : "grid-cols-[28px_minmax(0,1fr)_auto_28px]"
+            }`}
+          >
+            <button
+              type="button"
+              aria-label="添付とメンション"
+              aria-expanded={plusOpen}
+              disabled={disabled}
+              onClick={() => {
+                setOpenPicker(null);
+                setPlusOpen((current) => !current);
+                inputRef.current?.focus();
+              }}
+              className={`flex size-7 shrink-0 items-center justify-center justify-self-start rounded-[8px] text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] disabled:pointer-events-none ${
+                plusOpen ? "bg-hover text-ink" : ""
+              } ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"}`}
+            >
+              <Plus size={16} strokeWidth={2} />
+            </button>
+
+            <textarea
+              ref={inputRef}
+              rows={1}
+              value={draft}
+              disabled={disabled}
+              onChange={(event) => {
+                update(event.target.value);
+                setDismissed(false);
+                setPlusOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
+                if (menu && rows.length > 0) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setEngaged(true);
+                    setActive((current) => (current + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length);
+                    return;
+                  }
+                  if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
+                    event.preventDefault();
+                    const row = rows[active];
+                    if (row) pick(row);
+                    return;
+                  }
+                }
+                if (event.key === "Escape") {
+                  setDismissed(true);
+                  closeMenus();
+                  return;
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  send();
+                }
+              }}
+              placeholder={placeholder}
+              aria-label="メッセージ"
+              className={`${
+                tall ? "min-h-[68px] px-2 py-2 text-[14px] leading-5" : "min-h-7 px-1 py-[5px] text-[13px] leading-[18px]"
+              } w-full min-w-0 resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${
+                wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
+              }`}
+            />
+
+            {/* pickers — provider · runtime */}
+            <div
+              ref={pickersRef}
+              className={`flex items-center gap-0.5 ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
+            >
+              {pickers.map((item) => (
+                <button
+                  key={item.id}
+                  ref={(el) => {
+                    pickerTriggerRefs.current[item.id] = el;
+                  }}
+                  type="button"
+                  aria-expanded={openPicker === item.id}
+                  aria-label={item.ariaLabel}
+                  disabled={disabled}
+                  onClick={() => {
+                    setPlusOpen(false);
+                    setOpenPicker((current) => (current === item.id ? null : item.id));
+                  }}
+                  className={`flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink disabled:pointer-events-none ${
+                    openPicker === item.id ? "bg-hover text-ink" : ""
+                  }`}
+                >
+                  {item.icon && <span className="flex shrink-0 text-ink-3">{item.icon}</span>}
+                  <span className="max-w-32 truncate">{item.label}</span>
+                  <span className="text-ink-3">
+                    <ChevronDown size={11} strokeWidth={2.4} />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* send — tactile square, Dark Green+ button */}
+            <button
+              type="button"
+              aria-label="送信"
+              disabled={!canSend}
+              onClick={send}
+              className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform,opacity] duration-200 enabled:active:scale-[0.94] ${
+                wide ? "col-start-4 row-start-2" : "col-start-4 row-start-1"
+              }`}
+              style={{
+                background: canSend ? "var(--btn)" : "var(--line-strong)",
+                color: canSend ? "#ffffff" : "var(--ink-2)",
+              }}
+            >
+              <ArrowUp size={16} strokeWidth={2.4} />
+            </button>
+          </div>
+
+          {hint && <div className="px-1 pb-0.5 text-[11px] leading-[1.4] text-ink-3">{hint}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}

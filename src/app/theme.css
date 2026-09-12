@@ -1,0 +1,136 @@
+/* ══════════════════════════════════════════════════════════
+ * TEAM HARNESS THEME — VS Code "Dark Green+" on Beautiful UI
+ *
+ * Source palette: kazelone.vscode-dark-green-plus. The raw editor
+ * tokens are kept verbatim as --dg-* so the mapping below stays
+ * auditable; everything the UI paints with is a Beautiful UI token
+ * (--page, --surface, --ink, --line, --accent, …) resolved from them.
+ * Dark is the default; light keeps Beautiful UI's cool neutrals with
+ * the same green accent so the brand survives a theme flip.
+ * ══════════════════════════════════════════════════════════ */
+
+:root {
+  /* editor.background · sideBar.background · panel.background */
+  --dg-editor-bg: #121712;
+  --dg-sidebar-bg: #0b140b;
+  --dg-panel-bg: #141d14;
+  /* activityBar / titleBar deeps */
+  --dg-deep-bg: #040f04;
+  --dg-deepest-bg: #020f02;
+  /* accents */
+  --dg-accent: #0e9c2d;
+  --dg-accent-bright: #00ff00;
+  --dg-button-bg: #077015;
+  --dg-button-hover-bg: #0ab320;
+  /* text · borders · selection · list */
+  --dg-foreground: #c9c9c9;
+  --dg-border: #0e9c2dcc;
+  --dg-selection: #196626;
+  --dg-list-active: #09710e;
+
+  /* self-hosted variable fonts (see main.tsx imports) */
+  --font-inter: "Inter Variable";
+  --font-mono-face: "JetBrains Mono Variable";
+
+  /* light: keep Beautiful UI neutrals, adopt the green as the single accent */
+  --accent: var(--dg-accent);
+  --accent-ink: var(--dg-button-bg);
+  --accent-tint: color-mix(in srgb, var(--dg-accent) 12%, white);
+  --green: var(--dg-button-hover-bg);
+  --green-tint: color-mix(in srgb, var(--dg-button-hover-bg) 14%, white);
+  --btn: var(--dg-button-bg);
+  --btn-hover: var(--dg-button-hover-bg);
+  --active: color-mix(in srgb, var(--dg-list-active) 16%, white);
+  --active-ink: var(--dg-button-bg);
+  --caret: var(--dg-button-bg);
+}
+
+.dark {
+  /* surfaces — editor is the reading pane, sidebar is the shell canvas */
+  --page: var(--dg-editor-bg);
+  --canvas: var(--dg-sidebar-bg);
+  --surface: var(--dg-panel-bg);
+  --inset: #0f170f;
+  --field: #0d150d;
+  --hover: #1a271a;
+  --hover-2: #223322;
+  --stripe: oklch(1 0 0 / 0.03);
+  --stripe-bg: var(--dg-deep-bg);
+
+  /* ink ramp — foreground #c9c9c9, stepped down through the green-grey */
+  --ink: var(--dg-foreground);
+  --ink-2: #94a494;
+  --ink-3: #647462;
+
+  /* borders — Dark Green+ draws borders in accent green; Beautiful UI wants
+   * hairlines, so the same hue is mixed down and only strengthens on focus */
+  --line: color-mix(in srgb, var(--dg-accent) 24%, var(--dg-editor-bg));
+  --line-strong: color-mix(in srgb, var(--dg-accent) 46%, var(--dg-editor-bg));
+  --line-soft: color-mix(in srgb, var(--dg-accent) 14%, var(--dg-editor-bg));
+  --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
+
+  /* accent — #0e9c2d for fills/rings, #00ff00 reserved for small marks */
+  --accent: var(--dg-accent);
+  --accent-ink: var(--dg-accent-bright);
+  --accent-tint: color-mix(in srgb, var(--dg-accent) 20%, transparent);
+  --btn: var(--dg-button-bg);
+  --btn-hover: var(--dg-button-hover-bg);
+  --active: var(--dg-list-active);
+  --active-ink: #f2fff2;
+  --caret: var(--dg-accent-bright);
+
+  /* semantic */
+  --green: var(--dg-button-hover-bg);
+  --green-tint: color-mix(in srgb, var(--dg-button-hover-bg) 16%, transparent);
+  --orange: #dca643;
+  --orange-tint: color-mix(in srgb, #dca643 16%, transparent);
+  --red: #e5534b;
+  --red-tint: color-mix(in srgb, #e5534b 16%, transparent);
+
+  --tooltip-bg: var(--dg-deepest-bg);
+  --tooltip-fg: var(--dg-foreground);
+  --tooltip-muted: var(--ink-2);
+  --tooltip-border: var(--line-strong);
+
+  /* shadows — green hairline rings over deep shadow */
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px var(--line-strong), 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-card:
+    0 0 0 1px var(--line), 0 1px 2px oklch(0 0 0 / 0.25),
+    0 2px 6px oklch(0 0 0 / 0.22);
+  --shadow-raised: 0 0 0 1px var(--line-strong), 0 2px 10px oklch(0 0 0 / 0.32);
+  --shadow-overlay: 0 0 0 1px var(--line-strong), 0 8px 28px oklch(0 0 0 / 0.5);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.5);
+}
+
+@theme inline {
+  --color-btn: var(--btn);
+  --color-btn-hover: var(--btn-hover);
+  --color-active: var(--active);
+  --color-active-ink: var(--active-ink);
+  --color-caret: var(--caret);
+}
+
+/* editor.selectionBackground */
+.dark ::selection {
+  background: var(--dg-selection);
+  color: #ffffff;
+}
+
+/* the streaming caret is the editor cursor — bright green in Dark Green+ */
+.stream-caret {
+  background: var(--caret);
+}
+
+/* Beautiful UI paints the page with a diagonal stripe; in the harness the
+ * shell is the sidebar canvas, so the body sits flat on it. */
+body {
+  background-color: var(--canvas);
+  background-image: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
