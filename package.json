@@ -68,6 +68,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.3.0",
     "oxlint": "^1.81.0",
+    "playwright-core": "^1.63.0",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",

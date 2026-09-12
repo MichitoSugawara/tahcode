@@ -79,7 +79,8 @@ export function Composer({
 
   const disabled = !chat;
   const isProject = chat?.kind === "project";
-  const needsMention = isProject && draft.trim().length > 0 && !hasAgentMention(draft);
+  const typingMention = /(^|\s)@[\w./-]*$/.test(draft);
+  const needsMention = isProject && draft.trim().length > 0 && !hasAgentMention(draft) && !typingMention;
   const handle = providerHandle(org.provider);
 
   const liveRuntimes = useMemo(() => (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now)), [org.runtimes, org.now]);

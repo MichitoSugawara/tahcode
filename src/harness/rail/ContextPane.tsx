@@ -92,11 +92,11 @@ export function ContextPane({ chatId }: { chatId?: string }) {
           />
           <TextRow label={<span className="inline-flex items-center gap-1.5"><History size={13} /> 履歴</span>} value={`${historyCount} 件`} meta="最大 30" />
           <TextRow
-            label={<span className="inline-flex items-center gap-1.5"><AtSign size={13} /> 使えるハンドル</span>}
+            label={<span className="inline-flex items-center gap-1.5"><AtSign size={13} /> ハンドル</span>}
             value={
               <span className="flex flex-wrap justify-end gap-1">
                 {Object.values(PROVIDERS)
-                  .slice(0, 3)
+                  .slice(0, 2)
                   .map((provider) => (
                     <code key={provider.handle} className="rounded-[4px] bg-inset px-1 font-mono text-[11px] text-ink-2">@{provider.handle}</code>
                   ))}

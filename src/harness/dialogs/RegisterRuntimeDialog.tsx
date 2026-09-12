@@ -153,7 +153,7 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
 
           <div>
             <SectionLabel>ターミナルで実行</SectionLabel>
-            <CodeBlock variant="Code" filename="start-runtime.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
+            <CodeBlock fill variant="Code" filename="start-runtime.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
           </div>
 
           <div className="flex min-h-9 items-center gap-3 rounded-card bg-inset px-3 py-2.5 shadow-hairline">

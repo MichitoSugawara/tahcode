@@ -130,10 +130,10 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
 
       <div ref={composerRef} className="absolute inset-x-0 bottom-0 px-4 pb-5 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-[720px] flex-col gap-2">
-          {usable.length === 0 && (
+          {anyRuntime && usable.length === 0 && (
             <Notice
               tone="locked"
-              title={anyRuntime ? "いま使えるランタイムがありません" : "ランタイムが未登録です"}
+              title="いま使えるランタイムがありません"
               className="py-2"
               action={
                 <Button type="button" size="xs" variant="accent" onClick={() => org.openDialog({ kind: "registerRuntime" })}>
@@ -141,9 +141,7 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
                 </Button>
               }
             >
-              {anyRuntime
-                ? "登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできますが、エージェントの返信はランタイムが使えるようになるまで待機します。"
-                : "送信はできますが、エージェントの返信にはあなたのマシンで動く runtime が必要です。"}
+              登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできますが、エージェントの返信はランタイムが使えるようになるまで届きません。Runtime タブで状態と許可を確認してください。
             </Notice>
           )}
           <Composer chat={chat} tall placeholder={chat.kind === "dm" ? "返信…" : "返信（@codex などで指名）…"} />

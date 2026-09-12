@@ -37,7 +37,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
       <Route path="/welcome" element={guard(<WelcomePage />)} />
       <Route path="/o/:orgSlug" element={guard(<OrgLayout theme={theme} onToggleTheme={toggleTheme} />)}>

@@ -105,6 +105,23 @@
   box-shadow: var(--shadow-card);
 }
 
+/* streaming reply: the editor caret rides the end of the last block */
+.md-live .md > :last-child::after,
+.md-live .md > :last-child > li:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  translate: 0 2px;
+  border-radius: 1px;
+  background: var(--caret);
+}
+.md-live .md > ul:last-child::after,
+.md-live .md > ol:last-child::after {
+  content: none;
+}
+
 /* sheets (sidebar / rail below their breakpoints) */
 @keyframes sheet-in {
   from {

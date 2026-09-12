@@ -1,6 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 import { ArrowRight, Cpu, MessageSquare, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/atoms/Button";
 import { SegmentedControl } from "@/components/atoms/SegmentedControl";
@@ -17,6 +18,7 @@ const FLOWS = ["ログイン", "新規登録"] as const;
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -28,6 +30,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const next = params.get("next") ?? (location.state as { next?: string } | null)?.next ?? "/";
   const signUp = flow === "新規登録";
+
+  /* navigate only once the auth state has actually flipped, so a `next`
+   * target (invite link) never bounces back here mid-transition */
+  useEffect(() => {
+    if (isAuthenticated) navigate(next.startsWith("/") ? next : "/", { replace: true });
+  }, [isAuthenticated, next, navigate]);
 
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-canvas p-4 text-ink">
@@ -82,7 +90,6 @@ export default function LoginPage() {
                 data.set("flow", signUp ? "signUp" : "signIn");
                 if (signUp && name.trim()) data.set("name", name.trim());
                 await signIn("password", data);
-                navigate(next, { replace: true });
               } catch (e) {
                 const message = e instanceof Error ? e.message : "";
                 setError(

@@ -40,12 +40,39 @@ function splitFooter(body: string): { text: string; footer: { provider: string; 
   return { text: body.slice(0, match.index), footer: { provider: match[1] ?? "", seconds: match[2] ?? "", binary: match[3] ?? "" } };
 }
 
-/* StreamText's character reveal, made incremental: the revealed count only
- * ever catches up to the growing text (never restarts per chunk), the last
- * few characters carry the blur tail, and the caret holds solid while live. */
-function LiveText({ text, live }: { text: string; live: boolean }) {
+
+/* Runtime traces are raw provider protocol lines (JSONL from codex/claude/
+ * cursor). Reduce each to one readable row: reasoning text, a command, or
+ * the event type — never a wall of JSON. */
+function summarizeEvent(type: string, raw: string): ThinkingRow {
+  const text = raw.trim();
+  const clip = (value: string) => value.replace(/\s+/g, " ").slice(0, 96);
+  if (type === "tool") {
+    const [, label, rest] = /^([a-z_]+):\s*(.*)$/i.exec(text) ?? [];
+    return { primary: label ? label.replace(/_/g, " ") : "ツール", secondary: clip(rest ?? text), mono: true };
+  }
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as { type?: string; item?: { item_type?: string; type?: string; text?: string; command?: string } };
+      const item = parsed.item;
+      if (item?.text) return { primary: "思考", secondary: clip(item.text) };
+      if (item?.command) return { primary: "コマンド", secondary: clip(item.command), mono: true };
+      const label = [parsed.type, item?.item_type ?? item?.type].filter(Boolean).join(" · ");
+      return { primary: "イベント", secondary: clip(label || text), mono: true };
+    } catch {
+      /* not JSON after all */
+    }
+  }
+  return { primary: text.startsWith("Running ") ? "起動" : "思考", secondary: clip(text), mono: text.startsWith("Running ") };
+}
+
+/* StreamText's reveal, made incremental and markdown-aware: the revealed
+ * count only ever catches up to the growing text (never restarts per
+ * chunk), the partial markdown re-renders as it lands, and a caret rides
+ * the last block while the run is live. */
+function LiveMarkdown({ text, live }: { text: string; live: boolean }) {
   const [shown, setShown] = useState(live ? 0 : text.length);
-  const raf = useRef<number | null>(null);
+  const timer = useRef<number | null>(null);
   useEffect(() => {
     if (!live) {
       setShown(text.length);
@@ -57,24 +84,21 @@ function LiveText({ text, live }: { text: string; live: boolean }) {
       setShown((current) => {
         if (current >= text.length) return text.length;
         const gap = text.length - current;
-        return current + Math.max(2, Math.ceil(gap / 12));
+        return current + Math.max(3, Math.ceil(gap / 10));
       });
-      raf.current = window.setTimeout(tick, 16);
+      timer.current = window.setTimeout(tick, 30);
     };
     tick();
     return () => {
       cancelled = true;
-      if (raf.current) clearTimeout(raf.current);
+      if (timer.current) clearTimeout(timer.current);
     };
   }, [text, live]);
   const visible = text.slice(0, Math.min(shown, text.length));
-  const split = live ? Math.max(0, visible.length - 6) : visible.length;
   return (
-    <p className="max-w-[620px] text-[13.5px] leading-[1.65] whitespace-pre-wrap text-ink">
-      {visible.slice(0, split)}
-      {split < visible.length && <span className="stream-tail">{visible.slice(split)}</span>}
-      {live && <span className={`stream-caret${shown < text.length || live ? " is-streaming" : ""}`} />}
-    </p>
+    <div className={live ? "md-live" : undefined}>
+      <Markdown>{visible}</Markdown>
+    </div>
   );
 }
 
@@ -83,22 +107,20 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
   const [traceOpen, setTraceOpen] = useState(false);
-  const wantJob = !!message.jobId && (streaming || traceOpen || failed);
+  /* once we have watched a run live, keep its trace around after it settles */
+  const [seen, setSeen] = useState(false);
+  const wantJob = !!message.jobId && (streaming || traceOpen || failed || seen);
   const job = useQuery(api.jobs.get, wantJob && message.jobId ? { jobId: message.jobId } : "skip");
+  useEffect(() => {
+    if (job && streaming) setSeen(true);
+  }, [job, streaming]);
 
   const runtime = runtimes?.find((item) => item._id === message.runtimeId);
   const label = providerLabel(message.driverKind);
 
   const rows = useMemo<ThinkingRow[]>(() => {
     const events = job?.events ?? [];
-    return events
-      .filter((event) => event.type === "thinking" || event.type === "tool")
-      .map((event) => {
-        const text = event.text.trim().replace(/\s+/g, " ");
-        return event.type === "tool"
-          ? { primary: "ツール", secondary: text.slice(0, 96), mono: true }
-          : { primary: "思考", secondary: text.slice(0, 96) };
-      });
+    return events.filter((event) => event.type === "thinking" || event.type === "tool").map((event) => summarizeEvent(event.type, event.text));
   }, [job]);
 
   const streamedText = useMemo(() => {
@@ -157,13 +179,13 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
         </div>
       )}
 
-      {(streaming || traceOpen) && rows.length > 0 && (
+      {(streaming || traceOpen || seen) && rows.length > 0 && (
         <div className="mb-2">
           <ThinkingState
             fill
             variant="Steps"
             working={streaming}
-            defaultExpanded={streaming}
+            defaultExpanded={streaming || traceOpen}
             rows={rows}
             active={`実行中 · ${rows.length} ステップ`}
             done={`${rows.length} ステップ実行`}
@@ -171,7 +193,7 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
         </div>
       )}
 
-      {streaming && liveText.trim().length > 0 && <LiveText text={liveText} live />}
+      {streaming && liveText.trim().length > 0 && <LiveMarkdown text={liveText} live />}
 
       {!streaming && !failed && finalText.trim().length > 0 && (
         <div style={{ animation: "fade-in 260ms ease both" }}>
@@ -192,7 +214,7 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
               <ShieldCheck size={11} /> {footer.provider} · {footer.seconds}s · {footer.binary}
             </span>
           )}
-          {message.jobId && (
+          {message.jobId && !(seen && rows.length > 0) && (
             <button
               type="button"
               aria-expanded={traceOpen}

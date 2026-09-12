@@ -9,7 +9,7 @@ const filledShadow = "shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]";
 /* Pill-shaped by default — the app's core button style. Explicit symmetric
  * padding (not a fixed height) so the top/bottom spacing is always equal. */
 export const buttonVariants = cva(
-  `inline-flex items-center justify-center font-medium select-none
+  `inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap select-none
    transition-[transform,background-color,opacity] duration-150 ease-out
    active:scale-[0.96] disabled:opacity-50 disabled:pointer-events-none`,
   {

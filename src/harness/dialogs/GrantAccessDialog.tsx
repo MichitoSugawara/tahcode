@@ -199,7 +199,7 @@ export function GrantAccessDialog({
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-[12px] text-ink-3">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-relaxed text-ink-3">
             <StatusPill tone={runtime.canUse ? "green" : "neutral"} className="h-5 text-[11.5px]">
               {runtime.canUse ? "あなたは利用できます" : "あなたは利用できません"}
             </StatusPill>
