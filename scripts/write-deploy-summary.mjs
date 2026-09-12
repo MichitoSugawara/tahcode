@@ -1,26 +1,25 @@
-// Append the deploy URLs to the Actions step summary (falls back to stdout
-// when run outside Actions).
-//
-// Usage: CLOUDFLARE_URL=... CONVEX_URL=... node scripts/write-deploy-summary.mjs <preview|staging|production>
 import { appendFileSync } from "node:fs";
 
-const [name] = process.argv.slice(2);
-if (!name) {
-  console.error("Usage: node scripts/write-deploy-summary.mjs <name>");
-  process.exit(1);
-}
+const environment = process.argv[2] ?? "deploy";
 const cloudflareUrl = process.env.CLOUDFLARE_URL ?? "";
 const convexUrl = process.env.CONVEX_URL ?? "";
+
 const lines = [
-  `## Deploy: ${name}`,
+  `## ${environment}`,
   "",
-  `- Cloudflare: ${cloudflareUrl || "(unknown)"}`,
-  `- Convex: ${convexUrl || "(unknown)"}`,
+  cloudflareUrl ? `- **App:** ${cloudflareUrl}` : "- **App:** (missing)",
+  convexUrl ? `- **Convex:** ${convexUrl}` : null,
   "",
-];
-const summary = lines.join("\n");
-if (process.env.GITHUB_STEP_SUMMARY) {
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-} else {
-  console.log(summary);
+].filter((line) => line !== null);
+
+const body = `${lines.join("\n")}\n`;
+process.stdout.write(body);
+
+const summary = process.env.GITHUB_STEP_SUMMARY;
+if (summary) {
+  appendFileSync(summary, body);
+}
+
+if (cloudflareUrl) {
+  console.log(`::notice title=${environment} app::${cloudflareUrl}`);
 }

@@ -29,6 +29,8 @@ convex/_generated/
 .env.preview
 .env.staging
 .env.production
+# dotenvx key store (private keys; never commit)
+.env.keys
 
 # Editor directories and files
 .vscode/*

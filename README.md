@@ -123,6 +123,8 @@ npm run env:dec -- production   # 復号の確認（平文は捨てる）
 ```
 
 鍵（`DOTENV_PRIVATE_KEY_*` の値）は各自 `openssl rand -hex 32` 等で生成し、GitHub secret と手元で共有する。
+`env:enc` / `env:dec` 実行時は対応する `DOTENV_PRIVATE_KEY_<NAME>` をシェルに export すること
+（dotenvx がファイル名のサフィックスから鍵名を解決する。未設定だと `.env.keys` が生成されるが gitignore 済み）。
 初回は `.env.preview.enc` / `.env.staging.enc` / `.env.production.enc` が未コミットのため preview/staging/production
 ジョブは復号で失敗する。実シークレットは絶対にコミットしないこと。
 
