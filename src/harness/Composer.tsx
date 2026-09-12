@@ -8,8 +8,11 @@ import { Monogram } from "@/components/atoms/EntityChip";
 import PromptBar, { type PromptMenuItem, type PromptPicker } from "@/components/primitives/PromptBar";
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
-import { hasAgentMention } from "@/lib/mentions";
+import { MENTION_BOUNDARY, MENTION_HANDLE, hasAgentMention } from "@/lib/mentions";
 import { PROVIDERS, isProviderKind, providerHandle } from "@/lib/providers";
+
+/* the draft ends in an @token still being typed — hold the auto-mention hint */
+const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
 /* ─────────────────────────────────────────────────────────
  * COMPOSER — PromptBar wired to the org: @ agents + members,
@@ -79,7 +82,7 @@ export function Composer({
 
   const disabled = !chat;
   const isProject = chat?.kind === "project";
-  const typingMention = /(^|\s)@[\w./-]*$/.test(draft);
+  const typingMention = TYPING_MENTION.test(draft);
   const needsMention = isProject && draft.trim().length > 0 && !hasAgentMention(draft) && !typingMention;
   const handle = providerHandle(org.provider);
 

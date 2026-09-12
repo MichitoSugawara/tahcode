@@ -1,6 +1,7 @@
 import { ArrowUp, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { MentionText } from "@/components/atoms/MentionText";
+import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
 
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
@@ -50,9 +51,14 @@ export type PromptAttachment = { name: string; size?: number };
 
 type Token = { kind: "at" | "slash"; query: string; start: number };
 
+/* an @ opens after the same boundary the highlighter uses (so it also
+ * works mid-sentence in Japanese); a / command only at a word start */
+const AT_TOKEN = new RegExp(`${MENTION_BOUNDARY}(@)(${MENTION_HANDLE}*)$`);
+const SLASH_TOKEN = /(^|\s)(\/)([\w./-]*)$/;
+
 /* the last @word or /word being typed, if any */
 function parseToken(draft: string): Token | null {
-  const match = /(^|\s)([@/])([\w./-]*)$/.exec(draft);
+  const match = AT_TOKEN.exec(draft) ?? SLASH_TOKEN.exec(draft);
   if (!match) return null;
   return {
     kind: match[2] === "@" ? "at" : "slash",

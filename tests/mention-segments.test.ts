@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { segmentMentions } from "../src/lib/mentions.ts";
+import { hasAgentMention, segmentMentions } from "../src/lib/mentions.ts";
 
 describe("segmentMentions", () => {
   it("splits text around @handles, keeping the surrounding text intact", () => {
@@ -25,11 +25,28 @@ describe("segmentMentions", () => {
     expect(mentions.map((segment) => segment.value)).toEqual(["@agent", "@grok"]);
   });
 
+  it("highlights a mention after Japanese punctuation or a CJK word (no spaces)", () => {
+    const mentions = segmentMentions("確認して。@codex これを@claudeに頼む（@grok）").filter((segment) => segment.kind === "mention");
+    expect(mentions.map((segment) => segment.value)).toEqual(["@codex", "@claude", "@grok"]);
+  });
+
   it("leaves email-like text and a bare @ alone", () => {
-    expect(segmentMentions("mail me at foo@bar.com @")).toEqual([{ kind: "text", value: "mail me at foo@bar.com @" }]);
+    expect(segmentMentions("mail me at foo@bar.com or first.last+x@y.io @")).toEqual([
+      { kind: "text", value: "mail me at foo@bar.com or first.last+x@y.io @" },
+    ]);
   });
 
   it("returns nothing for an empty draft", () => {
     expect(segmentMentions("")).toEqual([]);
+  });
+});
+
+describe("hasAgentMention", () => {
+  it("uses the same boundary as the highlighter", () => {
+    expect(hasAgentMention("確認して。@codex")).toBe(true);
+    expect(hasAgentMention("これを@claudeに")).toBe(true);
+    expect(hasAgentMention("@cursor/muse-spark-1.3 で")).toBe(true);
+    expect(hasAgentMention("ask @mai")).toBe(false);
+    expect(hasAgentMention("codex@example.com")).toBe(false);
   });
 });

@@ -20,12 +20,18 @@ export function activeMentionQuery(text: string, cursor: number): string | null 
   return null;
 }
 
+/* What may precede an @: the start of the text or anything that can't be
+ * part of an email-like local part, so `foo@bar.com` stays plain while
+ * Japanese text such as `確認して。@codex` or `これを@claudeに` (no spaces)
+ * still reads as a mention — the server parser has no boundary at all. */
+export const MENTION_BOUNDARY = "(^|[^A-Za-z0-9_@.+-])";
+/* handle charset mirrors shared/mentions.ts, which already admits the
+ * `@provider/model` form like `@cursor/muse-spark-1.3` */
+export const MENTION_HANDLE = "[A-Za-z0-9_./-]";
+
 /* Display-side tokenizer shared by the message bubble and the composer
- * overlay so a mention is painted identically while typing and once sent.
- * The handle charset mirrors shared/mentions.ts (server parser), which
- * already admits `@provider/model` forms like `@cursor/muse-spark-1.3`;
- * unlike the server we require a leading boundary so emails stay plain. */
-const MENTION_TOKEN = /(^|\s)(@[a-zA-Z0-9_./-]+)/g;
+ * overlay so a mention is painted identically while typing and once sent. */
+const MENTION_TOKEN = new RegExp(`${MENTION_BOUNDARY}(@${MENTION_HANDLE}+)`, "g");
 
 export type MentionSegment = { kind: "text" | "mention"; value: string };
 
@@ -43,8 +49,11 @@ export function segmentMentions(text: string): MentionSegment[] {
   return segments;
 }
 
+const AGENT_MENTION = new RegExp(
+  `${MENTION_BOUNDARY}@(agent|harness|codex|claude|claudeagent|cursor|grok|opencode|antigravity|agy|rt-|runtime-)`,
+  "i",
+);
+
 export function hasAgentMention(text: string): boolean {
-  return /(^|\s)@(agent|harness|codex|claude|claudeagent|cursor|grok|opencode|antigravity|agy|rt-|runtime-)/i.test(
-    text,
-  );
+  return AGENT_MENTION.test(text);
 }
