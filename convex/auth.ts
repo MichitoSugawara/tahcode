@@ -12,6 +12,7 @@ import {
   isValidEmail,
   toConvexAuthError,
 } from "./lib/authErrors";
+import { resolveRedirectTo } from "./lib/authRedirect";
 import { allocateUniqueHandle, normalizeHandle } from "./lib/handles";
 
 declare const process: { env: Record<string, string | undefined> };
@@ -71,6 +72,21 @@ function withAuthErrorCodes(
  *   https://<deployment>.convex.site/api/auth/callback/google
  * Convex Auth treats OAuth emails as verified, so a Google sign-in links to an
  * existing user only if that user's email is verified too. */
+/* The macOS desktop shell (apps/desktop) finishes Google in the system browser
+ * and gets the code back through dalecode://auth/callback; the web keeps
+ * Convex Auth's default rule (relative paths or SITE_URL). */
+async function redirect({
+  redirectTo,
+}: {
+  redirectTo: string;
+}): Promise<string> {
+  const siteUrl = process.env.SITE_URL;
+  if (!siteUrl) {
+    throw new Error("Missing environment variable SITE_URL");
+  }
+  return resolveRedirectTo(redirectTo, siteUrl);
+}
+
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   callbacks: {
     afterUserCreatedOrUpdated: async (ctx, args) => {
@@ -85,6 +101,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         await ctx.db.patch("users", args.userId, { handle });
       }
     },
+    redirect,
   },
   providers: [withAuthErrorCodes(password), Google],
 });

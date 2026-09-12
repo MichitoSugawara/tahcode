@@ -17,6 +17,7 @@ import { Button } from "@/components/atoms/Button";
 import { SegmentedControl } from "@/components/atoms/SegmentedControl";
 import { Brand } from "@/harness/ui/Brand";
 import { FieldError, InlineError, Input, Label } from "@/harness/ui/Field";
+import { oauthLeavesApp, oauthRedirectTo } from "@/lib/desktop";
 import { useDocumentTitle } from "@/lib/title";
 
 import { api } from "../../convex/_generated/api";
@@ -140,6 +141,8 @@ export default function LoginPage() {
   const signUp = flowLabel === "新規登録";
   const flow: AuthFlow = signUp ? "signUp" : "signIn";
   const googleEnabled = providers === undefined ? true : providers.google;
+  /* desktop shell: Google opens in the system browser and this window waits */
+  const inShell = oauthLeavesApp();
   const busy = pending !== null;
   useDocumentTitle(signUp ? "新規登録" : "ログイン");
 
@@ -262,12 +265,13 @@ export default function LoginPage() {
     }
     try {
       /* land back here so `next` survives the round trip; the provider
-       * exchanges the `code` on load and the effect above moves on */
-      const redirectTo =
-        safeNext === "/"
-          ? "/login"
-          : `/login?next=${encodeURIComponent(safeNext)}`;
-      await withTimeout(signIn("google", { redirectTo }), SIGN_IN_TIMEOUT_MS);
+       * exchanges the `code` on load and the effect above moves on. Inside the
+       * desktop shell the return address is its dalecode:// deep link instead;
+       * the shell reloads this page with the code (src/lib/desktop.ts). */
+      await withTimeout(
+        signIn("google", { redirectTo: oauthRedirectTo(safeNext) }),
+        SIGN_IN_TIMEOUT_MS
+      );
       /* the browser is navigating away now; stay busy */
     } catch (error) {
       try {
@@ -287,6 +291,17 @@ export default function LoginPage() {
             : "Google でのログインを開始できませんでした。時間をおいてもう一度お試しください",
       });
     }
+  };
+
+  /* the shell keeps this page while the browser runs Google; let the user
+   * back out if they closed that tab instead of finishing */
+  const cancelGoogle = () => {
+    try {
+      sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    } catch {
+      /* ignore */
+    }
+    setPending(null);
   };
 
   const autoFocusEmail =
@@ -380,9 +395,23 @@ export default function LoginPage() {
             >
               <GoogleMark />
               {pending === "google"
-                ? "Google に移動しています…"
+                ? inShell
+                  ? "ブラウザで続けてください…"
+                  : "Google に移動しています…"
                 : "Google で続ける"}
             </Button>
+            {pending === "google" && inShell && (
+              <p className="text-ink-3 -mt-1.5 text-center text-[11.5px] leading-relaxed">
+                ログインが完了すると自動でこのウィンドウに戻ります。
+                <button
+                  type="button"
+                  className="text-accent-ink ml-1 font-medium hover:underline"
+                  onClick={cancelGoogle}
+                >
+                  キャンセル
+                </button>
+              </p>
+            )}
             {!googleEnabled && (
               <p
                 className="text-ink-3 -mt-1.5 text-center text-[11.5px] leading-relaxed"
