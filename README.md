@@ -8,7 +8,7 @@ Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트
 
 UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと
 [/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、
-配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ダークが既定。
+配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。
 プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts`
 （Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。
 Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない）。
