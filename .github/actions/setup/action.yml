@@ -1,0 +1,14 @@
+name: Setup
+description: Install Node and dependencies from package-lock.json
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci

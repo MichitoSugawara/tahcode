@@ -1,0 +1,85 @@
+name: Deploy stack
+description: Decrypt env, deploy Convex and Cloudflare, then sync Convex Auth env
+
+inputs:
+  name:
+    required: true
+    description: preview, staging, or production
+  dotenv_file:
+    required: true
+  wrangler_args:
+    required: true
+    description: Arguments after wrangler, e.g. deploy --env staging
+  preview_name:
+    required: false
+    default: ""
+  convex_env_extra:
+    required: false
+    default: ""
+    description: Extra args for convex env set, e.g. --prod or --deployment preview/foo
+
+outputs:
+  cloudflare_url:
+    description: Deployed Cloudflare URL
+    value: ${{ steps.cf.outputs.cloudflare_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decrypt env
+      shell: bash
+      run: node scripts/env.mjs decrypt ${{ inputs.name }}
+
+    - name: Mask decrypted secrets
+      shell: bash
+      run: node scripts/mask-env.mjs ${{ inputs.dotenv_file }}
+
+    - name: Deploy Convex and build the Worker
+      shell: bash
+      run: |
+        extra=()
+        if [ -n "${{ inputs.preview_name }}" ]; then
+          extra+=(--preview-name "${{ inputs.preview_name }}")
+        fi
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx convex deploy \
+          "${extra[@]}" \
+          --cmd-url-env-var-name VITE_CONVEX_URL \
+          --cmd 'echo "CONVEX_URL=$VITE_CONVEX_URL" >> "$GITHUB_ENV" && npm run cf:build'
+
+    - name: Deploy Cloudflare
+      id: cf
+      shell: bash
+      run: |
+        set -o pipefail
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
+          | tee /tmp/wrangler.out
+        node scripts/extract-preview-url.mjs < /tmp/wrangler.out
+
+    - name: Point Convex Auth at the Worker
+      shell: bash
+      env:
+        SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+        CONVEX_ENV_EXTRA: ${{ inputs.convex_env_extra }}
+      run: |
+        if [ -z "${SITE_URL}" ]; then
+          echo "Could not parse the Cloudflare URL; refusing to set Convex SITE_URL."
+          exit 1
+        fi
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- \
+          npx convex env set "SITE_URL=${SITE_URL}" ${CONVEX_ENV_EXTRA}
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- bash -lc '
+          if [ -n "${JWT_PRIVATE_KEY:-}" ]; then
+            npx convex env set "JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}" ${CONVEX_ENV_EXTRA}
+          else
+            echo "JWT_PRIVATE_KEY is empty; sign-in will fail until the env file is updated."
+          fi
+          if [ -n "${JWKS:-}" ]; then
+            npx convex env set "JWKS=${JWKS}" ${CONVEX_ENV_EXTRA}
+          fi
+        '
+
+    - name: Show deploy URLs
+      shell: bash
+      env:
+        CLOUDFLARE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+      run: node scripts/write-deploy-summary.mjs ${{ inputs.name }}

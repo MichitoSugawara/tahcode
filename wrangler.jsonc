@@ -13,5 +13,16 @@
       "binding": "FILES",
       "bucket_name": "team-harness-files"
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "team-harness-staging",
+      "r2_buckets": [
+        {
+          "binding": "FILES",
+          "bucket_name": "team-harness-files-staging"
+        }
+      ]
+    }
+  }
 }

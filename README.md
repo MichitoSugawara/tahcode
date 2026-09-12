@@ -88,6 +88,52 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
 
+## CI/CD（Convex + Cloudflare）
+
+`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。
+共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` → `convex deploy --cmd cf:build`
+（`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` /
+`JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。
+
+### GitHub に設定する secrets（リポジトリ Settings → Secrets）
+
+| secret | 用途 |
+|---|---|
+| `DOTENV_PRIVATE_KEY_PREVIEW` | `.env.preview.enc` の復号鍵 |
+| `DOTENV_PRIVATE_KEY_STAGING` | `.env.staging.enc` の復号鍵 |
+| `DOTENV_PRIVATE_KEY_PRODUCTION` | `.env.production.enc` の復号鍵 |
+
+各 `.env.<name>`（平文・gitignore、`.env.<name>.enc` のみコミット）が持つ変数:
+
+| 変数 | 用途 |
+|---|---|
+| `CONVEX_DEPLOY_KEY` | `convex deploy` / `convex env set` の認証 |
+| `CLOUDFLARE_API_TOKEN` | wrangler の認証 |
+| `CLOUDFLARE_ACCOUNT_ID` | wrangler のデプロイ先 |
+| `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth の署名鍵（本番・staging・preview deploy ごとに設定される） |
+
+`VITE_CONVEX_URL` は CI が自動注入するため保存不要。
+
+### env ファイルの運用
+
+```bash
+# .env.example を元に .env.production を作る（平文・コミット禁止）
+npm run env:enc -- production   # .env.production.enc を生成 → コミットする
+npm run env:dec -- production   # 復号の確認（平文は捨てる）
+```
+
+鍵（`DOTENV_PRIVATE_KEY_*` の値）は各自 `openssl rand -hex 32` 等で生成し、GitHub secret と手元で共有する。
+初回は `.env.preview.enc` / `.env.staging.enc` / `.env.production.enc` が未コミットのため preview/staging/production
+ジョブは復号で失敗する。実シークレットは絶対にコミットしないこと。
+
+### Environments と wrangler
+
+- preview: `wrangler versions upload --preview-alias pr-<番号>`（環境 `preview`、PR に URL コメント）
+- staging: `wrangler deploy --env staging`（`team-harness-staging` + `team-harness-files-staging`）
+- production: `wrangler deploy --env=""`（トップレベル `team-harness` + `team-harness-files`）+ `convex --prod`
+
+R2 バケット（`team-harness-files` / `team-harness-files-staging`）は初回デプロイ前に作成すること。
+
 ## 開発コマンド
 
 ```bash

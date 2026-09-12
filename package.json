@@ -16,7 +16,10 @@
     "typecheck": "tsc -b && tsc -p tsconfig.convex.json --noEmit && tsc -p tsconfig.runtime.json --noEmit",
     "test": "vitest run",
     "runtime": "tsx runtime/src/cli.ts",
-    "setup:local-auth": "node scripts/setup-local-auth.mjs"
+    "setup:local-auth": "node scripts/setup-local-auth.mjs",
+    "cf:build": "node scripts/cf-build.mjs",
+    "env:enc": "node scripts/env.mjs encrypt",
+    "env:dec": "node scripts/env.mjs decrypt"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
@@ -50,6 +53,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.25.2",
     "@convex-dev/eslint-plugin": "^1.1.1",
+    "@dotenvx/dotenvx": "^2.24.1",
     "@eslint/js": "^9.39.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.13.3",
