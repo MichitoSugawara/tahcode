@@ -5,8 +5,8 @@
  * tokens are kept verbatim as --dg-* so the mapping below stays
  * auditable; everything the UI paints with is a Beautiful UI token
  * (--page, --surface, --ink, --line, --accent, …) resolved from them.
- * Dark is the default; light keeps Beautiful UI's cool neutrals with
- * the same green accent so the brand survives a theme flip.
+ * Light is the default and keeps Beautiful UI's cool neutrals with the
+ * green accent; dark (opt-in via `.dark`) is the full Dark Green+ palette.
  * ══════════════════════════════════════════════════════════ */
 
 :root {

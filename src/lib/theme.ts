@@ -4,11 +4,12 @@ export type Theme = "dark" | "light";
 
 const KEY = "bui-theme";
 
-function read(): Theme {
+/** Light is the default; only an explicitly saved "dark" opts in. */
+export function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem(KEY) === "light" ? "light" : "dark";
+    return localStorage.getItem(KEY) === "dark" ? "dark" : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 
@@ -19,11 +20,12 @@ export function applyTheme(theme: Theme) {
   root.classList.add("theme-switching");
   root.classList.toggle("dark", theme === "dark");
   root.style.colorScheme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0b140b" : "#f1f2f3");
   requestAnimationFrame(() => root.classList.remove("theme-switching"));
 }
 
 export function useTheme(): [Theme, () => void] {
-  const [theme, setTheme] = useState<Theme>(read);
+  const [theme, setTheme] = useState<Theme>(readStoredTheme);
   useEffect(() => {
     applyTheme(theme);
     try {

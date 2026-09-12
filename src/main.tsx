@@ -8,10 +8,10 @@ import { Toaster } from "sonner";
 import App from "./App.tsx";
 import "./index.css";
 import { convex } from "./lib/convex.ts";
-import { applyTheme } from "./lib/theme.ts";
+import { applyTheme, readStoredTheme } from "./lib/theme.ts";
 
-/* paint in the stored theme (dark by default) before React mounts */
-applyTheme(localStorage.getItem("bui-theme") === "light" ? "light" : "dark");
+/* paint in the stored theme (light by default) before React mounts */
+applyTheme(readStoredTheme());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

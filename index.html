@@ -1,19 +1,20 @@
 <!doctype html>
-<html lang="ja" class="dark">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#0b140b" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f1f2f3" />
     <title>dalecode</title>
     <script>
       (function () {
+        /* light is the default; only an explicit saved "dark" opts in */
         try {
           var t = localStorage.getItem("bui-theme");
-          document.documentElement.classList.toggle("dark", t !== "light");
+          document.documentElement.classList.toggle("dark", t === "dark");
         } catch (e) {
-          document.documentElement.classList.add("dark");
+          /* private mode: fall through to light */
         }
       })();
     </script>
