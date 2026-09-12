@@ -15,7 +15,8 @@
     "lint": "eslint convex src runtime worker shared --max-warnings=0",
     "typecheck": "tsc -b && tsc -p tsconfig.convex.json --noEmit && tsc -p tsconfig.runtime.json --noEmit",
     "test": "vitest run",
-    "runtime": "tsx runtime/src/cli.ts"
+    "runtime": "tsx runtime/src/cli.ts",
+    "setup:local-auth": "node scripts/setup-local-auth.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
@@ -36,6 +37,7 @@
     "clsx": "^2.1.1",
     "convex": "^1.31.2",
     "convex-helpers": "^0.1.114",
+    "jose": "^5.2.2",
     "lucide-react": "^0.562.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

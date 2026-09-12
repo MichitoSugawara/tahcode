@@ -38,6 +38,9 @@ npm install --legacy-peer-deps
 # 1) Convex（匿名エージェントモード。Convex アカウント不要）
 CONVEX_AGENT_MODE=anonymous npx convex dev
 
+# 1b) Convex Auth 用の鍵をローカル backend に登録（初回のみ）
+npm run setup:local-auth
+
 # 2) Web（別ターミナル）
 npm run dev        # http://127.0.0.1:43173
 
