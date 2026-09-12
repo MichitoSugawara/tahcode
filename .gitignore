@@ -53,5 +53,5 @@ packages/cli/dist/
 .env.local
 
 # Desktop shell (Electron) build output
-apps/desktop/dist/
+apps/desktop/out/
 apps/desktop/release/

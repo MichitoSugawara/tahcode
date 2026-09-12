@@ -11,9 +11,12 @@ directories:
   buildResources: build
 
 files:
-  - dist/**/*
+  - out/**/*
   - package.json
-  - "!dist/**/*.map"
+  - "!out/**/*.map"
+  # electron-vite inlines everything the shell needs (including @dalecode/core);
+  # never ship node_modules — in an npm workspace the hoisted root tree would be picked up.
+  - "!node_modules/**/*"
 
 asar: true
 npmRebuild: false

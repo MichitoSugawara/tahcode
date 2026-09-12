@@ -1,5 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { DEEP_LINK_SCHEME, DESKTOP_OAUTH_CALLBACK, type OAuthStrategy } from "@dalecode/core/desktop";
+
+export { DEEP_LINK_SCHEME, DESKTOP_OAUTH_CALLBACK, type OAuthStrategy };
 
 /* ─────────────────────────────────────────────────────────
  * Which dalecode deployment the shell loads.
@@ -19,12 +22,6 @@ export const SERVER_PRESETS: Record<ServerPreset, { label: string; url: string }
   staging: { label: "Staging", url: "https://team-harness-staging.gawara.workers.dev" },
   local: { label: "Local (127.0.0.1:43173)", url: "http://127.0.0.1:43173" },
 };
-
-export type OAuthStrategy = "system-browser" | "in-app";
-
-export const DEEP_LINK_SCHEME = "dalecode";
-/* Must match the allow-list in convex/auth.ts (`callbacks.redirect`). */
-export const OAUTH_CALLBACK_URL = `${DEEP_LINK_SCHEME}://auth/callback`;
 
 export interface ShellConfig {
   /** Origin the window is allowed to navigate within, e.g. https://team-harness.gawara.workers.dev */

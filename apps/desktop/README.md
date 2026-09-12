@@ -1,9 +1,10 @@
-# dalecode Desktop（macOS シェル）
+# dalecode Desktop（macOS シェル）— `@dalecode/desktop`
 
-dalecode の Web アプリ（https://team-harness.gawara.workers.dev）を包む **Electron** 製のデスクトップシェル。
-UI は一切バンドルせず、デプロイ済みの Web をそのまま読み込む（既定は production。環境変数で staging / local に切替）。
-シェル側が持つのは「ハード化した BrowserWindow」「ナビゲーションの境界」「Google OAuth をシステムブラウザで回して
-`dalecode://` で戻す仕組み」の 3 点だけ。
+dalecode の Web アプリ（https://team-harness.gawara.workers.dev）を包む **Electron + electron-vite** 製のデスクトップシェル。
+[Multica](https://github.com/multica-ai/multica) と同じく **1 つのモノレポに Web と Desktop を置き、共有パッケージ + 薄いシェル**で構成する
+（レイアウトの対応表はルート README の「リポジトリ構成」）。UI は一切バンドルせず、デプロイ済みの Web をそのまま読み込む
+（既定は production。環境変数で staging / local に切替）。シェル側が持つのは「ハード化した BrowserWindow」「ナビゲーションの境界」
+「Google OAuth をシステムブラウザで回して `dalecode://` で戻す仕組み」の 3 点だけで、Web と共有する契約は `@dalecode/core/desktop` にある。
 
 ![Home (3 ペイン) を Electron で表示](../../docs/desktop-screenshots/04-home-three-pane.png)
 
@@ -12,22 +13,22 @@ UI は一切バンドルせず、デプロイ済みの Web をそのまま読み
 前提: macOS 12+、Node 22+、npm、Xcode Command Line Tools（`xcode-select --install`。dmg 作成に `hdiutil` を使う）。
 
 ```bash
-# リポジトリのルートで
-npm run desktop:install      # apps/desktop の依存（Electron 本体を含む）をインストール
+# リポジトリのルートで（npm workspaces: apps/* と packages/* が 1 つの lockfile に入る）
+npm install --legacy-peer-deps   # Electron 本体は初回起動時に取得される
 
-# 開発起動（production の Web を読み込む）
+# 開発起動（electron-vite dev: main / preload を watch、production の Web を読み込む）
 npm run desktop:dev
 
-# .app（未署名、release/mac-arm64/dalecode.app）— Google ログインの deep link 検証はこちらで
+# .app（未署名、apps/desktop/release/mac-arm64/dalecode.app）— Google ログインの deep link 検証はこちらで
 npm run desktop:pack
 
-# 配布物: release/dalecode-0.1.0-mac-arm64.dmg / .zip
+# 配布物: apps/desktop/release/dalecode-0.1.0-mac-arm64.dmg / .zip
 npm run desktop:build
 open apps/desktop/release/dalecode-0.1.0-mac-arm64.dmg
 ```
 
-`apps/desktop` 内で直接叩く場合: `npm run dev` / `npm run pack` / `npm run dist:mac`（arm64）/
-`npm run dist:mac:universal`（arm64 + x64 の Universal）/ `npm run dist:mac:intel`。
+ワークスペース指定で直接叩く場合: `npm run <script> -w @dalecode/desktop`（`dev` / `build` / `pack` / `dist:mac`（arm64）/
+`dist:mac:universal`（arm64 + x64）/ `dist:mac:intel` / `smoke`）。
 
 未署名の .app なので、初回は Finder で **右クリック → 開く**（または `xattr -dr com.apple.quarantine <path>.app`）。
 自分の Mac でビルドした .app には quarantine 属性が付かないため、そのまま開ける。Apple Silicon 向けには
@@ -65,25 +66,34 @@ Rust で書くネイティブ機能がない。Chromium との描画一致と、
 ## アーキテクチャ
 
 ```
-apps/desktop/
-├── src/main/index.ts      # app ライフサイクル、BrowserWindow、ナビゲーション境界、deep link、smoke モード
-├── src/main/config.ts     # 接続先の解決（--url / env / settings.json / production）
-├── src/main/deepLink.ts   # dalecode://auth/callback → /login?code=… の変換
-├── src/main/menu.ts       # macOS メニュー（Edit/View/Server/Window/Help）
-├── src/main/fallback.ts   # オフライン時の data: URL ページ（再接続ボタン）
-├── src/preload/index.ts   # contextBridge → window.dalecodeDesktop（version / platform / oauthRedirectTo）
-├── build.mjs              # esbuild: main.cjs / preload.cjs（sandbox preload は CJS 必須）
-├── electron-builder.yml   # appId, protocols(dalecode), mac dmg/zip, entitlements, identity: null
-├── build/                 # icon.png（scripts/make-icon.mjs が生成）, entitlements.mac.plist
-└── scripts/smoke.mjs      # 起動 → 描画 → PNG 保存 → 終了（CI / VM 用）
+apps/desktop/                       # @dalecode/desktop（Multica の apps/desktop と同じ electron-vite 構成）
+├── electron.vite.config.ts         # main / preload のみビルド（renderer はデプロイ済み Web を URL で読む）
+├── src/main/index.ts               # app ライフサイクル、BrowserWindow、ナビゲーション境界、deep link、smoke モード
+├── src/main/config.ts              # 接続先の解決（--url / env / settings.json / production）
+├── src/main/deepLink.ts            # @dalecode/core/desktop の re-export（parse / loginReturnUrl）
+├── src/main/menu.ts                # macOS メニュー（Edit/View/Server/Window/Help）
+├── src/main/fallback.ts            # オフライン時の data: URL ページ（再接続ボタン）
+├── src/preload/index.ts            # contextBridge → window.dalecodeDesktop（DalecodeDesktopBridge 型を実装）
+├── electron-builder.yml            # appId, protocols(dalecode), mac dmg/zip, entitlements, identity: null
+├── build/                          # icon.png（scripts/make-icon.mjs が生成）, entitlements.mac.plist
+└── scripts/smoke.mjs               # 起動 → 描画 → PNG 保存 → 終了（CI / VM 用）
+out/                                # electron-vite の出力（main/index.js, preload/index.js。CJS）
+
+packages/core/src/desktop/index.ts  # @dalecode/core/desktop — Web / Convex / Desktop が共有する契約:
+                                    #   DEEP_LINK_SCHEME, DESKTOP_OAUTH_CALLBACK, DalecodeDesktopBridge,
+                                    #   desktopOAuthRedirectTo, parseAuthCallback, loginReturnUrl, resolveRedirectTo
 ```
 
-Web 側の変更（同じ PR）:
+`@dalecode/core` は TS ソースをそのまま `exports` する（Multica の `@multica/core` と同じ、ビルド工程なし）。
+Vite / Convex のバンドラ / electron-vite がそれぞれ取り込む。preload は sandbox で `require("electron")` 以外を読めないため、
+`externalizeDepsPlugin({ exclude: ["@dalecode/core"] })` で単一 CJS にインライン化している。
 
-- `src/lib/desktop.ts` — ブリッジの型と `oauthRedirectTo(next)` ヘルパ。ブラウザでは undefined → 従来動作。
+Web / Convex 側（同じ PR）:
+
+- `src/lib/desktop.ts` — `window.dalecodeDesktop` を読む薄いアクセサ。型は `@dalecode/core/desktop`。ブラウザでは undefined → 従来動作。
 - `src/pages/LoginPage.tsx` — 「Google で続ける」が `redirectTo` にシェル用アドレスを渡す。待機中のラベルとキャンセル。
-- `convex/lib/authRedirect.ts` + `convex/auth.ts` — Convex Auth の `callbacks.redirect` で `dalecode://auth/callback` を**厳密一致**で許可
-  （それ以外は既定ルール = 相対パス / `SITE_URL` のまま。`tests/authRedirect.test.ts`）。
+- `convex/lib/authRedirect.ts`（`@dalecode/core/desktop` の re-export）+ `convex/auth.ts` — Convex Auth の `callbacks.redirect` で
+  `dalecode://auth/callback` を**厳密一致**で許可（それ以外は既定ルール = 相対パス / `SITE_URL` のまま。`tests/authRedirect.test.ts`）。
 
 ### セキュリティ境界
 
@@ -142,9 +152,10 @@ Google Cloud Console 側の **Authorized redirect URIs は変更不要**（コ�
 
 `.github/workflows/desktop.yml`:
 
-- `linux-check`（PR / push で `apps/desktop/**` が変わったとき）: `npm ci` → typecheck → esbuild → **xvfb 上で 3 回起動**
+- `linux-check`（PR / push で `apps/desktop/**` / `packages/core/**` / lockfile が変わったとき）: ルートの `npm ci`（共通 setup action）→
+  `packages/core` と shell の typecheck → `npm test` → `electron-vite build` → **xvfb 上で 3 回起動**
   （production 読み込み / `dalecode://` 疑似コールバック / オフラインフォールバック）→ スクリーンショットを artifact に →
-  `electron-builder --linux dir` で packaging 設定を検証。
+  `electron-builder --linux dir --projectDir apps/desktop` で packaging 設定を検証。
 - `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で **未署名** の arm64 `.dmg` / `.zip` を artifact に。
 
 ローカルの同等コマンド: `npm run desktop:smoke -- /tmp/shell.png`（`DISPLAY` がなければ `xvfb-run` を自動使用）。

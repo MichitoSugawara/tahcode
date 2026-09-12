@@ -142,7 +142,7 @@ function createWindow(): void {
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0b140b" : "#f4f5f6",
     titleBarStyle: "default",
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
