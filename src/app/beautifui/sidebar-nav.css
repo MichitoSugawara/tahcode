@@ -72,10 +72,3 @@
     filter: none !important;
   }
 }
-
-/* ── records table ────────────────────────────────────────
- * The grid is deliberately more architectural than card-like:
- * one quiet surface, precise rules, and color reserved for
- * meaning. The first column remains an anchor while both axes
- * can move independently inside the table viewport.
- */
