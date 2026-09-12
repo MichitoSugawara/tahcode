@@ -1,29 +1,45 @@
 import { Check } from "lucide-react";
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ComponentProps, ReactNode, TextareaHTMLAttributes } from "react";
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { cn } from "@/lib/utils";
 
 /* Form primitives in Beautiful UI's field grammar: recessed field
  * surface, hairline ring, strong ring on focus, 13px ink. */
 
-export function Label({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
+export function Label({ children, hint, htmlFor }: { children: ReactNode; hint?: ReactNode; htmlFor?: string }) {
+  const Tag = htmlFor ? "label" : "span";
   return (
     <div className="mb-1.5 flex items-baseline justify-between gap-3">
-      <span className="text-[12.5px] font-medium text-ink-2">{children}</span>
+      <Tag htmlFor={htmlFor} className="text-[12.5px] font-medium text-ink-2">
+        {children}
+      </Tag>
       {hint && <span className="text-[11.5px] text-ink-3">{hint}</span>}
     </div>
   );
 }
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+/* `ComponentProps` (not `InputHTMLAttributes`) so callers can pass `ref` —
+ * React 19 forwards it as a regular prop. */
+export function Input({ className, invalid, ...props }: ComponentProps<"input"> & { invalid?: boolean }) {
   return (
     <input
       {...props}
+      aria-invalid={invalid || props["aria-invalid"]}
       className={cn(
         "h-9 w-full rounded-control bg-field px-3 text-[13px] text-ink shadow-hairline outline-none transition-[box-shadow] duration-150 placeholder:text-ink-3 focus:shadow-[0_0_0_1px_var(--line-strong)] disabled:opacity-60",
+        invalid && "shadow-[0_0_0_1px_var(--red)] focus:shadow-[0_0_0_1px_var(--red)]",
         className,
       )}
     />
+  );
+}
+
+/** Per-field validation message; pair with `aria-describedby` on the input. */
+export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <p id={id} role="alert" className="mt-1.5 text-[12px] leading-snug text-red" style={{ animation: "fade-in 150ms ease-out both" }}>
+      {children}
+    </p>
   );
 }
 
