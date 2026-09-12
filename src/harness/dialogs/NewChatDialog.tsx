@@ -5,12 +5,17 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
+import { AgentPicker } from "@/harness/ui/AgentPicker";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, InlineError, Input, Label } from "@/harness/ui/Field";
+import { agentMention, type ProviderDriverKind } from "@/lib/providers";
 
 /* ─────────────────────────────────────────────────────────
  * NEW CHAT — pick a project (or the personal DM), name it,
- * choose whether it inherits the project's visibility.
+ * choose whether it inherits the project's visibility, and bind
+ * the agent (provider + model) the chat runs on. The binding is
+ * stored on the chat, so its first message and every auto-mention
+ * use `@provider/model` — not whatever this browser last picked.
  * ───────────────────────────────────────────────────────── */
 
 type Target = "dm" | Id<"projects">;
@@ -24,11 +29,15 @@ export function NewChatDialog({
   onOpenChange: (open: boolean) => void;
   initialProjectId?: Id<"projects">;
 }) {
-  const { projects, dmId, goChat, openDialog } = useOrg();
+  const org = useOrg();
+  const { projects, dmId, goChat, openDialog } = org;
   const createChat = useMutation(api.chats.createProjectChat);
+  const bindChat = useMutation(api.chats.setAgent);
   const [target, setTarget] = useState<Target | null>(initialProjectId ?? null);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"inherit" | "private">("inherit");
+  const [driverKind, setDriverKind] = useState<ProviderDriverKind>(org.provider);
+  const [model, setModel] = useState<string | null>(org.model);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,8 +46,11 @@ export function NewChatDialog({
       setTarget(initialProjectId ?? (projects && projects.length > 0 ? (projects[0]?._id ?? null) : null));
       setTitle("");
       setVisibility("inherit");
+      setDriverKind(org.provider);
+      setModel(org.model);
       setError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialProjectId, projects]);
 
   const projectOptions = (projects ?? []).map((project) => ({
@@ -49,23 +61,26 @@ export function NewChatDialog({
   }));
 
   const isDm = target === "dm";
+  const mention = agentMention(driverKind, model);
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title="新しいチャット"
-      description="プロジェクトチャットでは @codex や @claude のメンションでエージェントが応答します。Personal DM は常時応答です。"
-      width={480}
+      description="チャットにはエージェント（プロバイダとモデル）を結びつけます。プロジェクトチャットでは @cursor/muse-spark-1.3 のようなメンションで応答し、Personal DM は常時応答です。"
+      width={520}
       footer={
         <>
-          <span className="text-[12px] text-ink-3">{isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"}</span>
-          <div className="flex items-center gap-1.5">
+          <span className="min-w-0 truncate text-[12px] text-ink-3">
+            {isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"} · <code className="font-mono text-ink-2">{mention}</code>
+          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               キャンセル
             </Button>
             <Button type="submit" form="new-chat" variant="accent" size="sm" disabled={!target || busy}>
-              {isDm ? "DM を開く" : busy ? "作成中…" : "チャットを作成"}
+              {isDm ? (busy ? "設定中…" : "DM を開く") : busy ? "作成中…" : "チャットを作成"}
             </Button>
           </div>
         </>
@@ -77,15 +92,25 @@ export function NewChatDialog({
         onSubmit={async (event) => {
           event.preventDefault();
           if (!target || busy) return;
-          if (target === "dm") {
-            if (dmId) goChat(dmId);
-            onOpenChange(false);
-            return;
-          }
           setBusy(true);
           setError(null);
           try {
-            const chatId = await createChat({ projectId: target, title: title.trim() || "新しいチャット", visibility });
+            org.setAgent(driverKind, model);
+            if (target === "dm") {
+              if (dmId) {
+                await bindChat({ chatId: dmId, driverKind, model: model ?? undefined });
+                goChat(dmId);
+              }
+              onOpenChange(false);
+              return;
+            }
+            const chatId = await createChat({
+              projectId: target,
+              title: title.trim() || "新しいチャット",
+              visibility,
+              driverKind,
+              model: model ?? undefined,
+            });
             onOpenChange(false);
             goChat(chatId);
           } catch (e) {
@@ -143,6 +168,20 @@ export function NewChatDialog({
               />
             </div>
           </>
+        )}
+
+        {target && (
+          <div>
+            <Label hint="あとからコンポーザのピッカーでも変更できます">エージェント</Label>
+            <AgentPicker
+              driverKind={driverKind}
+              model={model}
+              onChange={(kind, next) => {
+                setDriverKind(kind);
+                setModel(next);
+              }}
+            />
+          </div>
         )}
         {error && <InlineError>{error}</InlineError>}
       </form>

@@ -1,4 +1,9 @@
-import { MENTION_TO_PROVIDER, type ProviderDriverKind } from "./providers.ts";
+import {
+  MENTION_TO_PROVIDER,
+  isValidModelSlug,
+  resolveModelSlug,
+  type ProviderDriverKind,
+} from "./providers.ts";
 
 export type MentionKind = "user" | "runtime" | "provider" | "agent";
 
@@ -7,6 +12,15 @@ export type ParsedMention = {
   handle: string;
   raw: string;
   providerKind?: ProviderDriverKind;
+  /** `@provider/model` — the model slug after the first slash, alias-resolved. */
+  model?: string;
+};
+
+/** Provider + optional model a message should run with. */
+export type AgentTarget = {
+  driverKind: ProviderDriverKind;
+  /** `undefined` = the CLI's own default model (no model flag). */
+  model?: string;
 };
 
 const MENTION_RE = /@([a-zA-Z0-9_./-]+)/g;
@@ -15,25 +29,39 @@ export function parseMentions(text: string): ParsedMention[] {
   const found: ParsedMention[] = [];
   const seen = new Set<string>();
   for (const match of text.matchAll(MENTION_RE)) {
-    const handle = match[1];
+    // Sentence punctuation right after a handle ("@claude." / "@cursor/") is
+    // not part of it.
+    const handle = match[1]?.replace(/[./]+$/, "");
     if (!handle) continue;
     const key = handle.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    found.push(classifyMention(handle, match[0] ?? `@${handle}`));
+    found.push(classifyMention(handle));
   }
   return found;
 }
 
+/**
+ * Agent handles come in two shapes:
+ *   `@cursor`                 — provider, CLI default model
+ *   `@cursor/muse-spark-1.3`  — provider + model (everything after the first `/`,
+ *                               so OpenCode's `anthropic/claude-sonnet-5` survives)
+ * `@agent` / `@harness` mean "whatever this chat runs by default"; `@rt-<slug>`
+ * targets a machine. Anything else is a person.
+ */
 export function classifyMention(handle: string, raw = `@${handle}`): ParsedMention {
-  const key = handle.toLowerCase();
-  if (key === "agent" || key === "harness") {
-    return { kind: "agent", handle: key, raw };
+  const slash = handle.indexOf("/");
+  const head = (slash === -1 ? handle : handle.slice(0, slash)).toLowerCase();
+  const tail = slash === -1 ? "" : handle.slice(slash + 1);
+  if (head === "agent" || head === "harness") {
+    return { kind: "agent", handle: head, raw };
   }
-  const providerKind = MENTION_TO_PROVIDER[key];
+  const providerKind = MENTION_TO_PROVIDER[head];
   if (providerKind) {
-    return { kind: "provider", handle: key, raw, providerKind };
+    const model = tail && isValidModelSlug(tail) ? resolveModelSlug(providerKind, tail) : undefined;
+    return { kind: "provider", handle: head, raw, providerKind, model };
   }
+  const key = handle.toLowerCase();
   if (key.startsWith("rt-") || key.startsWith("runtime-")) {
     return { kind: "runtime", handle: key.replace(/^(rt|runtime)-/, ""), raw };
   }
@@ -66,4 +94,24 @@ export function preferredProvider(
 ): ProviderDriverKind {
   const mentioned = mentions.find((mention) => mention.providerKind);
   return mentioned?.providerKind ?? fallback;
+}
+
+/**
+ * Resolve what a message runs on. The first provider mention wins; its model
+ * comes from the mention itself (`@cursor/muse-spark-1.3`), else from the
+ * fallback when it names the same provider (a chat bound to `cursor/auto`
+ * keeps that model for a bare `@cursor`), else the CLI default. Without a
+ * provider mention the fallback (chat binding / composer pick) is used as is.
+ */
+export function preferredTarget(
+  mentions: readonly ParsedMention[],
+  fallback: AgentTarget,
+): AgentTarget {
+  const mentioned = mentions.find((mention) => mention.providerKind);
+  if (!mentioned?.providerKind) return { driverKind: fallback.driverKind, model: fallback.model };
+  if (mentioned.model) return { driverKind: mentioned.providerKind, model: mentioned.model };
+  if (mentioned.providerKind === fallback.driverKind) {
+    return { driverKind: fallback.driverKind, model: fallback.model };
+  }
+  return { driverKind: mentioned.providerKind, model: undefined };
 }

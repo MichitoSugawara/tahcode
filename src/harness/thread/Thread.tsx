@@ -2,11 +2,11 @@ import { Cpu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
-import { Composer, useSendMessage } from "@/harness/Composer";
+import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
-import { providerHandle } from "@/lib/providers";
+import { agentMention, isProviderKind } from "@/lib/providers";
 import { AgentReply } from "./AgentReply";
 import { FollowUps } from "./FollowUps";
 import { UserBubble } from "./UserBubble";
@@ -20,6 +20,7 @@ export type ThreadMessage = {
   mentions: string[];
   status?: "streaming" | "done" | "error";
   driverKind?: string;
+  model?: string;
   jobId?: Id<"jobs">;
   runtimeId?: Id<"runtimes">;
   authorName?: string;
@@ -35,6 +36,7 @@ export type ThreadMessage = {
 export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage[] }) {
   const org = useOrg();
   const { send } = useSendMessage(chat);
+  const { agent } = useChatAgent(chat);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerH, setComposerH] = useState(150);
@@ -90,7 +92,9 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
   const anyRuntime = (org.runtimes ?? []).length > 0;
   const last = messages[messages.length - 1];
   const settledReply = last && last.authorType === "agent" && last.status === "done" && !!last.jobId;
-  const tag = chat.kind === "project" ? `@${providerHandle(last?.driverKind ?? org.provider)} ` : "";
+  /* follow-ups keep talking to whoever just answered (provider + model), else the chat's agent */
+  const lastAgent = last?.driverKind && isProviderKind(last.driverKind) ? { driverKind: last.driverKind, model: last.model ?? null } : agent;
+  const tag = chat.kind === "project" ? `${agentMention(lastAgent.driverKind, lastAgent.model)} ` : "";
   const followUps = settledReply ? [`${tag}この結果をもとに実装まで進めて`, `${tag}変更点と次の一手を 3 行で要約して`] : [];
   const promptFor = (jobMessage: ThreadMessage) => {
     const index = messages.findIndex((message) => message._id === jobMessage._id);
@@ -153,7 +157,7 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
               登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできますが、エージェントの返信はランタイムが使えるようになるまで届きません。Runtime タブで状態と許可を確認してください。
             </Notice>
           )}
-          <Composer chat={chat} tall placeholder={chat.kind === "dm" ? "返信…" : "返信（@codex などで指名）…"} />
+          <Composer chat={chat} tall placeholder={chat.kind === "dm" ? "返信…" : `返信（${agentMention(agent.driverKind, agent.model)} などで指名）…`} />
         </div>
       </div>
     </div>
