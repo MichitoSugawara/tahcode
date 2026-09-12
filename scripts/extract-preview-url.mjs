@@ -10,6 +10,8 @@ import { readFileSync, appendFileSync } from "node:fs";
 const input = readFileSync(0, "utf8");
 const patterns = [
   /Version Preview URL:\s*(https:\/\/\S+)/i,
+  /Version Preview Alias URL:\s*(https:\/\/\S+)/i,
+  /Preview Alias:\s*(https:\/\/\S+)/i,
   /Preview URL:\s*(https:\/\/\S+)/i,
   /(https:\/\/[A-Za-z0-9.-]+\.workers\.dev\S*)/,
 ];
