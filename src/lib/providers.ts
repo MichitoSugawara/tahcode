@@ -67,3 +67,8 @@ export function agentLabel(kind?: string | null, model?: string | null): string 
 export function agentMention(kind: ProviderDriverKind, model?: string | null): string {
   return formatAgentMention(kind, model ?? undefined);
 }
+
+/** An `@provider/model` example from a different provider than the chat's, for hints. */
+export function modelMentionExample(current: ProviderDriverKind): string {
+  return current === "cursor" ? agentMention("codex", "gpt-5.6-sol") : agentMention("cursor", "muse-spark-1.3");
+}

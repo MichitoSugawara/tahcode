@@ -12,7 +12,7 @@ import { useOrg, type Chat } from "@/harness/OrgContext";
 import { Thread, type ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
-import { agentLabel, agentMention } from "@/lib/providers";
+import { agentLabel, agentMention, modelMentionExample } from "@/lib/providers";
 import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ export default function ChatPage() {
             label:
               chat.kind === "dm"
                 ? `DM では常時応答します（${agentLabel(agent.driverKind, agent.model)}）。メンションは不要です`
-                : `このチャットは ${agentMention(agent.driverKind, agent.model)} が応答します。@cursor/muse-spark-1.3 のようにモデルまで指名できます`,
+                : `このチャットは ${agentMention(agent.driverKind, agent.model)} が応答します。${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます`,
             onClick: () => undefined,
           }}
         />

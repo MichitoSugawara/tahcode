@@ -14,6 +14,7 @@ import {
   agentMention,
   isProviderKind,
   modelDisplayName,
+  modelMentionExample,
   modelSourceHint,
   modelsFor,
   supportsModelPick,
@@ -263,7 +264,7 @@ export function Composer({
       <AtSign size={11} /> メンションがないので送信時に <code className="font-mono text-ink-2">{mention}</code> を自動付与します（Phase 1 のルール）
     </span>
   );
-  else if (isProject) hint = `${mention} がこのチャットのエージェント · @cursor/muse-spark-1.3 のようにモデルも指名できます · ⏎ 送信 · ⇧⏎ 改行`;
+  else if (isProject) hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · ⏎ 送信 · ⇧⏎ 改行`;
   else hint = `DM ではエージェントが常に応答します（${mention}） · ⏎ 送信 · ⇧⏎ 改行`;
 
   return (

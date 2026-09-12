@@ -95,7 +95,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     mentionHandles: ["cursor", "agent"],
     headlessSummary: "agent -p --output-format stream-json (t3code CursorDriver / ACP)",
     modelFlag: "--model",
-    modelSource: "Cursor model docs · `agent models` lists the account's full catalog",
+    modelSource: "Cursor model docs · agent models lists the account's full catalog",
     models: [
       { slug: "auto", name: "Auto（Cursor が選択）" },
       { slug: "composer-2.5", name: "Composer 2.5" },
@@ -119,7 +119,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     mentionHandles: ["grok"],
     headlessSummary: "grok --prompt (t3code GrokDriver)",
     modelFlag: "--model",
-    modelSource: "Multica grokStaticModels · `grok models` lists the signed-in catalog",
+    modelSource: "Multica grokStaticModels · grok models lists the signed-in catalog",
     models: [
       { slug: "grok-4.6", name: "Grok 4.6" },
       { slug: "grok-4.5", name: "Grok 4.5" },
@@ -133,7 +133,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     mentionHandles: ["opencode"],
     headlessSummary: "opencode run (t3code OpenCodeDriver)",
     modelFlag: "--model",
-    modelSource: "opencode resolves `provider/model` only · `opencode models` lists the configured ones",
+    modelSource: "opencode resolves provider/model only · opencode models lists the configured ones",
     models: [
       { slug: "anthropic/claude-fable-5-1", name: "Claude Fable 5.1 (Anthropic)" },
       { slug: "anthropic/claude-opus-5", name: "Claude Opus 5 (Anthropic)" },

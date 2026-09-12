@@ -68,7 +68,7 @@ ${bold("使い方")}
 ${bold("オプション")}
   --no-daemon         start 時に Multica daemon を起動しない（ブリッジのみ）
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
-  --provider <kind>   ブリッジの既定プロバイダを固定（codex / claudeAgent / cursor / grok / opencode）
+  --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
 
 環境変数でもリンクできます: DALECODE_URL, DALECODE_RUNTIME_ID, DALECODE_TOKEN
 （互換: CONVEX_URL, HARNESS_RUNTIME_ID, HARNESS_RUNTIME_TOKEN）

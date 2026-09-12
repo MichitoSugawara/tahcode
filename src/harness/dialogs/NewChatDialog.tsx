@@ -72,8 +72,8 @@ export function NewChatDialog({
       width={520}
       footer={
         <>
-          <span className="min-w-0 truncate text-[12px] text-ink-3">
-            {isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"} · <code className="font-mono text-ink-2">{mention}</code>
+          <span className="min-w-0 truncate text-[12px] text-ink-3" title={`送信時のメンション: ${mention}`}>
+            {isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"}
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
