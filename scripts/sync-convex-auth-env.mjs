@@ -64,10 +64,13 @@ async function normalizePrivateKey(raw) {
 
 function setEnv(name, value) {
   if (dryRun) {
-    console.log(`[dry-run] convex env set ${convexArgs.join(" ")} ${name} <${value.length} chars>`);
+    console.log(`[dry-run] convex env set ${convexArgs.join(" ")} ${name}=<${value.length} chars>`);
     return;
   }
-  const result = spawnSync("npx", ["convex", "env", "set", ...convexArgs, name, value], {
+  // Single "NAME=value" argument (convex splits on the first '='). Passing the
+  // value as a separate argv element makes commander treat a leading '-' (the
+  // PEM's "-----BEGIN") as an unknown option, so this form is required.
+  const result = spawnSync("npx", ["convex", "env", "set", ...convexArgs, `${name}=${value}`], {
     stdio: "inherit",
     env: process.env,
   });
