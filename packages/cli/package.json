@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "dalecode": "./dist/dalecode.mjs"
+    "dalecode": "./dist/dalecode.js"
   },
   "files": [
     "dist",
