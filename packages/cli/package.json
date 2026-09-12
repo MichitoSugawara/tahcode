@@ -1,11 +1,11 @@
 {
   "name": "dalecode",
   "version": "0.1.0",
-  "description": "dalecode machine CLI — link this computer to a dalecode org and run agents through the Multica daemon.",
+  "description": "dalecode machine CLI \u2014 link this computer to a dalecode org and run agents through the Multica daemon.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "dalecode": "./dist/dalecode.js"
+    "dalecode": "./dist/dalecode"
   },
   "files": [
     "dist",
