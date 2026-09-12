@@ -77,13 +77,15 @@ export type TaskDetail = { label: string; meta: string };
 /* A single task row.
  *  - "done"     → green check badge + completed pill (static)
  *  - "running"  → active spinner showing `step`, no pill (static)
+ *  - "queued"   → idle ring, queued pill (static; live data)
+ *  - "failed"   → red badge + failed pill (static; live data)
  *  - "sequence" → animation-driven: pending spinner → failed → completed
  */
 export type TaskRow = {
   key: string;
   label: string;
   amount: string;
-  status: "done" | "running" | "sequence";
+  status: "done" | "running" | "queued" | "failed" | "sequence";
   step?: number;
   details: TaskDetail[];
 };
@@ -91,11 +93,13 @@ export type TaskRow = {
 export type TaskRowsLabels = {
   completed: string;
   failed: string;
+  queued: string;
 };
 
 const DEFAULT_LABELS: TaskRowsLabels = {
   completed: "Completed",
   failed: "Failed",
+  queued: "Queued",
 };
 
 const TASK_ROWS: TaskRow[] = [
@@ -154,6 +158,8 @@ export default function TaskRows({
   const badgeFor = (row: TaskRow) => {
     if (row.status === "done") return <Badge tone="green">{CheckIcon}</Badge>;
     if (row.status === "running") return <SpinnerRing active>{row.step}</SpinnerRing>;
+    if (row.status === "queued") return <SpinnerRing>{row.step}</SpinnerRing>;
+    if (row.status === "failed") return <Badge tone="red">{XIcon}</Badge>;
     return row2 === "pending" ? (
       <SpinnerRing>{row.step}</SpinnerRing>
     ) : row2 === "failed" ? (
@@ -171,6 +177,10 @@ export default function TaskRows({
         </span>
       );
     if (row.status === "running") return null;
+    if (row.status === "queued")
+      return <span className="inline-flex h-5.5 items-center rounded-full bg-inset px-2 text-[11.5px] font-medium text-ink-2 shadow-hairline">{copy.queued}</span>;
+    if (row.status === "failed")
+      return <span className="inline-flex h-5.5 items-center rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red">{copy.failed}</span>;
     return row2 === "failed" ? (
       <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
         {copy.failed} <span style={{ animation: "spin 1.2s linear infinite" }} className="flex">{RetryIcon}</span>
@@ -185,12 +195,12 @@ export default function TaskRows({
   const list = variant === "List";
   return (
     <div
-      className={`flex w-full max-w-110 flex-col ${
+      className={`flex w-full flex-col ${className?.includes("max-w-none") ? "" : "max-w-110"} ${
         list ? "gap-0 self-start overflow-hidden rounded-card bg-surface shadow-card" : "min-h-[196px] gap-2"
       }${className ? ` ${className}` : ""}`}
     >
       {rows.map((row, i) => {
-        const open = manualOpen[row.key] ?? (row.key === "index" && tick === 2);
+        const open = manualOpen[row.key] ?? (rows === TASK_ROWS && row.key === "index" && tick === 2);
         return (
           <div
             key={row.key}

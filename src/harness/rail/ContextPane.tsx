@@ -1,26 +1,51 @@
 import { useQuery } from "convex/react";
-import { AtSign, Folder, History, Lock, UserRound } from "lucide-react";
+import { Activity, AtSign, Folder, History, Lock, UserRound } from "lucide-react";
 import { useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { Chip } from "@/components/atoms/Chip";
 import { Monogram } from "@/components/atoms/EntityChip";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { TextRow } from "@/components/atoms/TextRow";
+import { ValuePill } from "@/components/atoms/ValuePill";
 import ContextCards, { type ContextChunk } from "@/components/primitives/ContextCards";
+import TaskRows, { type TaskRow } from "@/components/primitives/TaskRows";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
-import { colorFor, displayName, monogram } from "@/lib/format";
-import { PROVIDERS } from "@/lib/providers";
+import { colorFor, displayName, monogram, truncate } from "@/lib/format";
+import { PROVIDERS, providerLabel } from "@/lib/providers";
 
 /* What the agent receives on the next run: history + mentions +
  * project link (Phase 1: no Focus mode). Rendered with Beautiful
  * UI's ContextCards so it reads like retrieved context, because it is. */
 export function ContextPane({ chatId }: { chatId?: string }) {
-  const { projects } = useOrg();
+  const { projects, runtimes } = useOrg();
   const chat = useQuery(api.chats.get, chatId ? { chatId: chatId as Id<"chats"> } : "skip");
   const messages = useQuery(api.messages.list, chatId ? { chatId: chatId as Id<"chats">, limit: 200 } : "skip");
   const chatMembers = useQuery(api.chats.members, chatId && chat?.kind === "project" ? { chatId: chatId as Id<"chats"> } : "skip");
+  const jobs = useQuery(api.jobs.listByChat, chatId && chat ? { chatId: chatId as Id<"chats"> } : "skip");
   const project = chat?.projectId ? projects?.find((item) => item._id === chat.projectId) : undefined;
+
+  const taskRows = useMemo<TaskRow[]>(
+    () =>
+      (jobs ?? []).slice(0, 5).map((job) => {
+        const runtime = runtimes?.find((item) => item._id === job.runtimeId);
+        const status: TaskRow["status"] = job.status === "done" ? "done" : job.status === "failed" ? "failed" : job.status === "running" ? "running" : "queued";
+        return {
+          key: String(job._id),
+          label: truncate(job.prompt.replace(/^@\S+\s*/, ""), 34),
+          amount: providerLabel(job.driverKind),
+          status,
+          step: 1,
+          details: [
+            { label: "ランタイム", meta: runtime?.name ?? "—" },
+            { label: "状態", meta: job.status },
+            ...(job.error ? [{ label: "エラー", meta: truncate(job.error, 40) }] : []),
+          ],
+        };
+      }),
+    [jobs, runtimes],
+  );
 
   const lastMentions = useMemo(() => {
     const lastUser = [...(messages ?? [])].reverse().find((message) => message.authorType === "user");
@@ -90,7 +115,11 @@ export function ContextPane({ chatId }: { chatId?: string }) {
             value={project ? project.name : "—"}
             meta={project?.visibility === "private" ? <Lock size={12} /> : undefined}
           />
-          <TextRow label={<span className="inline-flex items-center gap-1.5"><History size={13} /> 履歴</span>} value={`${historyCount} 件`} meta="最大 30" />
+          <TextRow
+            label={<span className="inline-flex items-center gap-1.5"><History size={13} /> 履歴</span>}
+            value={<ValuePill tone={historyCount > 0 ? "accent" : "neutral"}>{historyCount} 件</ValuePill>}
+            meta="最大 30"
+          />
           <TextRow
             label={<span className="inline-flex items-center gap-1.5"><AtSign size={13} /> ハンドル</span>}
             value={
@@ -98,9 +127,9 @@ export function ContextPane({ chatId }: { chatId?: string }) {
                 {Object.values(PROVIDERS)
                   .slice(0, 2)
                   .map((provider) => (
-                    <code key={provider.handle} className="rounded-[4px] bg-inset px-1 font-mono text-[11px] text-ink-2">@{provider.handle}</code>
+                    <Chip key={provider.handle}>@{provider.handle}</Chip>
                   ))}
-                <code className="rounded-[4px] bg-inset px-1 font-mono text-[11px] text-ink-2">@agent</code>
+                <Chip tone="accent">@agent</Chip>
               </span>
             }
           />
@@ -108,6 +137,19 @@ export function ContextPane({ chatId }: { chatId?: string }) {
       </div>
 
       <ContextCards chunks={chunks} labels={{ header: "エージェントに渡すもの", count: String(chunks.length) }} className="max-w-none" />
+
+      {taskRows.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 px-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+              <Activity size={13} /> 実行履歴
+            </span>
+            <span className="inline-flex h-5 items-center rounded-md bg-inset px-1.5 text-[11.5px] font-medium tabular-nums text-ink-2 shadow-hairline">{jobs?.length ?? 0}</span>
+            <span className="ml-auto text-[11.5px] text-ink-3">直近 5 件</span>
+          </div>
+          <TaskRows variant="List" rows={taskRows} className="max-w-none" labels={{ completed: "完了", failed: "失敗", queued: "待機" }} />
+        </div>
+      )}
 
       {chat.kind === "project" && (
         <div className="rounded-card bg-surface shadow-card">

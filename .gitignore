@@ -42,3 +42,4 @@ convex/_generated/
 *.njsproj
 *.sln
 *.sw?
+artifacts/
