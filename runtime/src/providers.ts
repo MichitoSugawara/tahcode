@@ -137,10 +137,13 @@ function headlessArgs(kind: ProviderDriverKind, prompt: string): string[] {
     case "codex":
       return ["exec", "--json", prompt];
     case "claudeAgent":
+      // `--verbose` is required by the Claude CLI when combining
+      // `-p/--print` with `--output-format stream-json`.
       return [
         "-p",
         "--output-format",
         "stream-json",
+        "--verbose",
         "--max-turns",
         "10",
         prompt,
@@ -181,16 +184,22 @@ export async function runHeadless(
     if (!trimmed) return;
     if (kind === "codex" || kind === "claudeAgent" || kind === "cursor") {
       const parsed = tryParseJson(trimmed);
-      const text = extractText(parsed ?? trimmed, kind);
-      if (text) {
-        output += `${text}\n`;
-        await events.onText(`${text}\n`);
-      } else if (looksLikeToolEvent(trimmed)) {
-        await events.onTool(trimmed.slice(0, 2000));
-      } else {
-        output += `${trimmed}\n`;
-        await events.onText(`${trimmed}\n`);
+      if (parsed !== null) {
+        const classified = classifyStreamEvent(parsed);
+        if (classified.kind === "text" && classified.text) {
+          output += `${classified.text}\n`;
+          await events.onText(`${classified.text}\n`);
+        } else if (classified.kind === "tool") {
+          await events.onTool(classified.text.slice(0, 2000));
+        } else if (classified.kind === "trace") {
+          // Protocol noise (turn.started, item.started, usage, …) goes to the
+          // thinking trace instead of polluting the chat body with raw JSON.
+          await events.onThinking(trimmed.slice(0, 1000));
+        }
+        return;
       }
+      output += `${trimmed}\n`;
+      await events.onText(`${trimmed}\n`);
       return;
     }
     output += `${trimmed}\n`;
@@ -235,28 +244,70 @@ function tryParseJson(line: string): unknown | null {
   }
 }
 
-function extractText(parsed: unknown, kind: ProviderDriverKind): string | null {
-  if (typeof parsed === "string") {
-    return kind === "grok" || kind === "opencode" ? parsed : null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
+type StreamEvent =
+  | { kind: "text"; text: string }
+  | { kind: "tool"; text: string }
+  | { kind: "trace" };
+
+/**
+ * Classify one JSONL event from a provider's headless stream.
+ *
+ * Shapes handled (mirroring what t3code's adapters normalize):
+ * - Claude / Cursor (claude-style): {type:"assistant",message:{content:[{type:"text",text}]}}
+ *   and the final {type:"result",result}.
+ * - Codex exec --json: {type:"item.completed",item:{item_type|type:"agent_message"|"assistant_message",text}}
+ *   with command/tool items surfaced as tool chips; turn/thread lifecycle
+ *   events are trace-only.
+ */
+function classifyStreamEvent(parsed: unknown): StreamEvent {
+  if (typeof parsed !== "object" || parsed === null) return { kind: "trace" };
   const record = parsed as Record<string, unknown>;
   const type = typeof record.type === "string" ? record.type : "";
-  if (type === "result" && typeof record.result === "string") return record.result;
+
+  if (type === "result" && typeof record.result === "string") {
+    return { kind: "text", text: record.result };
+  }
+
   if (type === "assistant") {
-    const message = record.message as { content?: { text?: string; type?: string }[] } | undefined;
+    const message = record.message as
+      | { content?: { text?: string; type?: string }[] }
+      | undefined;
     const texts = message?.content
       ?.filter((item) => item.type === "text" && item.text)
       .map((item) => item.text ?? "");
-    if (texts && texts.length > 0) return texts.join("\n");
+    if (texts && texts.length > 0) return { kind: "text", text: texts.join("\n") };
+    return { kind: "trace" };
   }
-  if (typeof record.text === "string" && /message|output|content|delta/.test(type)) {
-    return record.text;
-  }
-  if (typeof record.message === "string") return record.message;
-  return null;
-}
 
-function looksLikeToolEvent(line: string): boolean {
-  return /tool|function|exec|edit|write|read|bash|command/i.test(line.slice(0, 200));
+  // Codex item events: text lives nested inside `item`.
+  const item = record.item as Record<string, unknown> | undefined;
+  if (item && typeof item === "object") {
+    const itemType =
+      (typeof item.item_type === "string" && item.item_type) ||
+      (typeof item.type === "string" && item.type) ||
+      "";
+    if (
+      (itemType === "agent_message" || itemType === "assistant_message") &&
+      typeof item.text === "string" &&
+      type.endsWith("completed")
+    ) {
+      return { kind: "text", text: item.text };
+    }
+    if (/command|tool|file|patch|mcp/.test(itemType)) {
+      const label =
+        (typeof item.command === "string" && item.command) ||
+        (typeof item.text === "string" && item.text) ||
+        itemType;
+      return { kind: "tool", text: `${itemType}: ${label}` };
+    }
+    return { kind: "trace" };
+  }
+
+  if (typeof record.text === "string" && /message|output|content|delta/.test(type)) {
+    return { kind: "text", text: record.text };
+  }
+  if (typeof record.error === "string") {
+    return { kind: "text", text: `error: ${record.error}` };
+  }
+  return { kind: "trace" };
 }

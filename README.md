@@ -15,6 +15,7 @@ Multica からは Org / member / chat の考え方だけ借りた新規実装（
 - ✅ Org → Project 階層、プロジェクト可視性（org / private）+ プライベートチャットの per-chat 追加
 - ✅ Personal DM（Phase 1 は owner-only）+ プロジェクトチャット
 - ✅ エージェント応答: DM は常時、他は @mention（@agent / @codex / @claude / @cursor / @grok / @opencode / @antigravity / @rt-…）時のみ
+  - 仕様: プロジェクトチャットでメンションなしで送信すると、Composer が既定プロバイダのメンション（例 `@codex`）を自動付与してから送る。サーバ側ルール自体はメンション必須のまま（`convex/messages.ts`）。素のメッセージを送りたい場合は現状 UI からは不可（Phase 1 の簡略化）
 - ✅ コンテキスト = 直近履歴 + メンション + プロジェクトリンク（Focus なし）
 - ✅ マシンランタイム（t3code 由来の headless CLI 実行）+ default deny のランタイム ACL（user / role 混在可）
 - ✅ ロール: owner（全体）/ admin（招待 + 権限）/ member（見える範囲のみ）
@@ -83,6 +84,7 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 - **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー + プライベートチャット追加のみ。
 - **ファイル配信**: 本番は R2 バインディング必須（`wrangler deploy` 前に `team-harness-files` バケット作成）。ローカルは `wrangler dev` のローカル永続化。
+- **ファイル Worker に認証なし**: `/api/files` は誰でも POST/GET 可能（メタデータ登録側の Convex は認証必須）。本番公開前に Worker 側で Convex トークン検証を足すこと。
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
 

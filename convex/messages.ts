@@ -5,7 +5,6 @@ import {
   assertCanUseRuntime,
   assertChatVisible,
   getMembership,
-  listRuntimeGrants,
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { buildAgentContext } from "./lib/context";
@@ -169,7 +168,16 @@ async function pickRuntime(
     .query("runtimes")
     .withIndex("by_org", (q) => q.eq("orgId", input.orgId))
     .take(50);
-  const online = candidates.filter((runtime) => runtime.status === "online");
+  // A runtime whose heartbeat stopped stays "online" in the DB; treat it as
+  // offline after 90s so jobs don't queue onto a dead machine forever.
+  // (Runtime loop heartbeats every ~20s.)
+  const staleBefore = Date.now() - 90_000;
+  const online = candidates.filter(
+    (runtime) =>
+      runtime.status === "online" &&
+      runtime.lastSeenAt !== undefined &&
+      runtime.lastSeenAt > staleBefore,
+  );
   const ordered = [
     ...online.filter((runtime) =>
       input.hint ? String(runtime._id) === String(input.hint) : false,
@@ -179,18 +187,11 @@ async function pickRuntime(
     ),
   ];
   for (const runtime of ordered) {
-    const grants = await listRuntimeGrants(ctx, runtime._id);
     try {
-      await assertCanUseRuntime(
-        ctx,
-        runtime,
-        input.userId,
-        input.role,
-      );
+      await assertCanUseRuntime(ctx, runtime, input.userId, input.role);
     } catch {
       continue;
     }
-    void grants;
     const providers = await ctx.db
       .query("runtimeProviders")
       .withIndex("by_runtime", (q) => q.eq("runtimeId", runtime._id))

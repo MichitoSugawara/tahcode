@@ -111,9 +111,14 @@ export const setRole = authedMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireRole(ctx, args.orgId, ctx.user._id, "admin");
+    const actor = await requireRole(ctx, args.orgId, ctx.user._id, "admin");
     const target = await getMembership(ctx, args.orgId, args.userId);
     if (!target) throw new Error("Target is not a member");
+    // Only owners may grant or revoke the owner role (admins would otherwise
+    // be able to escalate themselves via a colluding member).
+    if ((args.role === "owner" || target.role === "owner") && actor.role !== "owner") {
+      throw new Error("Only an owner can change owner roles");
+    }
     if (target.role === "owner" && args.role !== "owner") {
       const owners = await ctx.db
         .query("orgMembers")
@@ -137,7 +142,10 @@ export const createInvite = authedMutation({
   },
   returns: v.object({ token: v.string() }),
   handler: async (ctx, args) => {
-    await requireRole(ctx, args.orgId, ctx.user._id, "admin");
+    const actor = await requireRole(ctx, args.orgId, ctx.user._id, "admin");
+    if (args.role === "owner" && actor.role !== "owner") {
+      throw new Error("Only an owner can invite owners");
+    }
     const token = randomToken(18);
     await ctx.db.insert("invites", {
       orgId: args.orgId,
