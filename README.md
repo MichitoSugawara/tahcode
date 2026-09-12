@@ -85,7 +85,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ### ジャーニー（すべて空 → 作成 → 成功で次の一手を提示）
 
-1. **Auth** — `/login`（ログイン / 新規登録の切替）。`?next=` で招待リンクへ戻る。サインアウトはワークスペースメニュー
+1. **Auth** — `/login`（ログイン / 新規登録の切替）。メール＋パスワード、または **Google で続ける**（OAuth 設定時のみ有効）。`?next=` で招待リンクへ戻る（Google 経由でも維持）。入力検証と失敗メッセージは日本語（空欄・形式不正・8 文字未満・確認不一致・パスワード相違・登録済みメール・ネットワーク断・セッション未確立）。サインアウトはワークスペースメニュー
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
 3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・招待・テーマ・サインアウト）、`/o/:slug/settings`
 4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
@@ -98,7 +98,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
     **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
 
-スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
+スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
 
 ## Stack
 
@@ -205,8 +205,46 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 | `CLOUDFLARE_API_TOKEN` | wrangler の認証 |
 | `CLOUDFLARE_ACCOUNT_ID` | wrangler のデプロイ先 |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth の署名鍵（本番・staging・preview deploy ごとに設定される） |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | （任意）Google OAuth のクライアント ID / シークレット。設定時のみ Google ログインが有効 |
 
-`VITE_CONVEX_URL` は CI が自動注入するため保存不要。
+`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` はデプロイ後の
+Cloudflare URL を CI が設定するため保存不要。
+
+### Convex Auth の署名鍵（重要）
+
+デプロイ時、CI は `scripts/sync-convex-auth-env.mjs` で `SITE_URL` / `JWT_PRIVATE_KEY` /
+`JWKS`（と設定時の Google 資格情報）を Convex デプロイに反映する。鍵ペアは次で生成:
+
+```bash
+node scripts/generate-auth-keys.mjs >> .env.production   # JWT_PRIVATE_KEY と JWKS を追記
+npm run env:enc -- production                            # .env.production.enc を更新してコミット
+```
+
+**JSON のクォートに注意**（過去に本番のログイン不能を招いた原因）。
+`.env.<name>` では:
+
+- `JWKS` は**シングルクォート**か引用符なしで書く（例 `JWKS='{"keys":[...]}'`）。
+- `JWKS="{\"keys\":...}"` のように**ダブルクォート＋エスケープにしない**。dotenv は
+  バックスラッシュを保持するため、デプロイが不正な JSON を配信し、発行直後の JWT を
+  自身で拒否して（`AuthProviderDiscoveryFailed`）サインインが成立しなくなる。
+- `JWT_PRIVATE_KEY` は 1 行（改行をスペースに置換）でダブルクォート可。
+
+CI の同期スクリプトは `jose` で両値を検証し、エスケープや改行の崩れを自動補修し、
+`JWKS` が壊れている / 秘密鍵と一致しない場合は秘密鍵から公開鍵のみの JWKS を再生成する。
+検証は `DRY_RUN=1 SITE_URL=… JWT_PRIVATE_KEY=… JWKS=… node scripts/sync-convex-auth-env.mjs`
+で確認できる（`convex` は呼ばれない）。
+
+### Google OAuth（任意）
+
+1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID**（Web application）。
+2. **Authorized redirect URIs** に各デプロイの Convex **site** URL のコールバックを追加:
+   `https://<deployment>.convex.site/api/auth/callback/google`
+   （例 本番: `https://dapper-ibex-447.convex.site/api/auth/callback/google`。`.convex.cloud` ではなく `.convex.site`）。
+3. 取得した Client ID / Secret を反映する。いずれか:
+   - `.env.<name>` に `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` を入れて `env:enc` → CI が同期、または
+   - ダッシュボードで直接 `npx convex env set AUTH_GOOGLE_ID …`（本番は `--prod`）。
+4. 両方が設定されると `/login` の「Google で続ける」が有効になる（未設定時は自動で無効表示）。
+   シークレットはコミットしないこと（`.enc` のみコミット）。
 
 ### env ファイルの運用
 
