@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { trackPlaceholder } from "@/lib/optimistic";
 import { useStoredState } from "@/lib/storage";
 import type { ProviderDriverKind } from "@/lib/providers";
 import { isProviderKind } from "@/lib/providers";
@@ -90,6 +91,9 @@ type OrgContextValue = {
   closeDialog: () => void;
   goHome: () => void;
   goChat: (id: Id<"chats">) => void;
+  /** Open a chat whose create is still in flight: shows `placeholder` now, swaps the URL and tab
+   *  to the real id when `created` resolves, and returns to the previous screen if it fails. */
+  goPendingChat: (placeholder: Id<"chats">, created: Promise<Id<"chats">>) => void;
   goSettings: () => void;
   switchOrg: (id: Id<"orgs">) => void;
   signOut: () => void;
@@ -138,6 +142,10 @@ export function OrgProvider({
     };
   }, [orgId, ensureDm]);
 
+  /* keep the Personal DM thread subscribed while the org is open: the home composer sends there
+   * and jumps in, so the thread must already be local (same args as ChatPage) for the jump to be instant */
+  useQuery(api.messages.list, dmId ? { chatId: dmId, limit: 200 } : "skip");
+
   /* one shared clock so "online" badges age out together */
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -156,6 +164,37 @@ export function OrgProvider({
     [setTabs],
   );
   const closeTab = useCallback((id: Id<"chats">) => setTabs((current) => current.filter((item) => item !== id)), [setTabs]);
+  const swapTab = useCallback(
+    (from: Id<"chats">, to: Id<"chats">) =>
+      setTabs((current) => {
+        const swapped = current.map((item) => (item === from ? to : item));
+        const next = swapped.filter((item, index) => item !== to || swapped.indexOf(item) === index);
+        return next.includes(to) ? next : [...next, to];
+      }),
+    [setTabs],
+  );
+
+  const goPendingChat = useCallback(
+    (placeholder: Id<"chats">, created: Promise<Id<"chats">>) => {
+      /* BrowserRouter: window.location is the router's location, read at call time so the memo below stays stable */
+      const from = `${window.location.pathname}${window.location.search}`;
+      const chatPath = (id: Id<"chats">) => `/o/${org.slug}/c/${String(id)}`;
+      const stillHere = () => window.location.pathname === chatPath(placeholder);
+      openTab(placeholder);
+      navigate(chatPath(placeholder));
+      trackPlaceholder(placeholder, created).then(
+        (id) => {
+          swapTab(placeholder, id);
+          if (stillHere()) navigate(chatPath(id), { replace: true });
+        },
+        () => {
+          closeTab(placeholder);
+          if (stillHere()) navigate(from, { replace: true });
+        },
+      );
+    },
+    [org.slug, openTab, closeTab, swapTab, navigate],
+  );
 
   /* drop tabs for chats that vanished or became invisible */
   useEffect(() => {
@@ -198,6 +237,7 @@ export function OrgProvider({
         openTab(id);
         navigate(`/o/${org.slug}/c/${String(id)}`);
       },
+      goPendingChat,
       goSettings: () => navigate(`/o/${org.slug}/settings`),
       switchOrg: (id) => {
         const target = orgs.find((item) => item._id === id);
@@ -222,6 +262,7 @@ export function OrgProvider({
       tabs,
       openTab,
       closeTab,
+      goPendingChat,
       dialog,
       navigate,
       signOut,

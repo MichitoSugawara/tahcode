@@ -9,6 +9,7 @@ import PromptBar, { type PromptMenuItem, type PromptPicker } from "@/components/
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
 import { hasAgentMention } from "@/lib/mentions";
+import { placeholderId, resolveId } from "@/lib/optimistic";
 import { PROVIDERS, isProviderKind, providerHandle } from "@/lib/providers";
 
 /* ─────────────────────────────────────────────────────────
@@ -18,22 +19,44 @@ import { PROVIDERS, isProviderKind, providerHandle } from "@/lib/providers";
  * provider so a plain message still reaches an agent.
  * ───────────────────────────────────────────────────────── */
 
+const MENTION_RE = /@[a-zA-Z0-9_./-]+/g;
+
 /** Send with the Phase 1 rules applied (auto-mention in project chats,
- *  R2 uploads appended as links, runtime hint from the picker). */
+ *  R2 uploads appended as links, runtime hint from the picker).
+ *  The user's bubble is inserted optimistically so the thread moves the
+ *  moment ⏎ is pressed; the agent's reply row still comes from the server. */
 export function useSendMessage(chat: Chat | null) {
   const org = useOrg();
-  const sendMessage = useMutation(api.messages.send);
+  const sendMessage = useMutation(api.messages.send).withOptimisticUpdate((store, args) => {
+    for (const { args: listArgs, value } of store.getAllQueries(api.messages.list)) {
+      if (value === undefined || listArgs.chatId !== args.chatId) continue;
+      store.setQuery(api.messages.list, listArgs, [
+        ...value,
+        {
+          _id: placeholderId("messages"),
+          _creationTime: Date.now(),
+          chatId: args.chatId,
+          authorType: "user",
+          authorId: org.me._id,
+          body: args.body,
+          mentions: Array.from(new Set(args.body.match(MENTION_RE) ?? [])),
+          authorName: org.me.name,
+          authorHandle: org.me.handle,
+        },
+      ]);
+    }
+  });
   const recordFile = useMutation(api.files.record);
   const [busy, setBusy] = useState(false);
 
-  const upload = async (file: File): Promise<string> => {
+  const upload = async (chatId: Id<"chats">, file: File): Promise<string> => {
     const response = await fetch("/api/files", { method: "POST", headers: { "X-File-Name": encodeURIComponent(file.name) }, body: file });
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(text || "ファイルサーバに接続できません（wrangler dev の起動を確認）");
     }
     const uploaded = (await response.json()) as { key: string; name: string; contentType: string; size: number; url: string };
-    await recordFile({ orgId: org.org._id, chatId: chat?._id, key: uploaded.key, name: uploaded.name, contentType: uploaded.contentType, size: uploaded.size });
+    await recordFile({ orgId: org.org._id, chatId, key: uploaded.key, name: uploaded.name, contentType: uploaded.contentType, size: uploaded.size });
     return `📎 [${uploaded.name}](${uploaded.url})`;
   };
 
@@ -41,12 +64,14 @@ export function useSendMessage(chat: Chat | null) {
     if (!chat || busy) return null;
     setBusy(true);
     try {
+      /* a chat opened straight from its create dialog may still carry a placeholder id */
+      const chatId = await resolveId(chat._id);
       const links: string[] = [];
-      for (const file of files) links.push(await upload(file));
+      for (const file of files) links.push(await upload(chatId, file));
       let body = [text, ...links].filter(Boolean).join("\n");
       if (chat.kind === "project" && !hasAgentMention(body)) body = `@${providerHandle(org.provider)} ${body}`;
-      const result = await sendMessage({ chatId: chat._id, body, runtimeId: org.runtimeId ?? undefined });
-      return { chatId: chat._id, dispatched: result.dispatched, jobId: result.jobId };
+      const result = await sendMessage({ chatId, body, runtimeId: org.runtimeId ?? undefined });
+      return { chatId, dispatched: result.dispatched, jobId: result.jobId };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "送信に失敗しました");
       return null;
@@ -63,12 +88,15 @@ export function Composer({
   tall = false,
   placeholder,
   autoFocus,
+  onSubmit,
   onSent,
 }: {
   chat: Chat | null;
   tall?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
+  /** fires as the message leaves the composer — before the round-trip, so callers can navigate at once */
+  onSubmit?: (chat: Chat) => void;
   onSent?: (result: { chatId: Id<"chats">; dispatched: boolean; jobId?: Id<"jobs"> }) => void;
 }) {
   const org = useOrg();
@@ -165,6 +193,7 @@ export function Composer({
   ];
 
   const send = async (text: string) => {
+    if (chat && !busy) onSubmit?.(chat);
     const result = await sendWithRules(text, pending);
     if (result) {
       setPending([]);

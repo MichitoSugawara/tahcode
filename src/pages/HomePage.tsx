@@ -26,10 +26,11 @@ export default function HomePage() {
   const dm = org.chats?.find((chat) => chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)) ?? null;
   const liveRuntimes = (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now));
   const { send } = useSendMessage(dm);
+  /* jump to the DM as the message leaves; its bubble lands there optimistically */
   const ask = (text: string) => {
-    void send(text).then((result) => {
-      if (result) org.goChat(result.chatId);
-    });
+    if (!dm) return;
+    org.goChat(dm._id);
+    void send(text);
   };
 
   const suggestions = useMemo<Suggestion[]>(() => {
@@ -66,7 +67,7 @@ export default function HomePage() {
             tall
             autoFocus
             placeholder="Personal DM でエージェントに聞く…（常時応答）"
-            onSent={(result) => org.goChat(result.chatId)}
+            onSubmit={(chat) => org.goChat(chat._id)}
           />
         }
         suggestions={suggestions}

@@ -1,16 +1,18 @@
-import { useMutation } from "convex/react";
 import { Folder, Lock, MessageSquare, Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../../../convex/_generated/api";
+import { toast } from "sonner";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
+import { useCreateProjectChat } from "@/harness/optimisticMutations";
 import { Dialog } from "@/harness/ui/Dialog";
-import { ChoiceList, InlineError, Input, Label } from "@/harness/ui/Field";
+import { ChoiceList, Input, Label } from "@/harness/ui/Field";
 
 /* ─────────────────────────────────────────────────────────
  * NEW CHAT — pick a project (or the personal DM), name it,
  * choose whether it inherits the project's visibility.
+ * Submitting opens the chat at once (optimistic placeholder);
+ * a failed create backs out and reports through a toast.
  * ───────────────────────────────────────────────────────── */
 
 type Target = "dm" | Id<"projects">;
@@ -24,20 +26,17 @@ export function NewChatDialog({
   onOpenChange: (open: boolean) => void;
   initialProjectId?: Id<"projects">;
 }) {
-  const { projects, dmId, goChat, openDialog } = useOrg();
-  const createChat = useMutation(api.chats.createProjectChat);
+  const { projects, dmId, goChat, goPendingChat, openDialog } = useOrg();
+  const createChat = useCreateProjectChat();
   const [target, setTarget] = useState<Target | null>(initialProjectId ?? null);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"inherit" | "private">("inherit");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setTarget(initialProjectId ?? (projects && projects.length > 0 ? (projects[0]?._id ?? null) : null));
       setTitle("");
       setVisibility("inherit");
-      setError(null);
     }
   }, [open, initialProjectId, projects]);
 
@@ -64,8 +63,8 @@ export function NewChatDialog({
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               キャンセル
             </Button>
-            <Button type="submit" form="new-chat" variant="accent" size="sm" disabled={!target || busy}>
-              {isDm ? "DM を開く" : busy ? "作成中…" : "チャットを作成"}
+            <Button type="submit" form="new-chat" variant="accent" size="sm" disabled={!target}>
+              {isDm ? "DM を開く" : "チャットを作成"}
             </Button>
           </div>
         </>
@@ -74,25 +73,21 @@ export function NewChatDialog({
       <form
         id="new-chat"
         className="flex flex-col gap-4"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          if (!target || busy) return;
+          if (!target) return;
           if (target === "dm") {
             if (dmId) goChat(dmId);
             onOpenChange(false);
             return;
           }
-          setBusy(true);
-          setError(null);
-          try {
-            const chatId = await createChat({ projectId: target, title: title.trim() || "新しいチャット", visibility });
-            onOpenChange(false);
-            goChat(chatId);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "作成に失敗しました");
-          } finally {
-            setBusy(false);
-          }
+          const chatTitle = title.trim() || "新しいチャット";
+          const { placeholder, created } = createChat({ projectId: target, title: chatTitle, visibility });
+          onOpenChange(false);
+          goPendingChat(placeholder, created);
+          created.catch((e: unknown) => {
+            toast.error(`「${chatTitle}」を作成できませんでした`, { description: e instanceof Error ? e.message : undefined });
+          });
         }}
       >
         <div>
@@ -144,7 +139,6 @@ export function NewChatDialog({
             </div>
           </>
         )}
-        {error && <InlineError>{error}</InlineError>}
       </form>
     </Dialog>
   );
