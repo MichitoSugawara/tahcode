@@ -47,7 +47,7 @@ jobs:
           dotenv_file: .env.preview
           wrangler_args: versions upload --preview-alias pr-${{ github.event.number }}
           preview_name: ${{ steps.meta.outputs.preview_name }}
-          convex_env_extra: --deployment preview/${{ steps.meta.outputs.preview_name }}
+          convex_env_extra: --preview-name ${{ steps.meta.outputs.preview_name }}
 
       - name: Comment preview URLs on the PR
         uses: actions/github-script@v7

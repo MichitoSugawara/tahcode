@@ -1,4 +1,5 @@
 import { useConvexAuth, useQuery } from "convex/react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api } from "../convex/_generated/api";
 import LoadingState from "@/components/primitives/LoadingState";
@@ -27,11 +28,26 @@ function RootRedirect() {
   return <Navigate to={first ? `/o/${first.slug}` : "/welcome"} replace />;
 }
 
+/* Convex Auth stays in `isLoading` forever if the OAuth `?code=` exchange
+ * throws (stale verifier, mismatched SITE_URL). Fall through to the routes
+ * after a grace period so the user lands on /login instead of a spinner. */
+const AUTH_LOADING_GRACE_MS = 12_000;
+
 export default function App() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [theme, toggleTheme] = useTheme();
+  const [loadingTooLong, setLoadingTooLong] = useState(false);
 
-  if (isLoading) return <FullscreenLoader label="サインイン状態を確認しています" />;
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTooLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingTooLong(true), AUTH_LOADING_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  if (isLoading && !loadingTooLong) return <FullscreenLoader label="サインイン状態を確認しています" />;
 
   const guard = (element: React.ReactElement) => (isAuthenticated ? element : <Navigate to="/login" replace />);
 

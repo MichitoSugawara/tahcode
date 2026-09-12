@@ -5,6 +5,7 @@ const SECRET_KEYS = new Set([
   "CLOUDFLARE_API_TOKEN",
   "JWT_PRIVATE_KEY",
   "JWKS",
+  "AUTH_GOOGLE_SECRET",
 ]);
 
 const file = process.argv[2];

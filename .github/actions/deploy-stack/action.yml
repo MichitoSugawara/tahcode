@@ -16,7 +16,7 @@ inputs:
   convex_env_extra:
     required: false
     default: ""
-    description: Extra args for convex env set, e.g. --prod or --deployment preview/foo
+    description: Deployment selector for convex env set, e.g. --prod or --preview-name foo (--deployment is rejected when CONVEX_DEPLOY_KEY is set)
 
 outputs:
   cloudflare_url:
@@ -55,28 +55,17 @@ runs:
           | tee /tmp/wrangler.out
         node scripts/extract-preview-url.mjs < /tmp/wrangler.out
 
+    # Validates JWT_PRIVATE_KEY / JWKS with jose, repairs dotenv escaping and
+    # derives the JWKS from the private key when the provided one is unusable.
+    # A JWKS pushed verbatim with escaped quotes served invalid JSON and broke
+    # every sign-in (AuthProviderDiscoveryFailed) on production and staging.
     - name: Point Convex Auth at the Worker
       shell: bash
       env:
         SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
-        CONVEX_ENV_EXTRA: ${{ inputs.convex_env_extra }}
+        CONVEX_ENV_ARGS: ${{ inputs.convex_env_extra }}
       run: |
-        if [ -z "${SITE_URL}" ]; then
-          echo "Could not parse the Cloudflare URL; refusing to set Convex SITE_URL."
-          exit 1
-        fi
-        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- \
-          npx convex env set "SITE_URL=${SITE_URL}" ${CONVEX_ENV_EXTRA}
-        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- bash -lc '
-          if [ -n "${JWT_PRIVATE_KEY:-}" ]; then
-            npx convex env set "JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}" ${CONVEX_ENV_EXTRA}
-          else
-            echo "JWT_PRIVATE_KEY is empty; sign-in will fail until the env file is updated."
-          fi
-          if [ -n "${JWKS:-}" ]; then
-            npx convex env set "JWKS=${JWKS}" ${CONVEX_ENV_EXTRA}
-          fi
-        '
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/sync-convex-auth-env.mjs
 
     - name: Show deploy URLs
       shell: bash
