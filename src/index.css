@@ -4,7 +4,7 @@
 @import "./app/beautifui/foundation.css";
 /* SidebarNav's collapse choreography (component-specific block). */
 @import "./app/beautifui/sidebar-nav.css";
-/* Team Harness theme: VS Code Dark Green+ mapped onto the Beautiful UI tokens. */
+/* dalecode theme: VS Code Dark Green+ mapped onto the Beautiful UI tokens. */
 @import "./app/theme.css";
 /* App-level rules that are not part of Beautiful UI (markdown, scrollbars). */
 @import "./app/harness.css";

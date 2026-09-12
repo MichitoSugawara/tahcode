@@ -8,6 +8,7 @@ import { Button } from "@/components/atoms/Button";
 import LoadingState from "@/components/primitives/LoadingState";
 import { Brand } from "@/harness/ui/Brand";
 import { Notice } from "@/harness/ui/Notice";
+import { useDocumentTitle } from "@/lib/title";
 
 /* /invite/:token — the landing for an invite link. Unauthenticated
  * visitors bounce through login and come straight back here. */
@@ -20,6 +21,7 @@ export default function InvitePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<Id<"orgs"> | null>(null);
+  useDocumentTitle("招待");
 
   useEffect(() => {
     if (!joined || !orgs) return;

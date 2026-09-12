@@ -13,6 +13,7 @@ import { Thread, type ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
 import { PROVIDERS } from "@/lib/providers";
+import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
  * CHAT — empty: the hero with chat-specific prompt ideas;
@@ -24,6 +25,7 @@ export default function ChatPage() {
   const chat = useQuery(api.chats.get, chatId ? { chatId: chatId as Id<"chats"> } : "skip") as Chat | null | undefined;
   const messages = useQuery(api.messages.list, chatId ? { chatId: chatId as Id<"chats">, limit: 200 } : "skip") as ThreadMessage[] | undefined;
   const { send } = useSendMessage(chat ?? null);
+  useDocumentTitle(chat ? (chat.kind === "dm" ? "Personal DM" : chat.title) : undefined, org.org.name);
 
   useEffect(() => {
     if (chat) org.openTab(chat._id);

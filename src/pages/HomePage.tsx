@@ -4,6 +4,7 @@ import { Composer, useSendMessage } from "@/harness/Composer";
 import { EmptyHero, type Suggestion } from "@/harness/EmptyHero";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { displayName } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/title";
 
 const PROMPTS = [
   "この Org でエージェントに何ができるか、3 行で説明して",
@@ -21,6 +22,7 @@ const PROMPTS = [
 export default function HomePage() {
   const org = useOrg();
   const [offset, setOffset] = useState(0);
+  useDocumentTitle(org.org.name);
   const dm = org.chats?.find((chat) => chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)) ?? null;
   const liveRuntimes = (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now));
   const { send } = useSendMessage(dm);
@@ -72,7 +74,7 @@ export default function HomePage() {
         link={{ label: (org.runtimes ?? []).length === 0 ? "ランタイムを接続してエージェントを動かす" : "Personal DM を開く", onClick: () => ((org.runtimes ?? []).length === 0 ? org.openDialog({ kind: "registerRuntime" }) : dm && org.goChat(dm._id)) }}
       />
       <div className="pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] text-ink-3 xl:flex">
-        <Sparkles size={11} /> Beautiful UI harness · Dark Green+
+        <Sparkles size={11} /> dalecode · Beautiful UI harness · Dark Green+
       </div>
     </div>
   );

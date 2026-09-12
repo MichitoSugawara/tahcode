@@ -7,6 +7,7 @@ import { Button } from "@/components/atoms/Button";
 import { SegmentedControl } from "@/components/atoms/SegmentedControl";
 import { InlineError, Input, Label } from "@/harness/ui/Field";
 import { Brand } from "@/harness/ui/Brand";
+import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
  * AUTH — one card on the canvas. Sign in / sign up share the
@@ -30,6 +31,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const next = params.get("next") ?? (location.state as { next?: string } | null)?.next ?? "/";
   const signUp = flow === "新規登録";
+  useDocumentTitle(signUp ? "新規登録" : "ログイン");
 
   /* navigate only once the auth state has actually flipped, so a `next`
    * target (invite link) never bounces back here mid-transition */

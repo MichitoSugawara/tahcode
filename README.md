@@ -1,6 +1,7 @@
-# Team Harness — チーム作業場 Phase 1
+# dalecode — Phase 1
 
-Multica-based チーム作業場と同じプロダクト構想の、最小チームチャット + オンマシン・コーディングエージェント。
+**dalecode** は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。
+Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。
 Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、
 履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、
 最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
@@ -95,6 +96,9 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 スクリーンショット一覧: `docs/ui-screenshots/`（01 → 42 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
 
 ## Stack
+
+内部名（`package.json` の `name`、wrangler の Worker 名 / R2 バケット名、`.team-harness/` 鍵ディレクトリ、`HARNESS_*` 環境変数）は
+`team-harness` のまま。ユーザーに見える名前はすべて **dalecode**。
 
 - UI: Vite + React 19 + Tailwind v4 + Beautiful UI（shadcn レジストリ）+ Convex Auth（Password）+ react-router
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック

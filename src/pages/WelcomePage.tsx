@@ -10,6 +10,7 @@ import { CreateOrgForm } from "@/harness/dialogs/CreateOrgDialog";
 import { Brand } from "@/harness/ui/Brand";
 import { InlineError, Input, Label } from "@/harness/ui/Field";
 import { displayName } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
  * FIRST RUN — no org yet. Create one (you become owner) or
@@ -38,6 +39,7 @@ export default function WelcomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState(0);
+  useDocumentTitle("はじめる");
 
   useEffect(() => {
     const timers = [170, 330, 400, 550].map((ms, i) => setTimeout(() => setStage(i + 1), ms));

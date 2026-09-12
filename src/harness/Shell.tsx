@@ -5,6 +5,7 @@ import { useLocation, useParams } from "react-router-dom";
 import type { Id } from "../../convex/_generated/dataModel";
 import SidebarNav, { type SidebarGroup, type SidebarRailItem } from "@/components/primitives/SidebarNav";
 import { isLive, useOrg } from "@/harness/OrgContext";
+import { BrandMark } from "@/harness/ui/Brand";
 import { RightRail, type RailTab } from "@/harness/rail/RightRail";
 import { monogram, roleLabel, truncate } from "@/lib/format";
 import type { Theme } from "@/lib/theme";
@@ -103,6 +104,7 @@ function Sidebar({ theme, onToggleTheme, collapsible, onNavigate }: { theme: The
       fill
       collapsible={collapsible}
       className="lg:pl-0"
+      brand={{ mark: <BrandMark />, name: "dalecode", badge: "Phase 1" }}
       workspace={{ id: String(org.org._id), name: org.org.name, monogram: monogram(org.org.name), meta: roleLabel(org.role) }}
       workspaces={org.orgs.map((item) => ({ id: String(item._id), name: item.name, monogram: monogram(item.name), meta: roleLabel(item.role) }))}
       onSwitchWorkspace={(id) => {

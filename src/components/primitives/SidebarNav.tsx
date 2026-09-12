@@ -63,6 +63,8 @@ export type SidebarGroup = {
 };
 
 type SidebarNavProps = {
+  /** product wordmark rendered above the workspace switcher */
+  brand?: { mark: ReactNode; name: string; badge?: string };
   workspace: SidebarWorkspace;
   workspaces: SidebarWorkspace[];
   onSwitchWorkspace?: (id: string) => void;
@@ -287,6 +289,7 @@ function WorkspaceMenu({
 }
 
 export default function SidebarNav({
+  brand,
   workspace,
   workspaces,
   onSwitchWorkspace,
@@ -368,6 +371,13 @@ export default function SidebarNav({
       }
     >
       <div className="flex min-h-0 w-[224px] shrink-0 flex-col">
+        {brand && (
+          <div className="relative mb-1 flex h-7 shrink-0 items-center pl-4">
+            <span className="flex size-5 shrink-0 items-center justify-center">{brand.mark}</span>
+            <span className="sidebar-copy ml-2 text-[13px] font-semibold tracking-[-0.02em] text-ink">{brand.name}</span>
+            {brand.badge && <span className="sidebar-copy ml-1.5 rounded-full bg-accent-tint px-1.5 py-px text-[10px] font-medium text-accent-ink">{brand.badge}</span>}
+          </div>
+        )}
         {/* workspace switcher + collapse */}
         <div className="relative mb-2.5 h-10 shrink-0">
           <button

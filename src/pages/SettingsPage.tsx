@@ -8,6 +8,7 @@ import { RuntimePane } from "@/harness/rail/RuntimePane";
 import { TeamPane } from "@/harness/rail/TeamPane";
 import { CopyButton } from "@/harness/ui/CopyButton";
 import { roleLabel } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
  * ORG SETTINGS — minimal by design: identity, members and
@@ -17,6 +18,7 @@ import { roleLabel } from "@/lib/format";
 export default function SettingsPage() {
   const { org, role, projects, chats } = useOrg();
   const location = useLocation();
+  useDocumentTitle("設定", org.name);
   useEffect(() => {
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "start" });
   }, [location.hash]);
