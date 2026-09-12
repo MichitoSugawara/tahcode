@@ -1,0 +1,68 @@
+# electron-builder configuration for the dalecode desktop shell.
+# Build on a Mac: `npm run dist` (Apple Silicon .dmg + .zip in release/).
+# Signing / notarization are intentionally off for now — see README.md.
+appId: dev.dalecode.desktop
+productName: dalecode
+copyright: Copyright © 2026 dalecode
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+  - "!dist/**/*.map"
+
+asar: true
+npmRebuild: false
+
+# Registers dalecode:// so the system browser can hand the OAuth code back to
+# the app (CFBundleURLTypes on macOS; .desktop MimeType on Linux).
+protocols:
+  - name: dalecode
+    schemes:
+      - dalecode
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  darkModeSupport: true
+  # Unsigned for now. Remove `identity: null` and add APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+  # APPLE_TEAM_ID (+ a Developer ID certificate in the keychain) to sign and notarize.
+  identity: null
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSHighResolutionCapable: true
+    LSMinimumSystemVersion: "12.0"
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+
+dmg:
+  sign: false
+  contents:
+    - x: 140
+      y: 180
+    - x: 400
+      y: 180
+      type: link
+      path: /Applications
+
+linux:
+  category: Development
+  icon: build/icon.png
+  executableName: dalecode
+  # `dir` only: Linux is used for CI smoke tests, not for distribution.
+  target:
+    - dir
+
+publish: null

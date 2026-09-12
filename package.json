@@ -26,6 +26,12 @@
     "env:dec": "node scripts/env.mjs decrypt",
     "cli": "tsx packages/cli/src/index.ts",
     "cli:build": "node packages/cli/build.mjs",
+    "desktop:install": "npm --prefix apps/desktop install",
+    "desktop:dev": "npm --prefix apps/desktop run dev",
+    "desktop:typecheck": "npm --prefix apps/desktop run typecheck",
+    "desktop:pack": "npm --prefix apps/desktop run pack",
+    "desktop:build": "npm --prefix apps/desktop run dist",
+    "desktop:smoke": "npm --prefix apps/desktop run smoke",
     "prepare": "lefthook install"
   },
   "dependencies": {

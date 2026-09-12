@@ -1,0 +1,38 @@
+{
+  "name": "dalecode-desktop",
+  "productName": "dalecode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "dalecode desktop shell — an Electron window around the dalecode web app with system-browser OAuth.",
+  "license": "MIT",
+  "author": "dalecode",
+  "homepage": "https://team-harness.gawara.workers.dev",
+  "main": "dist/main.cjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:main": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "electron .",
+    "dev": "node build.mjs && electron .",
+    "dev:local": "node build.mjs && cross-env DALECODE_DESKTOP_ENV=local electron .",
+    "dev:staging": "node build.mjs && cross-env DALECODE_DESKTOP_ENV=staging electron .",
+    "pack": "node build.mjs && electron-builder --dir",
+    "dist": "node build.mjs && electron-builder --mac --arm64 dmg zip",
+    "dist:mac": "node build.mjs && electron-builder --mac --arm64 dmg zip",
+    "dist:mac:universal": "node build.mjs && electron-builder --mac --universal dmg zip",
+    "dist:mac:intel": "node build.mjs && electron-builder --mac --x64 dmg zip",
+    "dist:linux": "node build.mjs && electron-builder --linux dir",
+    "smoke": "node build.mjs && node scripts/smoke.mjs",
+    "icon": "node scripts/make-icon.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "cross-env": "^10.1.0",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "typescript": "~6.0.2"
+  }
+}
