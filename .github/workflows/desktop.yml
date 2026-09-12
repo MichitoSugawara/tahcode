@@ -1,0 +1,114 @@
+name: Desktop
+
+# The macOS shell lives in apps/desktop and is built independently of the
+# Convex + Cloudflare deploy (deploy.yml). Linux verifies the package on every
+# PR; the macOS .dmg is produced on demand (workflow_dispatch) or on a
+# `desktop-v*` tag so it never consumes macOS minutes unexpectedly.
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main, staging, production]
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop.yml"
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+    inputs:
+      build_mac:
+        description: Build the unsigned macOS (Apple Silicon) .dmg and upload it as an artifact
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/desktop
+
+jobs:
+  linux-check:
+    name: Typecheck, smoke-run and package (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_CACHE: ~/.cache/electron
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Bundle main + preload
+        run: npm run build:main
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
+
+      - name: Smoke-run the shell (loads production, takes a screenshot)
+        run: npm run smoke -- release/smoke-production.png
+
+      - name: Smoke-run the OAuth return path (simulated dalecode:// callback)
+        env:
+          DALECODE_DESKTOP_SMOKE_DEEP_LINK: "dalecode://auth/callback?next=%2Finvite%2Fci&code=ci-smoke"
+        run: node scripts/smoke.mjs release/smoke-deeplink.png
+
+      - name: Smoke-run the offline fallback
+        run: node scripts/smoke.mjs release/smoke-offline.png --url=http://127.0.0.1:45999
+
+      - name: Package (linux dir target validates electron-builder config)
+        run: npx electron-builder --linux dir
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-smoke
+          path: apps/desktop/release/smoke-*.png
+          if-no-files-found: error
+
+  mac-dmg:
+    name: Build unsigned macOS .dmg (Apple Silicon)
+    if: github.event_name == 'workflow_dispatch' && inputs.build_mac || startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Unsigned: electron-builder.yml sets `mac.identity: null`. To sign and
+      # notarize, add Developer ID certificate + Apple ID secrets and drop that
+      # line (see apps/desktop/README.md).
+      - name: Build .dmg / .zip
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dalecode-desktop-mac-arm64
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+          if-no-files-found: error

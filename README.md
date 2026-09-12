@@ -148,6 +148,22 @@ tahcode start        # Multica daemon を起動 → tahcode のジョブブリ�
 
 DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` や `@cursor/muse-spark-1.3 直して` のようにメンションする。送信時にチャットのエージェントのメンションが自動付与される（プロジェクトのみ。DM は付与なしでチャットのエージェントで動く）。
 
+## デスクトップアプリ（macOS、Electron）
+
+`apps/desktop` はデプロイ済みの Web をそのまま載せる薄い Electron シェル（UI のバンドルなし、既定は production）。
+Google ログインはシステムブラウザで行い、`dalecode://auth/callback` の deep link で戻ってくる。
+設計・Electron を選んだ理由・署名/公証の手順は [`apps/desktop/README.md`](apps/desktop/README.md)。
+
+```bash
+npm run desktop:install   # apps/desktop の依存（Electron 本体）を入れる
+npm run desktop:dev       # production の Web を読み込んで起動（DALECODE_DESKTOP_ENV=staging|local で切替）
+npm run desktop:pack      # 未署名 .app（release/mac-arm64/dalecode.app）— deep link の検証はこちら
+npm run desktop:build     # Apple Silicon 向け .dmg / .zip（apps/desktop/release/）
+```
+
+Linux CI（`.github/workflows/desktop.yml`）は typecheck → xvfb で起動 → スクリーンショット → `electron-builder --linux dir` まで、
+macOS の `.dmg` は `workflow_dispatch` / `desktop-v*` タグで `macos-latest` が作る（未署名）。スクリーンショットは `docs/desktop-screenshots/`。
+
 ## 受け入れ基準の対応
 
 1. Org / Project 作成 → `/welcome` と ワークスペースメニュー（Org）、サイドバーの ＋ / `/project`（Project、org/private + リソース）
