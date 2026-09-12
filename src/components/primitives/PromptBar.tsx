@@ -1,5 +1,6 @@
 import { ArrowUp, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { MentionText } from "@/components/atoms/MentionText";
 
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
@@ -10,7 +11,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
  *
  * Changes from the registry copy: menus, pickers, and attachments
  * are props instead of demo constants; the self-running walkthrough,
- * dictation, and the glimm shader sweep are removed.
+ * dictation, and the glimm shader sweep are removed. @mentions in the
+ * draft are painted as accent chips by a mirror layer under the textarea.
  * ───────────────────────────────────────────────────────── */
 
 export type PromptMenuItem = {
@@ -57,6 +59,14 @@ function parseToken(draft: string): Token | null {
     query: (match[3] ?? "").toLowerCase(),
     start: match.index + (match[1]?.length ?? 0),
   };
+}
+
+/* keep the mention highlighter scrolled and wrapped like the textarea */
+function alignHighlight(input: HTMLTextAreaElement | null, highlight: HTMLDivElement | null) {
+  if (!input || !highlight) return;
+  highlight.scrollTop = input.scrollTop;
+  /* a visible scrollbar narrows the textarea's wrap width; mirror that */
+  highlight.style.right = `${input.offsetWidth - input.clientWidth}px`;
 }
 
 const POP = "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both";
@@ -120,7 +130,13 @@ export default function PromptBar({
   const controlsRef = useRef<HTMLDivElement>(null);
   const pickersRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
+
+  /* the textarea and its mention highlighter must share every metric
+   * that affects line breaking, or the chips drift from the caret */
+  const inputMetrics = tall ? "px-2 py-2 text-[14px] leading-5" : "px-1 py-[5px] text-[13px] leading-[18px]";
+  const syncHighlight = () => alignHighlight(inputRef.current, highlightRef.current);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const pickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pickerRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -204,6 +220,7 @@ export default function PromptBar({
     const contentHeight = input.scrollHeight;
     input.style.height = `${Math.min(Math.max(contentHeight, minHeight), maxHeight)}px`;
     input.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+    alignHighlight(input, highlightRef.current);
   }, [draft, expanded, tall, pickers.length]);
 
   /* clicking anywhere outside the composer closes the open menus */
@@ -411,50 +428,63 @@ export default function PromptBar({
               <Plus size={16} strokeWidth={2} />
             </button>
 
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={draft}
-              disabled={disabled}
-              onChange={(event) => {
-                update(event.target.value);
-                setDismissed(false);
-                setPlusOpen(false);
-              }}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
-                if (menu && rows.length > 0) {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setEngaged(true);
-                    setActive((current) => (current + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length);
+            {/* The textarea keeps every native behaviour (IME, selection,
+             * mobile keyboards, autocomplete) but paints its glyphs
+             * transparent; a mirror underneath renders the same text with
+             * mentions as chips, so the composer reads like a sent bubble. */}
+            <div className={`relative min-w-0 ${wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"}`}>
+              <div
+                ref={highlightRef}
+                aria-hidden="true"
+                className={`${inputMetrics} pointer-events-none absolute inset-0 overflow-hidden text-ink whitespace-pre-wrap [overflow-wrap:anywhere]`}
+              >
+                <MentionText text={draft} overlay />
+                {"\u200b"}
+              </div>
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={draft}
+                disabled={disabled}
+                onChange={(event) => {
+                  update(event.target.value);
+                  setDismissed(false);
+                  setPlusOpen(false);
+                }}
+                onScroll={syncHighlight}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (menu && rows.length > 0) {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setEngaged(true);
+                      setActive((current) => (current + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length);
+                      return;
+                    }
+                    if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
+                      event.preventDefault();
+                      const row = rows[active];
+                      if (row) pick(row);
+                      return;
+                    }
+                  }
+                  if (event.key === "Escape") {
+                    setDismissed(true);
+                    closeMenus();
                     return;
                   }
-                  if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
+                  if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
-                    const row = rows[active];
-                    if (row) pick(row);
-                    return;
+                    send();
                   }
-                }
-                if (event.key === "Escape") {
-                  setDismissed(true);
-                  closeMenus();
-                  return;
-                }
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  send();
-                }
-              }}
-              placeholder={placeholder}
-              aria-label="メッセージ"
-              className={`${
-                tall ? "min-h-[68px] px-2 py-2 text-[14px] leading-5" : "min-h-7 px-1 py-[5px] text-[13px] leading-[18px]"
-              } w-full min-w-0 resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${
-                wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
-              }`}
-            />
+                }}
+                placeholder={placeholder}
+                aria-label="メッセージ"
+                className={`${inputMetrics} ${
+                  tall ? "min-h-[68px]" : "min-h-7"
+                } relative block w-full min-w-0 resize-none bg-transparent text-transparent caret-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3`}
+              />
+            </div>
 
             {/* pickers — provider · runtime */}
             <div
