@@ -47,7 +47,11 @@ npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registr
 |---|---|
 | **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、New chat / Home / 招待 / ランタイムのレール、パーソナル + プロジェクト別チャットツリー、検索、52↔224px 折りたたみ |
 | **PromptBar**（移植: デモ/口述/シェーダを除去、データ駆動化） | コンポーザ。`@` でエージェント + メンバー、`/` でコマンド、プロバイダ / ランタイムのピルピッカー、R2 添付チップ、⏎送信 / ⇧⏎改行、IME 対応 |
-| **ThinkingState**（`working` prop を追加してライブ駆動） | ランタイムの `thinking` / `tool` イベントをそのままトレース行に。実行中はシマー + スピナー、完了で「N ステップ実行」に畳む |
+| **ThinkingState**（`working` prop を追加してライブ駆動） | ランタイムの `thinking` イベントをそのままトレース行に。実行中はシマー + スピナー、完了で「N ステップ実行」に畳む |
+| **ToolChips**（`live` / `fill` prop を追加） | ランタイムの `tool` イベント（コマンド実行・編集・MCP）を展開可能なチップ行に。「N 件のツール呼び出し」で畳む |
+| **Search**（データ駆動化 + ↑↓⏎） | ⌘K / Ctrl+K のコマンドパレット。チャット・プロジェクト・作成/登録/招待/設定を横断検索 |
+| **StreamingText** のアクション行 / フォローアップ | 返信下のコピー・再実行アイコン、最新の返信に続く「続けて聞く」候補（クリックで送信） |
+| **Shimmer** | 「読み込んでいます」「CLI を検出しています」など進行中ラベル |
 | **LoadingState** | ジョブ受付待ち・接続待ち・画面ロード（ピクセルグリッド + 経過秒） |
 | **CodeBlock** | 返信内のコードフェンス、ランタイム起動コマンド（コピー付き） |
 | **ContextCards** | Context タブ「エージェントに渡すもの」（project link / 履歴 / メンション） |
@@ -56,8 +60,8 @@ npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registr
 | Button / StatusPill / ValuePill / Chip / SegmentedControl / TextRow / EntityChip(Monogram) | ボタン、ロール・状態ピル、件数、ハンドル、タブ切替、設定行、アバター |
 | ハーネスの構成（`IceCreamHarness`） | 3 ペインシェル、チャットタブバー、ホームの登場ストーリーボード（blur → 定位置）、ユーザーバブル、返信の fade-up、浮かぶコンポーザと追従スクロール |
 
-見送り（Phase 1 に対応する機能がないため未導入）: ApprovalCard（承認フローは Phase 1 外）、ToolChips / DiffTable（構造化 diff をランタイムが返さない）、
-RecordsTable / FilterTable / InsightCards / Flowchart / FineTuneCard / SelectionActions / SearchList / ChatComposer(デモ)。
+見送り（Phase 1 に対応する機能がないため未導入）: ApprovalCard（承認フローは Phase 1 外）、DiffTable / ToolChips の diff チップ（構造化 diff をランタイムが返さない）、
+RecordsTable / FilterTable / InsightCards / Flowchart / FineTuneCard / SelectionActions / RecommendationCard / ChatComposer(デモ)。
 
 ### テーマ（`src/app/theme.css`）
 
@@ -91,9 +95,10 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
 9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー、プロバイダ / ランタイムピッカー、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール）
+    **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
 
-スクリーンショット一覧: `docs/ui-screenshots/`（01 → 42 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
+スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
 
 ## Stack
 

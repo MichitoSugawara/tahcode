@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/atoms/Button";
 import { Monogram } from "@/components/atoms/EntityChip";
 import { StatusPill } from "@/components/atoms/StatusPill";
+import { Shimmer } from "@/components/atoms/Shimmer";
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { useOrg, type Member, type OrgRole } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
@@ -125,7 +126,11 @@ export function TeamPane() {
             </div>
           );
         })}
-        {sorted.length === 0 && <div className="px-3 py-3 text-[12.5px] text-ink-3">読み込み中…</div>}
+        {sorted.length === 0 && (
+          <div className="px-3 py-3 text-[12.5px]">
+            <Shimmer>メンバーを読み込んでいます</Shimmer>
+          </div>
+        )}
       </div>
 
       {isAdmin ? (

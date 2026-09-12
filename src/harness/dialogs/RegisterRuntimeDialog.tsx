@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
+import { Shimmer } from "@/components/atoms/Shimmer";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import CodeBlock from "@/components/primitives/CodeBlock";
 import LoadingState from "@/components/primitives/LoadingState";
@@ -178,7 +179,7 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
                         </StatusPill>
                       ))
                     ) : (
-                      <span>CLI を検出中…</span>
+                      <Shimmer className="text-[12px]">エージェント CLI を検出しています</Shimmer>
                     )}
                   </div>
                 </div>

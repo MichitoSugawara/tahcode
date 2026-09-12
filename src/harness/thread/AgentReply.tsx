@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { Cpu, ListTree, ShieldCheck } from "lucide-react";
+import { Check, Copy, Cpu, ListTree, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -7,6 +7,8 @@ import { Button } from "@/components/atoms/Button";
 import { Monogram } from "@/components/atoms/EntityChip";
 import LoadingState from "@/components/primitives/LoadingState";
 import ThinkingState, { type ThinkingRow } from "@/components/primitives/ThinkingState";
+import ToolChips, { type ToolStep } from "@/components/primitives/ToolChips";
+import { copyText } from "@/lib/format";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { clockTime } from "@/lib/format";
@@ -16,9 +18,10 @@ import { Markdown } from "./Markdown";
 /* ─────────────────────────────────────────────────────────
  * AGENT REPLY — the harness AssistantResponse on real data.
  *   queued/streaming, no text yet → LoadingState (pixel grid)
- *   events arriving               → ThinkingState (live rows)
- *   text arriving                 → StreamText-style reveal + caret
- *   done                          → Markdown with CodeBlocks
+ *   thinking events               → ThinkingState (live rows)
+ *   tool events                   → ToolChips (live rows, expandable)
+ *   text arriving                 → progressive Markdown + caret
+ *   done                          → Markdown with CodeBlocks + actions
  *   failed                        → the error, in place
  * ───────────────────────────────────────────────────────── */
 
@@ -66,6 +69,19 @@ function summarizeEvent(type: string, raw: string): ThinkingRow {
   return { primary: text.startsWith("Running ") ? "起動" : "思考", secondary: clip(text), mono: text.startsWith("Running ") };
 }
 
+/* One runtime `tool` event → one ToolChips row. Provider protocols label
+ * the call (command_execution / file_change / mcp_tool_call …); the rest of
+ * the line is the chip. */
+function toolStep(raw: string): ToolStep {
+  const text = raw.trim().replace(/\s+/g, " ");
+  const [, kind, rest] = /^([a-z_]+):\s*(.*)$/i.exec(text) ?? [];
+  const key = (kind ?? "").toLowerCase();
+  const icon = /write|edit|patch|file/.test(key) ? "write" : /read|view|search|grep/.test(key) ? "read" : "run";
+  const label = /file|patch|edit/.test(key) ? "編集" : /read|view/.test(key) ? "読み取り" : /mcp/.test(key) ? "MCP" : /command|exec|shell|bash/.test(key) ? "コマンド" : kind ? kind.replace(/_/g, " ") : "ツール";
+  const chip = (rest ?? text).slice(0, 120) || text.slice(0, 120);
+  return { icon, label, chip, mono: true, detailMono: true, detail: [{ text: text.slice(0, 400) }] };
+}
+
 /* StreamText's reveal, made incremental and markdown-aware: the revealed
  * count only ever catches up to the growing text (never restarts per
  * chunk), the partial markdown re-renders as it lands, and a caret rides
@@ -102,7 +118,7 @@ function LiveMarkdown({ text, live }: { text: string; live: boolean }) {
   );
 }
 
-export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?: string }) {
+export function AgentReply({ message, prompt, onRetry }: { message: AgentMessage; prompt?: string; onRetry?: (prompt: string) => void }) {
   const { runtimes, openDialog } = useOrg();
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
@@ -120,8 +136,10 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
 
   const rows = useMemo<ThinkingRow[]>(() => {
     const events = job?.events ?? [];
-    return events.filter((event) => event.type === "thinking" || event.type === "tool").map((event) => summarizeEvent(event.type, event.text));
+    return events.filter((event) => event.type === "thinking").map((event) => summarizeEvent(event.type, event.text));
   }, [job]);
+  const tools = useMemo<ToolStep[]>(() => (job?.events ?? []).filter((event) => event.type === "tool").map((event) => toolStep(event.text)), [job]);
+  const [copied, setCopied] = useState(false);
 
   const streamedText = useMemo(() => {
     if (!job) return null;
@@ -155,8 +173,9 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
 
   const { text: finalText, footer } = splitFooter(message.body);
   const liveText = streaming ? (streamedText ?? message.body.replace(/^Running [^\n]*\n?/, "")) : "";
-  const showLoader = streaming && liveText.trim().length === 0 && rows.length === 0;
-  const traceCount = rows.length;
+  const showLoader = streaming && liveText.trim().length === 0 && rows.length === 0 && tools.length === 0;
+  const traceCount = rows.length + tools.length;
+  const traceVisible = streaming || traceOpen || seen;
 
   return (
     <article className="min-w-0" style={{ animation: "fade-up 450ms cubic-bezier(0.23,1,0.32,1) both" }}>
@@ -179,7 +198,7 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
         </div>
       )}
 
-      {(streaming || traceOpen || seen) && rows.length > 0 && (
+      {traceVisible && rows.length > 0 && (
         <div className="mb-2">
           <ThinkingState
             fill
@@ -189,6 +208,20 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
             rows={rows}
             active={`実行中 · ${rows.length} ステップ`}
             done={`${rows.length} ステップ実行`}
+          />
+        </div>
+      )}
+
+      {traceVisible && tools.length > 0 && (
+        <div className="mb-3">
+          <ToolChips
+            fill
+            live
+            steps={tools}
+            diffs={[]}
+            diffLines={{}}
+            defaultOpen={streaming || traceOpen}
+            labels={{ header: `${tools.length} 件のツール呼び出し`, more: "" }}
           />
         </div>
       )}
@@ -208,13 +241,44 @@ export function AgentReply({ message, prompt }: { message: AgentMessage; prompt?
       )}
 
       {!streaming && (footer || message.jobId) && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-ink-3">
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
+          {/* action icons row — StreamingText grammar */}
+          {!failed && finalText.trim().length > 0 && (
+            <span className="-ml-1 mr-1 flex items-center gap-0.5">
+              <button
+                type="button"
+                aria-label="返信をコピー"
+                title="Markdown をコピー"
+                onClick={() => {
+                  void copyText(finalText.trim()).then((ok) => {
+                    if (!ok) return;
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  });
+                }}
+                className={`flex size-6 items-center justify-center rounded-[6px] transition-colors duration-100 hover:bg-hover-2 hover:text-ink-2 ${copied ? "text-green" : "text-ink-3"}`}
+              >
+                {copied ? <Check size={14} strokeWidth={2.5} /> : <Copy size={14} strokeWidth={1.8} />}
+              </button>
+              {onRetry && prompt && (
+                <button
+                  type="button"
+                  aria-label="同じ依頼をもう一度"
+                  title="同じ依頼をもう一度送る"
+                  onClick={() => onRetry(prompt)}
+                  className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 transition-colors duration-100 hover:bg-hover-2 hover:text-ink-2"
+                >
+                  <RotateCcw size={14} strokeWidth={1.8} />
+                </button>
+              )}
+            </span>
+          )}
           {footer && (
             <span className="inline-flex items-center gap-1 font-mono tabular-nums">
               <ShieldCheck size={11} /> {footer.provider} · {footer.seconds}s · {footer.binary}
             </span>
           )}
-          {message.jobId && !(seen && rows.length > 0) && (
+          {message.jobId && !(seen && traceCount > 0) && (
             <button
               type="button"
               aria-expanded={traceOpen}

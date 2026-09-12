@@ -1,11 +1,12 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Cpu, Folder, Home, Lock, Menu, MessageSquare, PanelRight, Plus, SquarePen, UserPlus, UserRound, X } from "lucide-react";
+import { Cpu, Folder, Home, Lock, Menu, MessageSquare, PanelRight, Plus, Search, SquarePen, UserPlus, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import type { Id } from "../../convex/_generated/dataModel";
 import SidebarNav, { type SidebarGroup, type SidebarRailItem } from "@/components/primitives/SidebarNav";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { BrandMark } from "@/harness/ui/Brand";
+import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
 import { RightRail, type RailTab } from "@/harness/rail/RightRail";
 import { monogram, roleLabel, truncate } from "@/lib/format";
 import type { Theme } from "@/lib/theme";
@@ -223,6 +224,7 @@ export function Shell({
 }) {
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  const palette = useCommandPalette();
   const location = useLocation();
   useEffect(() => {
     setNavOpen(false);
@@ -250,16 +252,29 @@ export function Shell({
                 </button>
               }
               trailing={
-                rail ? (
+                <>
                   <button
                     type="button"
-                    aria-label="パネルを開く"
-                    onClick={() => setRailOpen(true)}
-                    className="flex size-7 shrink-0 items-center justify-center rounded-[7px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink xl:hidden"
+                    aria-label="コマンドパレット（⌘K）"
+                    title="⌘K / Ctrl+K"
+                    onClick={() => palette.setOpen(true)}
+                    className="flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] px-2 text-[12px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
                   >
-                    <PanelRight size={16} />
+                    <Search size={13} />
+                    <span className="hidden sm:inline">検索</span>
+                    <kbd className="hidden rounded-[4px] bg-inset px-1 font-mono text-[10px] shadow-hairline md:inline">⌘K</kbd>
                   </button>
-                ) : null
+                  {rail && (
+                    <button
+                      type="button"
+                      aria-label="パネルを開く"
+                      onClick={() => setRailOpen(true)}
+                      className="flex size-7 shrink-0 items-center justify-center rounded-[7px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink xl:hidden"
+                    >
+                      <PanelRight size={16} />
+                    </button>
+                  )}
+                </>
               }
             />
             {children}
@@ -275,6 +290,8 @@ export function Shell({
           )}
         </div>
       </div>
+
+      <CommandPalette open={palette.open} onOpenChange={palette.setOpen} />
 
       {/* sidebar sheet (below lg) */}
       <DialogPrimitive.Root open={navOpen} onOpenChange={setNavOpen}>

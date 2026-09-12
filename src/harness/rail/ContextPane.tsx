@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Chip } from "@/components/atoms/Chip";
 import { Monogram } from "@/components/atoms/EntityChip";
+import { Shimmer } from "@/components/atoms/Shimmer";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { TextRow } from "@/components/atoms/TextRow";
 import { ValuePill } from "@/components/atoms/ValuePill";
@@ -69,7 +70,12 @@ export function ContextPane({ chatId }: { chatId?: string }) {
     );
   }
 
-  if (chat === undefined) return <div className="text-[13px] text-ink-3">読み込み中…</div>;
+  if (chat === undefined)
+    return (
+      <div className="text-[13px]">
+        <Shimmer>コンテキストを読み込んでいます</Shimmer>
+      </div>
+    );
   if (chat === null) return <Notice tone="locked" title="このチャットは表示できません">参加しているチャットのみコンテキストを確認できます。</Notice>;
 
   const historyCount = Math.min(messages?.length ?? 0, 30);

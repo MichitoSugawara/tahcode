@@ -2,11 +2,13 @@ import { Cpu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
-import { Composer } from "@/harness/Composer";
+import { Composer, useSendMessage } from "@/harness/Composer";
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
+import { providerHandle } from "@/lib/providers";
 import { AgentReply } from "./AgentReply";
+import { FollowUps } from "./FollowUps";
 import { UserBubble } from "./UserBubble";
 
 export type ThreadMessage = {
@@ -32,6 +34,7 @@ export type ThreadMessage = {
  * ───────────────────────────────────────────────────────── */
 export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage[] }) {
   const org = useOrg();
+  const { send } = useSendMessage(chat);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerH, setComposerH] = useState(150);
@@ -85,6 +88,10 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
 
   const usable = (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now) && runtime.canUse);
   const anyRuntime = (org.runtimes ?? []).length > 0;
+  const last = messages[messages.length - 1];
+  const settledReply = last && last.authorType === "agent" && last.status === "done" && !!last.jobId;
+  const tag = chat.kind === "project" ? `@${providerHandle(last?.driverKind ?? org.provider)} ` : "";
+  const followUps = settledReply ? [`${tag}この結果をもとに実装まで進めて`, `${tag}変更点と次の一手を 3 行で要約して`] : [];
   const promptFor = (jobMessage: ThreadMessage) => {
     const index = messages.findIndex((message) => message._id === jobMessage._id);
     for (let i = index - 1; i >= 0; i -= 1) {
@@ -116,9 +123,11 @@ export function Thread({ chat, messages }: { chat: Chat; messages: ThreadMessage
                 </div>
               );
             }
+            const isLast = index === messages.length - 1;
             return (
               <div key={String(message._id)} className="mx-auto w-full max-w-[720px]">
-                <AgentReply message={message} prompt={promptFor(message)} />
+                <AgentReply message={message} prompt={promptFor(message)} onRetry={(text) => void send(text)} />
+                {isLast && settledReply && <FollowUps prompts={followUps} onPick={(text) => void send(text)} />}
               </div>
             );
           })}
