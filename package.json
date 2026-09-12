@@ -30,21 +30,12 @@
     "env:dec": "node scripts/env.mjs decrypt",
     "cli": "tsx packages/cli/src/index.ts",
     "cli:build": "node packages/cli/build.mjs",
-<<<<<<< HEAD
-    "desktop:install": "npm --prefix apps/desktop install",
-    "desktop:dev": "npm --prefix apps/desktop run dev",
-    "desktop:typecheck": "npm --prefix apps/desktop run typecheck",
-    "desktop:pack": "npm --prefix apps/desktop run pack",
-    "desktop:build": "npm --prefix apps/desktop run dist",
-    "desktop:smoke": "npm --prefix apps/desktop run smoke",
-    "prepare": "lefthook install"
-=======
     "desktop:dev": "npm run dev -w @dalecode/desktop",
     "desktop:typecheck": "npm run typecheck -w @dalecode/desktop",
     "desktop:pack": "npm run pack -w @dalecode/desktop",
     "desktop:build": "npm run dist -w @dalecode/desktop",
-    "desktop:smoke": "npm run smoke -w @dalecode/desktop --"
->>>>>>> 76a323d (monorepo: npm workspaces (apps/*, packages/*) and @dalecode/core shared package)
+    "desktop:smoke": "npm run smoke -w @dalecode/desktop --",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",

@@ -1,19 +1,27 @@
 name: Desktop
 
-# The macOS shell lives in apps/desktop and is built independently of the
-# Convex + Cloudflare deploy (deploy.yml). Linux verifies the package on every
-# PR; the macOS .dmg is produced on demand (workflow_dispatch) or on a
-# `desktop-v*` tag so it never consumes macOS minutes unexpectedly.
+# The Electron shell (apps/desktop) and the shared package it consumes
+# (packages/core) are verified independently of the Convex + Cloudflare deploy
+# (deploy.yml). Linux checks every PR; the macOS .dmg is produced on demand
+# (workflow_dispatch) or on a `desktop-v*` tag so it never consumes macOS
+# minutes unexpectedly. Both jobs install from the single root lockfile
+# (npm workspaces); Electron's binary is fetched lazily on first run.
 
 on:
   pull_request:
     paths:
       - "apps/desktop/**"
+      - "packages/core/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/desktop.yml"
   push:
     branches: [main, staging, production]
     paths:
       - "apps/desktop/**"
+      - "packages/core/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/desktop.yml"
     tags:
       - "desktop-v*"
@@ -27,50 +35,42 @@ on:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: apps/desktop
-
 jobs:
   linux-check:
     name: Typecheck, smoke-run and package (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      ELECTRON_CACHE: ~/.cache/electron
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: ./.github/actions/setup
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Typecheck shared package and shell
+        run: |
+          npx tsc -p packages/core/tsconfig.json --noEmit
+          npm run typecheck -w @dalecode/desktop
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Unit tests (includes the deep-link / redirect contract)
+        run: npm test
 
-      - name: Bundle main + preload
-        run: npm run build:main
+      - name: Build main + preload (electron-vite)
+        run: npm run build -w @dalecode/desktop
 
       - name: Install xvfb
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
 
       - name: Smoke-run the shell (loads production, takes a screenshot)
-        run: npm run smoke -- release/smoke-production.png
+        run: node apps/desktop/scripts/smoke.mjs apps/desktop/release/smoke-production.png
 
       - name: Smoke-run the OAuth return path (simulated dalecode:// callback)
         env:
           DALECODE_DESKTOP_SMOKE_DEEP_LINK: "dalecode://auth/callback?next=%2Finvite%2Fci&code=ci-smoke"
-        run: node scripts/smoke.mjs release/smoke-deeplink.png
+        run: node apps/desktop/scripts/smoke.mjs apps/desktop/release/smoke-deeplink.png
 
       - name: Smoke-run the offline fallback
-        run: node scripts/smoke.mjs release/smoke-offline.png --url=http://127.0.0.1:45999
+        run: node apps/desktop/scripts/smoke.mjs apps/desktop/release/smoke-offline.png --url=http://127.0.0.1:45999
 
       - name: Package (linux dir target validates electron-builder config)
-        run: npx electron-builder --linux dir
+        run: npx electron-builder --linux dir --projectDir apps/desktop
 
       - uses: actions/upload-artifact@v4
         with:
@@ -85,23 +85,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
+      - uses: ./.github/actions/setup
 
       - name: Typecheck
-        run: npm run typecheck
+        run: npm run typecheck -w @dalecode/desktop
 
       # Unsigned: electron-builder.yml sets `mac.identity: null`. To sign and
       # notarize, add Developer ID certificate + Apple ID secrets and drop that
       # line (see apps/desktop/README.md).
       - name: Build .dmg / .zip
-        run: npm run dist:mac
+        run: npm run dist:mac -w @dalecode/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
