@@ -12,14 +12,16 @@
     "preview": "vite preview --port 43173 --host 127.0.0.1",
     "preview:cf": "npm run build && wrangler dev --config wrangler.jsonc --port 43173",
     "deploy:cf": "npm run build && wrangler deploy",
-    "lint": "eslint convex src runtime worker shared --max-warnings=0",
+    "lint": "eslint convex src runtime worker shared packages/cli/src --max-warnings=0",
     "typecheck": "tsc -b && tsc -p tsconfig.convex.json --noEmit && tsc -p tsconfig.runtime.json --noEmit",
     "test": "vitest run",
-    "runtime": "tsx runtime/src/cli.ts",
+    "runtime": "tsx packages/cli/src/index.ts",
     "setup:local-auth": "node scripts/setup-local-auth.mjs",
     "cf:build": "node scripts/cf-build.mjs",
     "env:enc": "node scripts/env.mjs encrypt",
-    "env:dec": "node scripts/env.mjs decrypt"
+    "env:dec": "node scripts/env.mjs decrypt",
+    "cli": "tsx packages/cli/src/index.ts",
+    "cli:build": "node packages/cli/build.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",

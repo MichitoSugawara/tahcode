@@ -141,7 +141,7 @@ export function Composer({
       onChange: (key) => {
         if (isProviderKind(key)) org.setProvider(key);
       },
-      footer: "t3code 由来のプロバイダ配線 · CLI はランタイム側にインストール",
+      footer: "t3code 由来のプロバイダ配線 · CLI はランタイム側（dalecode start / Multica daemon）",
     },
     {
       id: "runtime",
@@ -160,7 +160,7 @@ export function Composer({
       value: org.runtimeId ? String(org.runtimeId) : "auto",
       onChange: (key) => org.setRuntimeId(key === "auto" ? null : (key as Id<"runtimes">)),
       emptyHint: "ランタイムがありません",
-      footer: (org.runtimes ?? []).length === 0 ? "「/runtime」でこのマシンを登録" : "default deny — 許可のないマシンは選べません",
+      footer: (org.runtimes ?? []).length === 0 ? "「/runtime」でこのマシンを登録（npm i -g dalecode）" : "default deny — 許可のないマシンは選べません",
     },
   ];
 

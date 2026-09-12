@@ -43,3 +43,4 @@ convex/_generated/
 *.sln
 *.sw?
 artifacts/
+packages/cli/dist/

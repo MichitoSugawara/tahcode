@@ -51,13 +51,12 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
     () =>
       issued
         ? [
-            `export CONVEX_URL="${convexUrl}"`,
-            `export HARNESS_RUNTIME_ID="${String(issued.runtimeId)}"`,
-            `export HARNESS_RUNTIME_TOKEN="${issued.token}"`,
-            "npm run runtime -- run",
+            "npm i -g dalecode",
+            `dalecode link --url "${convexUrl}" --runtime "${String(issued.runtimeId)}" --token "${issued.token}" --name "${name.trim() || "machine"}"`,
+            "dalecode start",
           ]
         : [],
-    [issued, convexUrl],
+    [issued, convexUrl, name],
   );
 
   return (
@@ -67,8 +66,8 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
       title={issued ? "このマシンで runtime を起動" : "マシンランタイムを登録"}
       description={
         issued
-          ? "下のコマンドをランタイムを動かすマシンのターミナルで実行してください。接続されるとこの画面が自動で更新されます。"
-          : "エージェントはあなたのマシン上で動きます。登録すると一度だけ表示されるトークンが発行されます。"
+          ? "下の 3 行をエージェントを動かすマシンのターミナルで実行してください。dalecode CLI が Multica daemon を起動し、接続されるとこの画面が自動で更新されます。"
+          : "エージェントはあなたのマシン上の Multica daemon 経由で動きます。登録すると一度だけ表示されるトークンと、dalecode CLI の起動コマンドが発行されます。"
       }
       width={560}
       footer={
@@ -134,9 +133,12 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           <div className="rounded-card bg-inset p-3 shadow-hairline">
             <SectionLabel className="mb-1.5">起動前に必要なもの</SectionLabel>
             <ul className="flex flex-col gap-1 text-[12.5px] leading-relaxed text-ink-2">
-              <li>· このリポジトリを clone 済みのマシン（<code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">npm install</code> 済み）</li>
+              <li>· Node 20+ と <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">npm i -g dalecode</code></li>
               <li>
-                · いずれかの CLI にログイン済み:{" "}
+                · Multica CLI（未導入なら <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">dalecode install-multica</code> が案内）
+              </li>
+              <li>
+                · いずれかのエージェント CLI にログイン済み:{" "}
                 {Object.values(PROVIDERS)
                   .map((provider) => provider.binary)
                   .join(" / ")}
@@ -152,8 +154,11 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           </Notice>
 
           <div>
-            <SectionLabel>ターミナルで実行</SectionLabel>
-            <CodeBlock fill variant="Code" filename="start-runtime.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
+            <SectionLabel>ターミナルで実行（dalecode CLI → Multica daemon）</SectionLabel>
+            <CodeBlock fill variant="Code" filename="install-and-start.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
+            <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
+              困ったら <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode doctor</code>。状態は <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode status</code> / <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode logs -f</code>。
+            </p>
           </div>
 
           <div className="flex min-h-9 items-center gap-3 rounded-card bg-inset px-3 py-2.5 shadow-hairline">

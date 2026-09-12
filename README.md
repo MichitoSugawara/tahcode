@@ -87,7 +87,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
 5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲）。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
-7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン + コピー可能な起動コマンド → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
+7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g dalecode` / `dalecode link` / `dalecode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
 9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー、プロバイダ / ランタイムピッカー、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール）
@@ -104,7 +104,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
 - Hosting/files: Cloudflare（`worker/` + `wrangler.jsonc`、R2 バケット `FILES`）。ファイル本体は Worker（`/api/files`）経由で R2、メタデータは Convex `files`
 - Providers: t3code の6ドライバを `shared/providers.ts`（カタログ）+ `runtime/src/providers.ts`（headless 実行）に移植
-- Runtime: Node（`runtime/`、tsx 実行）。Convex をポーリングして headless CLI を起動
+- Runtime: `dalecode` CLI（`packages/cli`）= Multica CLI/daemon の薄いラッパー + Convex をポーリングするブリッジ（`runtime/`）。headless CLI 起動は t3code 由来
 
 ## ローカルで動かす
 
@@ -129,18 +129,29 @@ npm run dev:files  # http://127.0.0.1:43174（Vite が /api/files をプロキ�
 `.env.local` は `npx convex dev` が生成（`VITE_CONVEX_URL=http://127.0.0.1:3210`）。
 本番相当の確認: `npm run build` → `npm run preview:cf`（dist を Worker で配信）。
 
-### マシンランタイム
+### マシンランタイム（`npm i -g dalecode`）
 
-1. Web UI で登録 → 右レール **Runtime** タブ →「このマシンを登録」（サイドバー下の CTA、`/runtime` コマンドでも可）。
-   トークンは一度だけ表示されるので、表示されたコマンドをそのままコピーする。
-2. プロバイダ CLI を1つ以上用意（t3code と同じ）:
-   `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
-3. 起動:
+エージェントはあなたのマシンで、**Multica daemon** 経由で動きます。dalecode は独自の常駐デーモンを持たず、
+[Multica CLI/daemon](https://multica.ai/docs/daemon-runtimes) を薄くラップします（`packages/cli`、npm パッケージ名 `dalecode`、bin `dalecode`）。
+
+1. Web UI → 右レール **Runtime** タブ →「このマシンを登録」。一度だけ表示されるトークン入りのコマンド 3 行が発行されます:
 
 ```bash
-npm run runtime -- providers   # 検出確認
-CONVEX_URL=http://127.0.0.1:3210 HARNESS_RUNTIME_ID=... HARNESS_RUNTIME_TOKEN=th_... npm run runtime -- run
+npm i -g dalecode
+dalecode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token "th_…" --name "office-mac"
+dalecode start        # Multica daemon を起動 → dalecode のジョブブリッジをフォアグラウンドで実行
 ```
+
+2. Multica CLI が未導入なら `dalecode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする:
+   `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
+3. 確認: `dalecode doctor`（Node / Multica / 検出 CLI / dalecode 接続）、`dalecode status`、`dalecode logs -f`。
+
+役割分担: dalecode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、
+`dalecode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。
+`dalecode multica <args>` で Multica CLI をそのまま呼べます（例: `dalecode multica login`）。
+
+リポジトリ内での開発: `npm run cli -- doctor`（tsx でソース実行）、`npm run cli:build`（`packages/cli/dist/dalecode.mjs` にバンドル）。
+公開手順は [`packages/cli/README.md`](packages/cli/README.md)。CI や 1 回限りの実行では環境変数 `DALECODE_URL` / `DALECODE_RUNTIME_ID` / `DALECODE_TOKEN` でもリンクできます。
 
 DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` のようにメンションする。
 送信時に既定プロバイダのメンションが自動付与される（プロジェクトのみ）。
@@ -151,7 +162,7 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 2. DM / プロジェクトチャット → DM は Org 参加時に自動作成、プロジェクトチャットは「新しいチャット」ダイアログ / プロジェクト行の ＋
 3. DM 常時 / 他はメンション時のみ → `shared/mentions.ts` + `convex/messages.ts:send`
 4. Context = 履歴 + メンション + プロジェクトリンク → `convex/lib/context.ts`（ジョブに JSON 同梱、ランタイムがプロンプトに付与）
-5. t3code 由来プロバイダで実行 → `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）
+5. t3code 由来プロバイダで実行 → `dalecode start`（Multica daemon + ブリッジ）→ `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）
 6. 最小ロール + ランタイム許可 → Org ロール + `runtimeGrants`（default deny、machine owner 付与）
 7. Convex + Cloudflare → Convex が全データ/リアルタイム、Worker + R2 がホスティング/ファイル
 
@@ -217,8 +228,9 @@ R2 バケット（`team-harness-files` / `team-harness-files-staging`）は初�
 ## 開発コマンド
 
 ```bash
-npm run typecheck  # TS（app / convex / runtime）
+npm run typecheck  # TS（app / convex / runtime + packages/cli）
 npm run lint       # eslint（Convex プラグイン含む）
+npm run cli -- …   # dalecode CLI をソースから実行 / npm run cli:build でバンドル
 npm test           # vitest（mentions / access）
 npm run build      # 本番ビルド
 npx shadcn@latest add @beautifui/<name>   # Beautiful UI プリミティブの追加（components.json 済み）

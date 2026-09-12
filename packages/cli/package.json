@@ -1,0 +1,32 @@
+{
+  "name": "dalecode",
+  "version": "0.1.0",
+  "description": "dalecode machine CLI — link this computer to a dalecode org and run agents through the Multica daemon.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "dalecode": "./dist/dalecode.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "node build.mjs"
+  },
+  "dependencies": {
+    "convex": "^1.31.2"
+  },
+  "keywords": [
+    "dalecode",
+    "multica",
+    "coding-agent",
+    "codex",
+    "claude-code",
+    "cursor"
+  ]
+}

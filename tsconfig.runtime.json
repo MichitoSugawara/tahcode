@@ -22,5 +22,5 @@
       "@shared/*": ["./shared/*"]
     }
   },
-  "include": ["runtime", "shared"]
+  "include": ["runtime", "shared", "packages/cli/src"]
 }

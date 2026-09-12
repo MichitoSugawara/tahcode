@@ -60,7 +60,7 @@ export default function LoginPage() {
               <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent-tint text-accent-ink">
                 <Cpu size={13} />
               </span>
-              Codex / Claude / Cursor などの CLI をあなたのマシンで実行（t3code 由来のプロバイダ配線）。
+              Codex / Claude / Cursor などの CLI をあなたのマシンで実行。<code className="rounded-[4px] bg-inset px-1 font-mono text-[12px]">npm i -g dalecode</code> で接続し、Multica daemon が動かします。
             </li>
             <li className="flex items-start gap-3">
               <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent-tint text-accent-ink">

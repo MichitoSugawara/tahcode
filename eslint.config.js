@@ -17,7 +17,7 @@ export default [
   ...tseslint.configs.recommended,
   ...convexPlugin.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}", "runtime/**/*.ts", "worker/**/*.ts", "shared/**/*.ts"],
+    files: ["src/**/*.{ts,tsx}", "runtime/**/*.ts", "worker/**/*.ts", "shared/**/*.ts", "packages/cli/src/**/*.ts"],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
