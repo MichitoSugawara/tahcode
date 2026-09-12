@@ -97,8 +97,8 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ## Stack
 
-内部名（`package.json` の `name`、wrangler の Worker 名 / R2 バケット名、`.team-harness/` 鍵ディレクトリ、`HARNESS_*` 環境変数）は
-`team-harness` のまま。ユーザーに見える名前はすべて **dalecode**。
+パッケージ名は `dalecode`。デプロイ識別子（wrangler の Worker 名 / R2 バケット名 `team-harness*`、`.team-harness/` 鍵ディレクトリ、
+`HARNESS_*` 環境変数）は既存の CI/CD と整合を保つため据え置き。ユーザーに見える名前はすべて **dalecode**。
 
 - UI: Vite + React 19 + Tailwind v4 + Beautiful UI（shadcn レジストリ）+ Convex Auth（Password）+ react-router
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
