@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { DESKTOP_OAUTH_CALLBACK, isDesktopOAuthCallback, resolveRedirectTo } from "../convex/lib/authRedirect.ts";
+import {
+  DESKTOP_OAUTH_CALLBACK,
+  desktopOAuthRedirectTo,
+  isDesktopOAuthCallback,
+  loginReturnUrl,
+  parseAuthCallback,
+  resolveRedirectTo,
+} from "@dalecode/core/desktop";
 
 const SITE = "https://team-harness.gawara.workers.dev";
+
+describe("desktop deep link round trip", () => {
+  it("builds the redirectTo the shell hands to Convex Auth", () => {
+    expect(desktopOAuthRedirectTo("/")).toBe(DESKTOP_OAUTH_CALLBACK);
+    expect(desktopOAuthRedirectTo("/invite/abc")).toBe(`${DESKTOP_OAUTH_CALLBACK}?next=%2Finvite%2Fabc`);
+    expect(desktopOAuthRedirectTo("https://evil.example")).toBe(DESKTOP_OAUTH_CALLBACK);
+  });
+
+  it("parses what Convex Auth redirects to and maps it onto /login", () => {
+    const callback = parseAuthCallback(`${DESKTOP_OAUTH_CALLBACK}?next=%2Finvite%2Fabc&code=one-time`);
+    expect(callback).toEqual({ code: "one-time", next: "/invite/abc" });
+    expect(loginReturnUrl(SITE, callback!)).toBe(`${SITE}/login?next=%2Finvite%2Fabc&code=one-time`);
+    expect(loginReturnUrl(SITE, { code: "c", next: "/" })).toBe(`${SITE}/login?code=c`);
+  });
+
+  it("ignores links without a code, foreign paths and off-site next targets", () => {
+    expect(parseAuthCallback(DESKTOP_OAUTH_CALLBACK)).toBeNull();
+    expect(parseAuthCallback("dalecode://auth/other?code=x")).toBeNull();
+    expect(parseAuthCallback("https://team-harness.gawara.workers.dev/login?code=x")).toBeNull();
+    expect(parseAuthCallback(`${DESKTOP_OAUTH_CALLBACK}?code=x&next=https%3A%2F%2Fevil.example`)?.next).toBe("/");
+  });
+});
 
 describe("resolveRedirectTo", () => {
   it("keeps Convex Auth's default rule for the web", () => {

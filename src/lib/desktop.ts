@@ -1,18 +1,12 @@
-/* ─────────────────────────────────────────────────────────
- * Bridge to the macOS desktop shell (apps/desktop, Electron).
- *
- * The shell's preload exposes `window.dalecodeDesktop`; in a plain browser
- * it is undefined and every helper here falls back to browser behaviour.
- * Keep this type in sync with apps/desktop/src/preload/index.ts.
- * ───────────────────────────────────────────────────────── */
+import { DESKTOP_BRIDGE_KEY, type DalecodeDesktopBridge } from "@dalecode/core/desktop";
 
-export interface DalecodeDesktopBridge {
-  version: string;
-  platform: string;
-  oauthStrategy: "system-browser" | "in-app";
-  /** `redirectTo` for Google sign-in, or null to use the web default. */
-  oauthRedirectTo: (next: string) => string | null;
-}
+/* ─────────────────────────────────────────────────────────
+ * Bridge to the desktop shell (apps/desktop, Electron).
+ *
+ * The shell's preload installs `window.dalecodeDesktop`; in a plain browser
+ * it is undefined and every helper here falls back to browser behaviour.
+ * The contract (type + URL rules) is @dalecode/core/desktop.
+ * ───────────────────────────────────────────────────────── */
 
 declare global {
   interface Window {
@@ -22,7 +16,7 @@ declare global {
 
 export function getDesktopBridge(): DalecodeDesktopBridge | null {
   if (typeof window === "undefined") return null;
-  return window.dalecodeDesktop ?? null;
+  return window[DESKTOP_BRIDGE_KEY] ?? null;
 }
 
 export function isDesktopShell(): boolean {
