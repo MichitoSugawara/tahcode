@@ -132,15 +132,25 @@ export type ProviderRun = {
   done: Promise<{ exitCode: number; output: string }>;
 };
 
-function headlessArgs(kind: ProviderDriverKind, prompt: string): string[] {
+/**
+ * Headless argv per provider. `model` is the slug from `@provider/model` (or
+ * the chat's bound model); when absent the CLI runs with its own default, so a
+ * bare `@provider` behaves exactly as before. Flags follow what t3code and
+ * Multica pass: `codex exec --model`, `claude -p --model`, `agent -p --model`,
+ * `opencode run --model provider/model`; Grok's headless flags stay
+ * provisional (see README).
+ */
+export function headlessArgs(kind: ProviderDriverKind, prompt: string, model?: string): string[] {
+  const modelFlag = model ? ["--model", model] : [];
   switch (kind) {
     case "codex":
-      return ["exec", "--json", prompt];
+      return ["exec", ...modelFlag, "--json", prompt];
     case "claudeAgent":
       // `--verbose` is required by the Claude CLI when combining
       // `-p/--print` with `--output-format stream-json`.
       return [
         "-p",
+        ...modelFlag,
         "--output-format",
         "stream-json",
         "--verbose",
@@ -149,11 +159,11 @@ function headlessArgs(kind: ProviderDriverKind, prompt: string): string[] {
         prompt,
       ];
     case "cursor":
-      return ["-p", "--output-format", "stream-json", prompt];
+      return ["-p", ...modelFlag, "--output-format", "stream-json", prompt];
     case "grok":
-      return ["--prompt", prompt];
+      return [...modelFlag, "--prompt", prompt];
     case "opencode":
-      return ["run", prompt];
+      return ["run", ...modelFlag, prompt];
     case "antigravity":
       throw new Error(
         "Antigravity has no headless CLI in Phase 1 — install via the provider app and pick another runtime provider.",
@@ -168,8 +178,9 @@ export async function runHeadless(
   cwd: string | undefined,
   events: RunEvents,
   signal: AbortSignal,
+  model?: string,
 ): Promise<{ exitCode: number; output: string }> {
-  const args = headlessArgs(kind, prompt);
+  const args = headlessArgs(kind, prompt, model);
   const child = spawn(binary, args, {
     cwd,
     env: process.env,

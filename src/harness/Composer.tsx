@@ -1,6 +1,6 @@
 import { useMutation } from "convex/react";
 import { AtSign, Cpu, Folder, MessageSquarePlus, Paperclip, Sparkles, UserPlus, UserRound } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -8,23 +8,63 @@ import { Monogram } from "@/components/atoms/EntityChip";
 import PromptBar, { type PromptMenuItem, type PromptPicker } from "@/components/primitives/PromptBar";
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
-import { MENTION_BOUNDARY, MENTION_HANDLE, hasAgentMention } from "@/lib/mentions";
-import { PROVIDERS, isProviderKind, providerHandle } from "@/lib/providers";
+import { MENTION_BOUNDARY, MENTION_HANDLE, activeAgentToken, hasAgentMention } from "@/lib/mentions";
+import {
+  PROVIDERS,
+  agentMention,
+  isProviderKind,
+  modelDisplayName,
+  modelMentionExample,
+  modelSourceHint,
+  modelsFor,
+  supportsModelPick,
+  type ProviderDriverKind,
+} from "@/lib/providers";
 
 /* the draft ends in an @token still being typed — hold the auto-mention hint */
 const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
 /* ─────────────────────────────────────────────────────────
  * COMPOSER — PromptBar wired to the org: @ agents + members,
- * / commands, provider + runtime pickers, R2 attachments, and
- * the Phase 1 rule that project chats auto-mention the chosen
- * provider so a plain message still reaches an agent.
+ * / commands, provider + model + runtime pickers, R2
+ * attachments, and the Phase 1 rule that project chats
+ * auto-mention the chat's agent (`@cursor/muse-spark-1.3`) so a
+ * plain message still reaches it.
  * ───────────────────────────────────────────────────────── */
 
+export type ComposerAgent = { driverKind: ProviderDriverKind; model: string | null };
+
+/**
+ * The agent a chat runs on: the chat's own binding when it has one, else the
+ * org's last-used pick. Changing it writes both, so the choice sticks for the
+ * chat (every member, every device) and seeds the next unbound chat.
+ */
+export function useChatAgent(chat: Chat | null) {
+  const org = useOrg();
+  const bindChat = useMutation(api.chats.setAgent);
+  const agent: ComposerAgent = chat?.driverKind
+    ? { driverKind: chat.driverKind, model: chat.model ?? null }
+    : { driverKind: org.provider, model: org.model };
+  const setAgent = useCallback(
+    (driverKind: ProviderDriverKind, model: string | null) => {
+      org.setAgent(driverKind, model);
+      if (chat) {
+        void bindChat({ chatId: chat._id, driverKind, model: model ?? undefined }).catch((error: unknown) =>
+          toast.error(error instanceof Error ? error.message : "エージェントの設定に失敗しました"),
+        );
+      }
+    },
+    [org, chat, bindChat],
+  );
+  return { agent, setAgent };
+}
+
 /** Send with the Phase 1 rules applied (auto-mention in project chats,
- *  R2 uploads appended as links, runtime hint from the picker). */
+ *  R2 uploads appended as links, runtime hint from the picker, and the
+ *  chat's provider / model sent along so DMs bind to them too). */
 export function useSendMessage(chat: Chat | null) {
   const org = useOrg();
+  const { agent } = useChatAgent(chat);
   const sendMessage = useMutation(api.messages.send);
   const recordFile = useMutation(api.files.record);
   const [busy, setBusy] = useState(false);
@@ -47,8 +87,14 @@ export function useSendMessage(chat: Chat | null) {
       const links: string[] = [];
       for (const file of files) links.push(await upload(file));
       let body = [text, ...links].filter(Boolean).join("\n");
-      if (chat.kind === "project" && !hasAgentMention(body)) body = `@${providerHandle(org.provider)} ${body}`;
-      const result = await sendMessage({ chatId: chat._id, body, runtimeId: org.runtimeId ?? undefined });
+      if (chat.kind === "project" && !hasAgentMention(body)) body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
+      const result = await sendMessage({
+        chatId: chat._id,
+        body,
+        runtimeId: org.runtimeId ?? undefined,
+        driverKind: agent.driverKind,
+        model: agent.model ?? undefined,
+      });
       return { chatId: chat._id, dispatched: result.dispatched, jobId: result.jobId };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "送信に失敗しました");
@@ -76,6 +122,7 @@ export function Composer({
 }) {
   const org = useOrg();
   const { send: sendWithRules, busy } = useSendMessage(chat);
+  const { agent, setAgent } = useChatAgent(chat);
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [draft, setDraft] = useState("");
@@ -84,7 +131,8 @@ export function Composer({
   const isProject = chat?.kind === "project";
   const typingMention = TYPING_MENTION.test(draft);
   const needsMention = isProject && draft.trim().length > 0 && !hasAgentMention(draft) && !typingMention;
-  const handle = providerHandle(org.provider);
+  const mention = agentMention(agent.driverKind, agent.model);
+  const provider = PROVIDERS[agent.driverKind];
 
   const liveRuntimes = useMemo(() => (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now)), [org.runtimes, org.now]);
   const usable = useMemo(() => liveRuntimes.filter((runtime) => runtime.canUse), [liveRuntimes]);
@@ -93,15 +141,33 @@ export function Composer({
     [usable],
   );
 
+  /* `@cursor/` switches the @ menu from providers + people to that provider's models */
+  const modelToken = useMemo(() => {
+    const token = activeAgentToken(draft);
+    return token && token.modelQuery !== null ? token : null;
+  }, [draft]);
+
   const mentions: PromptMenuItem[] = useMemo(() => {
+    if (modelToken) {
+      const kind = modelToken.providerKind;
+      const info = PROVIDERS[kind];
+      return modelsFor(kind).map((model) => ({
+        key: `m-${kind}-${model.slug}`,
+        name: `@${modelToken.handle}/${model.slug}`,
+        desc: model.name,
+        icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
+        insert: `@${modelToken.handle}/${model.slug} `,
+        trailing: model.legacy ? "legacy" : undefined,
+      }));
+    }
     const agents: PromptMenuItem[] = [
-      { key: "agent", name: "@agent", desc: "既定のプロバイダで実行", icon: <Sparkles size={14} />, insert: "@agent " },
-      ...Object.entries(PROVIDERS).map(([kind, provider]) => ({
+      { key: "agent", name: "@agent", desc: "このチャットの既定エージェントで実行", icon: <Sparkles size={14} />, insert: "@agent " },
+      ...Object.entries(PROVIDERS).map(([kind, info]) => ({
         key: kind,
-        name: `@${provider.handle}`,
-        desc: `${provider.label} で実行`,
-        icon: <Monogram color={provider.color}>{provider.label.charAt(0)}</Monogram>,
-        insert: `@${provider.handle} `,
+        name: `@${info.handle}`,
+        desc: `${info.label} で実行（@${info.handle}/… でモデル指定）`,
+        icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
+        insert: `@${info.handle} `,
         trailing: installed.has(kind as never) ? "利用可" : liveRuntimes.length > 0 ? "未検出" : undefined,
       })),
     ];
@@ -116,7 +182,7 @@ export function Composer({
         trailing: String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
     return [...agents, ...people];
-  }, [org.members, org.me._id, installed, liveRuntimes.length]);
+  }, [modelToken, org.members, org.me._id, installed, liveRuntimes.length]);
 
   const commands: PromptMenuItem[] = [
     { key: "new", name: "/new", desc: "新しいチャット", icon: <MessageSquarePlus size={14} />, action: () => org.openDialog({ kind: "newChat" }) },
@@ -130,21 +196,39 @@ export function Composer({
     { key: "attach", name: "ファイルを添付", desc: "Cloudflare R2 に保存（20MB まで）", icon: <Paperclip size={14} />, action: () => fileRef.current?.click() },
   ];
 
+  const models = modelsFor(agent.driverKind);
   const pickers: PromptPicker[] = [
     {
       id: "provider",
       ariaLabel: "プロバイダを選択",
-      label: PROVIDERS[org.provider].label,
-      items: Object.entries(PROVIDERS).map(([kind, provider]) => ({
+      label: provider.label,
+      items: Object.entries(PROVIDERS).map(([kind, info]) => ({
         key: kind,
-        name: provider.label,
+        name: info.label,
         tag: installed.has(kind as never) ? "利用可" : liveRuntimes.length > 0 ? "未検出" : undefined,
       })),
-      value: org.provider,
+      value: agent.driverKind,
       onChange: (key) => {
-        if (isProviderKind(key)) org.setProvider(key);
+        /* model slugs are provider-specific, so a provider change resets to that CLI's default */
+        if (isProviderKind(key) && key !== agent.driverKind) setAgent(key, null);
       },
       footer: "t3code 由来のプロバイダ配線 · CLI はランタイム側（dalecode start / Multica daemon）",
+    },
+    {
+      id: "model",
+      ariaLabel: "モデルを選択",
+      label: agent.model ? (modelDisplayName(agent.driverKind, agent.model) ?? agent.model) : "既定モデル",
+      items: [
+        { key: "", name: "既定モデル", tag: "CLI の設定" },
+        ...(supportsModelPick(agent.driverKind)
+          ? models.map((model) => ({ key: model.slug, name: model.name, tag: model.legacy ? "legacy" : undefined }))
+          : []),
+      ],
+      value: agent.model ?? "",
+      onChange: (key) => setAgent(agent.driverKind, key || null),
+      footer: supportsModelPick(agent.driverKind)
+        ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · 出典: ${modelSourceHint(agent.driverKind)}`
+        : `${provider.label} は headless CLI がなく、モデルは選べません`,
     },
     {
       id: "runtime",
@@ -180,11 +264,11 @@ export function Composer({
   if (disabled) hint = "チャットを開くと送信できます";
   else if (needsMention) hint = (
     <span className="inline-flex flex-wrap items-center gap-1">
-      <AtSign size={11} /> メンションがないので送信時に <code className="font-mono text-ink-2">@{handle}</code> を自動付与します（Phase 1 のルール）
+      <AtSign size={11} /> メンションがないので送信時に <code className="font-mono text-ink-2">{mention}</code> を自動付与します（Phase 1 のルール）
     </span>
   );
-  else if (isProject) hint = "@codex / @claude などでエージェントが応答 · ⏎ 送信 · ⇧⏎ 改行";
-  else hint = "DM ではエージェントが常に応答します · ⏎ 送信 · ⇧⏎ 改行";
+  else if (isProject) hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · ⏎ 送信 · ⇧⏎ 改行`;
+  else hint = `DM ではエージェントが常に応答します（${mention}） · ⏎ 送信 · ⇧⏎ 改行`;
 
   return (
     <>
@@ -192,7 +276,7 @@ export function Composer({
         tall={tall}
         disabled={disabled}
         busy={busy}
-        placeholder={placeholder ?? (isProject ? "@codex にタスクを頼む、または相談を書く…" : "何でも聞いてください…")}
+        placeholder={placeholder ?? (isProject ? `${mention} にタスクを頼む、または相談を書く…` : "何でも聞いてください…")}
         mentions={mentions}
         commands={commands}
         plusItems={plusItems}
@@ -203,6 +287,7 @@ export function Composer({
         onDraftChange={setDraft}
         hint={hint}
         autoFocus={autoFocus}
+        menuFooter={{ at: modelToken ? `${PROVIDERS[modelToken.providerKind].label} のモデル · @${modelToken.handle} だけなら CLI の既定モデル` : "エージェントかメンバーを選択 · @provider/ でモデル候補" }}
       />
       <input
         ref={fileRef}

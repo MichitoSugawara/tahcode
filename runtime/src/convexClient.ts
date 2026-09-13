@@ -8,6 +8,8 @@ export type ClaimedJob = {
   assistantMessageId: string;
   runtimeId: string;
   driverKind: ProviderDriverKind;
+  /** `@provider/model` slug for the CLI's model flag; absent = CLI default */
+  model?: string;
   status: string;
   prompt: string;
   contextJson: string;

@@ -52,7 +52,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         await sleep(pollMs);
         continue;
       }
-      console.log(`[runtime] claimed job ${job._id} (${job.driverKind})`);
+      console.log(`[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""})`);
       await executeJob(client, options, job, probes);
     } catch (error) {
       console.error("[runtime] loop error", error instanceof Error ? error.message : error);
@@ -67,16 +67,21 @@ async function executeJob(
   job: {
     _id: string;
     driverKind: ProviderDriverKind;
+    model?: string;
     prompt: string;
     contextJson: string;
   },
   probes: ProviderProbe[],
 ): Promise<void> {
   const controller = new AbortController();
+  // `dalecode start --provider <kind>` pins every job to one CLI on this
+  // machine; a pinned provider ignores the mention's model, since model slugs
+  // are provider-specific.
+  const pinned = options.preferredKind !== undefined && options.preferredKind !== job.driverKind;
   const wanted = options.preferredKind ?? job.driverKind;
-  const probe =
-    probes.find((item) => item.kind === wanted && item.available) ??
-    probes.find((item) => item.available);
+  const model = pinned ? undefined : job.model;
+  const probe = probes.find((item) => item.kind === wanted && item.available);
+  const anyAvailable = probes.find((item) => item.available);
   const send = async (
     type: "thinking" | "tool" | "text" | "error" | "done",
     text: string,
@@ -96,13 +101,19 @@ async function executeJob(
   };
 
   if (!probe || !probe.binary) {
-    const message =
-      "No provider CLI is installed on this machine. Install one of: `codex login`, `claude auth login`, `agent login`, `grok login`, or `opencode auth login` (t3code provider set).";
-    await send("text", message);
+    // Never substitute another provider: the chat asked for this one.
+    const wantedName = probes.find((item) => item.kind === wanted)?.displayName ?? wanted;
+    const message = anyAvailable
+      ? `${wantedName} CLI is not installed on this machine (${os.hostname()}). Installed: ${probes
+          .filter((item) => item.available)
+          .map((item) => item.displayName)
+          .join(", ")}. Install / sign in to ${wantedName}, or mention one of the installed providers.`
+      : "No provider CLI is installed on this machine. Install one of: `codex login`, `claude auth login`, `agent login`, `grok login`, or `opencode auth login` (t3code provider set).";
     await client.complete({
       runtimeId: options.runtimeId,
       token: options.token,
       jobId: job._id,
+      error: message,
       finalText: message,
     });
     return;
@@ -110,7 +121,7 @@ async function executeJob(
 
   const contextSummary = summarizeContext(job.contextJson);
   const prompt = `${job.prompt}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}`;
-  await send("thinking", `Running ${probe.kind} via ${probe.binary}…`);
+  await send("thinking", `Running ${probe.kind}${model ? ` (${model})` : ""} via ${probe.binary}…`);
 
   try {
     const started = Date.now();
@@ -125,6 +136,7 @@ async function executeJob(
         onThinking: (line) => send("thinking", line),
       },
       controller.signal,
+      model,
     );
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     if (result.exitCode === 0 && result.output) {
@@ -132,7 +144,7 @@ async function executeJob(
         runtimeId: options.runtimeId,
         token: options.token,
         jobId: job._id,
-        finalText: `${result.output}\n\n_${probe.displayName} · ${elapsed}s · ${probe.binary}_`,
+        finalText: `${result.output}\n\n_${probe.displayName}${model ? ` · ${model}` : ""} · ${elapsed}s · ${probe.binary}_`,
       });
     } else if (result.exitCode === 0) {
       await client.complete({

@@ -1,7 +1,37 @@
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { assertChatVisible, getMembership, requireRole } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
-import { chatKind, chatSummary, chatVisibility, userSummary } from "./lib/validators";
+import { isValidModelSlug, resolveModelSlug, type ProviderDriverKind } from "./lib/providers";
+import { chatKind, chatSummary, chatVisibility, providerKind, userSummary } from "./lib/validators";
+
+/**
+ * A chat's default agent: `driverKind` picks the provider, `model` the model
+ * slug passed to that CLI. No model means the CLI's own default — the same
+ * thing a bare `@provider` mention meant before models could be named.
+ */
+function normalizeAgentBinding(input: { driverKind?: ProviderDriverKind; model?: string }) {
+  if (!input.driverKind) return { driverKind: undefined, model: undefined };
+  const trimmed = input.model?.trim();
+  if (trimmed && !isValidModelSlug(trimmed)) {
+    throw new Error("Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes");
+  }
+  return { driverKind: input.driverKind, model: resolveModelSlug(input.driverKind, trimmed) };
+}
+
+function summarize(chat: Doc<"chats">) {
+  return {
+    _id: chat._id,
+    orgId: chat.orgId,
+    projectId: chat.projectId,
+    kind: chat.kind,
+    title: chat.title,
+    visibility: chat.visibility,
+    ownerId: chat.ownerId,
+    driverKind: chat.driverKind,
+    model: chat.model,
+  };
+}
 
 export const ensureDm = authedMutation({
   args: { orgId: v.id("orgs") },
@@ -33,6 +63,8 @@ export const createProjectChat = authedMutation({
     title: v.string(),
     visibility: chatVisibility,
     memberIds: v.optional(v.array(v.id("users"))),
+    driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
   },
   returns: v.id("chats"),
   handler: async (ctx, args) => {
@@ -41,6 +73,7 @@ export const createProjectChat = authedMutation({
     const membership = await getMembership(ctx, project.orgId, ctx.user._id);
     if (!membership) throw new Error("Not a member of this organization");
     const title = args.title.trim().slice(0, 80) || "Untitled chat";
+    const agent = normalizeAgentBinding(args);
     const chatId = await ctx.db.insert("chats", {
       orgId: project.orgId,
       projectId: args.projectId,
@@ -48,6 +81,8 @@ export const createProjectChat = authedMutation({
       title,
       visibility: args.visibility,
       createdBy: ctx.user._id,
+      driverKind: agent.driverKind,
+      model: agent.model,
     });
     const members = new Set<string>([String(ctx.user._id)]);
     for (const memberId of args.memberIds ?? []) {
@@ -89,15 +124,7 @@ export const list = authedQuery({
         continue;
       }
     }
-    return visible.map((chat) => ({
-      _id: chat._id,
-      orgId: chat.orgId,
-      projectId: chat.projectId,
-      kind: chat.kind,
-      title: chat.title,
-      visibility: chat.visibility,
-      ownerId: chat.ownerId,
-    }));
+    return visible.map(summarize);
   },
 });
 
@@ -114,15 +141,34 @@ export const get = authedQuery({
     } catch {
       return null;
     }
-    return {
-      _id: chat._id,
-      orgId: chat.orgId,
-      projectId: chat.projectId,
-      kind: chat.kind,
-      title: chat.title,
-      visibility: chat.visibility,
-      ownerId: chat.ownerId,
-    };
+    return summarize(chat);
+  },
+});
+
+/**
+ * Bind a chat to a provider (+ optional model). Anyone who can see the chat
+ * can change it; the composer calls this from its provider / model pickers so
+ * the choice sticks for the chat instead of living in one browser.
+ */
+export const setAgent = authedMutation({
+  args: {
+    chatId: v.id("chats"),
+    driverKind: providerKind,
+    model: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get("chats", args.chatId);
+    if (!chat) throw new Error("Chat not found");
+    const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
+    if (!membership) throw new Error("Not a member of this organization");
+    await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
+    const agent = normalizeAgentBinding(args);
+    await ctx.db.patch("chats", args.chatId, {
+      driverKind: agent.driverKind,
+      model: agent.model,
+    });
+    return null;
   },
 });
 

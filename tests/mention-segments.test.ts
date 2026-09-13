@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasAgentMention, segmentMentions } from "../src/lib/mentions.ts";
+import { activeAgentToken, hasAgentMention, segmentMentions } from "../src/lib/mentions.ts";
 
 describe("segmentMentions", () => {
   it("splits text around @handles, keeping the surrounding text intact", () => {
@@ -36,6 +36,16 @@ describe("segmentMentions", () => {
     ]);
   });
 
+  it("keeps sentence punctuation after a handle out of the chip, like the server parser", () => {
+    expect(segmentMentions("ask @claude. then @cursor/")).toEqual([
+      { kind: "text", value: "ask " },
+      { kind: "mention", value: "@claude" },
+      { kind: "text", value: ". then " },
+      { kind: "mention", value: "@cursor" },
+      { kind: "text", value: "/" },
+    ]);
+  });
+
   it("returns nothing for an empty draft", () => {
     expect(segmentMentions("")).toEqual([]);
   });
@@ -45,8 +55,23 @@ describe("hasAgentMention", () => {
   it("uses the same boundary as the highlighter", () => {
     expect(hasAgentMention("確認して。@codex")).toBe(true);
     expect(hasAgentMention("これを@claudeに")).toBe(true);
-    expect(hasAgentMention("@cursor/muse-spark-1.3 で")).toBe(true);
     expect(hasAgentMention("ask @mai")).toBe(false);
     expect(hasAgentMention("codex@example.com")).toBe(false);
+  });
+
+  it("classifies with the server rules: @provider/model, @agent, @rt-<slug>", () => {
+    expect(hasAgentMention("@cursor/muse-spark-1.3 で")).toBe(true);
+    expect(hasAgentMention("@agent please")).toBe(true);
+    expect(hasAgentMention("run on @rt-office")).toBe(true);
+    expect(hasAgentMention("@claude.")).toBe(true);
+  });
+});
+
+describe("activeAgentToken", () => {
+  it("opens the model part after @provider/ even mid-sentence in Japanese", () => {
+    expect(activeAgentToken("これを@cursor/mu")).toEqual({ handle: "cursor", providerKind: "cursor", modelQuery: "mu" });
+    expect(activeAgentToken("@cursor")).toEqual({ handle: "cursor", providerKind: "cursor", modelQuery: null });
+    expect(activeAgentToken("@mai")).toBeNull();
+    expect(activeAgentToken("foo@cursor/")).toBeNull();
   });
 });
