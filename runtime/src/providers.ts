@@ -24,6 +24,45 @@ import {
 } from "../../shared/utf8.ts";
 import { plannedUpdateLabel, resolveInstallMethod } from "./maintenance.ts";
 
+const KILL_GRACE_MS = 2000;
+
+/** SIGTERM the spawned CLI (process group on Unix), then SIGKILL if it hangs. */
+export function abortSpawnedProcess(child: ChildProcess): void {
+  killSpawnedProcess(child, "SIGTERM");
+  const timer = setTimeout(() => {
+    killSpawnedProcess(child, "SIGKILL");
+  }, KILL_GRACE_MS);
+  child.once("close", () => {
+    clearTimeout(timer);
+  });
+}
+
+export function killSpawnedProcess(
+  child: ChildProcess,
+  signal: NodeJS.Signals = "SIGTERM"
+): void {
+  const pid = child.pid;
+  if (pid === undefined) {
+    return;
+  }
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    return;
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
 export interface ProviderProbe {
   kind: ProviderDriverKind;
   displayName: string;
@@ -258,6 +297,7 @@ export async function runHeadless(
   );
   const child = spawn(binary, args, {
     cwd,
+    detached: process.platform !== "win32",
     env: extras?.env ?? process.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -315,7 +355,7 @@ export async function runHeadless(
   });
 
   const abort = () => {
-    child.kill("SIGTERM");
+    abortSpawnedProcess(child);
   };
   if (signal.aborted) {
     abort();
@@ -326,6 +366,7 @@ export async function runHeadless(
     child.on("close", (code) => resolve(code ?? 1));
     child.on("error", () => resolve(1));
   });
+  signal.removeEventListener("abort", abort);
   for (const line of flushUtf8Lines(lineBuffer)) {
     await emit(line);
   }

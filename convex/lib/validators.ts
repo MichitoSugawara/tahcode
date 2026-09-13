@@ -99,7 +99,8 @@ export const jobStatus = v.union(
   v.literal("queued"),
   v.literal("running"),
   v.literal("done"),
-  v.literal("failed")
+  v.literal("failed"),
+  v.literal("cancelled")
 );
 
 export const userSummary = v.object({
@@ -204,6 +205,11 @@ export const messageDoc = v.object({
   model: v.optional(v.string()),
   runtimeId: v.optional(v.id("runtimes")),
   status: v.optional(
-    v.union(v.literal("streaming"), v.literal("done"), v.literal("error"))
+    v.union(
+      v.literal("streaming"),
+      v.literal("done"),
+      v.literal("error"),
+      v.literal("cancelled")
+    )
   ),
 });

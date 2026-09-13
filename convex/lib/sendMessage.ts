@@ -160,6 +160,7 @@ export async function sendUserMessage(
     orgId: chat.orgId,
     projectId: chat.projectId,
     prompt: body,
+    requestedBy: user._id,
     runtimeId: runtime.doc._id,
     status: "queued",
     triggerMessageId: messageId,

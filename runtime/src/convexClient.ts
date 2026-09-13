@@ -36,6 +36,8 @@ export interface ClaimedJob {
   leaseId: string;
   /** `@provider/model` slug for the CLI's model flag; absent = CLI default */
   model?: string;
+  /** Multica issue task id when this job was launched that way */
+  multicaTaskId?: string;
   /** t3code option selections (effort / variant) applied as CLI flags */
   options?: ProviderOptionSelection[];
   prompt: string;
@@ -165,5 +167,17 @@ export class RuntimeClient {
     token: string;
   }): Promise<void> {
     await this.client.mutation("jobs:complete" as never, input as never);
+  }
+
+  async shouldAbort(input: {
+    jobId: string;
+    leaseId: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<boolean> {
+    return await this.client.mutation(
+      "jobs:shouldAbort" as never,
+      input as never
+    );
   }
 }

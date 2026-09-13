@@ -22,7 +22,7 @@ export interface ThreadMessage {
   authorId?: Id<"users">;
   body: string;
   mentions: string[];
-  status?: "streaming" | "done" | "error";
+  status?: "streaming" | "done" | "error" | "cancelled";
   driverKind?: string;
   model?: string;
   jobId?: Id<"jobs">;

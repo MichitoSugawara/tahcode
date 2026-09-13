@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { BRIDGE_CAPABILITY_AGENT_TOOLS } from "../../shared/agentTools.ts";
+import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
   BRIDGE_CAPABILITY_LIVE_MODELS,
@@ -23,6 +24,7 @@ import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
+import { cancelMulticaTask } from "./multicaCancel.ts";
 import type { ProviderProbe } from "./providers.ts";
 import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
 import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
@@ -47,6 +49,7 @@ export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_MAINTENANCE,
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_AGENT_TOOLS,
+  BRIDGE_CAPABILITY_JOB_CANCEL,
 ];
 
 /**
@@ -355,6 +358,7 @@ async function executeJob(
     driverKind: ProviderDriverKind;
     leaseId: string;
     model?: string;
+    multicaTaskId?: string;
     options?: ProviderOptionSelection[];
     prompt: string;
     skills?: {
@@ -464,6 +468,42 @@ async function executeJob(
   const effortTag = jobOptions?.find(
     (item) => typeof item.value === "string"
   )?.value;
+  const cancelAuth = {
+    jobId: job._id,
+    leaseId: job.leaseId,
+    runtimeId: options.runtimeId,
+    token: options.token,
+  };
+  const requestAbort = () => {
+    if (controller.signal.aborted) {
+      return;
+    }
+    controller.abort();
+    const taskId = job.multicaTaskId ?? process.env.TAHCODE_MULTICA_TASK_ID;
+    if (taskId) {
+      const stopped = cancelMulticaTask(taskId);
+      if (!stopped.ok) {
+        console.error("[runtime] multica cancel-task failed", stopped.detail);
+      }
+    }
+  };
+  const pollCancel = () => {
+    void client
+      .shouldAbort(cancelAuth)
+      .then((abort) => {
+        if (abort) {
+          requestAbort();
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[runtime] cancel poll failed",
+          error instanceof Error ? error.message : error
+        );
+      });
+  };
+  const watchCancel = setInterval(pollCancel, 1000);
+  pollCancel();
   try {
     const sync = await syncProfileSkills({
       cwd: options.cwd,
@@ -477,6 +517,16 @@ async function executeJob(
       "thinking",
       `Skill sync failed (job continues): ${error instanceof Error ? error.message : String(error)}`
     );
+  }
+  if (controller.signal.aborted) {
+    clearInterval(watchCancel);
+    await client.complete({
+      jobId: job._id,
+      leaseId: job.leaseId,
+      runtimeId: options.runtimeId,
+      token: options.token,
+    });
+    return;
   }
   await send(
     "thinking",
@@ -510,6 +560,15 @@ async function executeJob(
 
   try {
     const started = Date.now();
+    if (controller.signal.aborted) {
+      await client.complete({
+        jobId: job._id,
+        leaseId: job.leaseId,
+        runtimeId: options.runtimeId,
+        token: options.token,
+      });
+      return;
+    }
     const result = await runHeadless(
       probe.kind,
       probe.binary,
@@ -525,6 +584,15 @@ async function executeJob(
       jobOptions,
       { env: jobEnv, mcpConfigPath }
     );
+    if (controller.signal.aborted) {
+      await client.complete({
+        jobId: job._id,
+        leaseId: job.leaseId,
+        runtimeId: options.runtimeId,
+        token: options.token,
+      });
+      return;
+    }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     if (result.exitCode === 0 && result.output) {
       await client.complete({
@@ -566,6 +634,7 @@ async function executeJob(
     });
   } finally {
     clearInterval(keepAlive);
+    clearInterval(watchCancel);
   }
 }
 

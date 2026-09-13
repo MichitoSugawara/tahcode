@@ -1,3 +1,4 @@
+import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
 import { useQuery } from "convex/react";
 import {
   Check,
@@ -16,6 +17,7 @@ import ThinkingState from "@/components/primitives/ThinkingState";
 import type { ThinkingRow } from "@/components/primitives/ThinkingState";
 import ToolChips from "@/components/primitives/ToolChips";
 import type { ToolStep } from "@/components/primitives/ToolChips";
+import { useCancelJob } from "@/harness/Composer";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { registerRuntimeCtaLabel } from "@/lib/desktop";
@@ -40,7 +42,7 @@ export interface AgentMessage {
   _id: Id<"messages">;
   _creationTime: number;
   body: string;
-  status?: "streaming" | "done" | "error";
+  status?: "streaming" | "done" | "error" | "cancelled";
   driverKind?: string;
   model?: string;
   jobId?: Id<"jobs">;
@@ -209,12 +211,15 @@ export function AgentReply({
   onRetry?: (prompt: string) => void;
 }) {
   const { runtimes, openDialog } = useOrg();
+  const { cancel, stopping } = useCancelJob();
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
+  const cancelled = message.status === "cancelled";
   const [traceOpen, setTraceOpen] = useState(false);
   /* once we have watched a run live, keep its trace around after it settles */
   const [seen, setSeen] = useState(false);
-  const wantJob = !!message.jobId && (streaming || traceOpen || failed || seen);
+  const wantJob =
+    !!message.jobId && (streaming || traceOpen || failed || cancelled || seen);
   const job = useQuery(
     api.jobs.get,
     wantJob && message.jobId ? { jobId: message.jobId } : "skip"
@@ -324,6 +329,21 @@ export function AgentReply({
             <Cpu size={11} /> {runtime.name}
           </span>
         )}
+        {streaming && message.jobId && job?.job.canCancel && (
+          <button
+            type="button"
+            aria-label="生成を中断"
+            disabled={stopping}
+            onClick={() => {
+              if (message.jobId) {
+                void cancel(message.jobId);
+              }
+            }}
+            className="text-red hover:bg-red-tint inline-flex h-6 items-center gap-1 rounded-[6px] px-1.5 text-[11.5px] font-medium transition-colors duration-100 disabled:opacity-50"
+          >
+            中断
+          </button>
+        )}
         <span className="text-ink-3 ml-auto">
           {clockTime(message._creationTime)}
         </span>
@@ -377,10 +397,21 @@ export function AgentReply({
         <LiveMarkdown text={liveText} live />
       )}
 
-      {!streaming && !failed && finalText.trim().length > 0 && (
-        <div style={{ animation: "fade-in 260ms ease both" }}>
-          <Markdown>{finalText}</Markdown>
-        </div>
+      {!streaming &&
+        !failed &&
+        finalText.trim().length > 0 &&
+        finalText.trim() !== JOB_CANCELLED_MESSAGE && (
+          <div style={{ animation: "fade-in 260ms ease both" }}>
+            <Markdown>{finalText}</Markdown>
+          </div>
+        )}
+
+      {cancelled && (
+        <Notice tone="warn" title="中断しました">
+          <span className="font-mono text-[12px]">
+            {job?.job.error ?? JOB_CANCELLED_MESSAGE}
+          </span>
+        </Notice>
       )}
 
       {failed && (

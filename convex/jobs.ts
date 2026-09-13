@@ -1,11 +1,16 @@
 import { v } from "convex/values";
 
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
-import { authedQuery } from "./lib/customFunctions";
+import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { randomToken } from "./lib/ids";
+import {
+  canCancelJob,
+  jobCancelDenial,
+  markJobCancelled,
+} from "./lib/jobCancel";
 import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
@@ -21,6 +26,7 @@ import {
 const jobView = v.object({
   _id: v.id("jobs"),
   assistantMessageId: v.id("messages"),
+  canCancel: v.boolean(),
   chatId: v.id("chats"),
   driverKind: providerKind,
   error: v.optional(v.string()),
@@ -31,6 +37,27 @@ const jobView = v.object({
   status: jobStatus,
   triggerMessageId: v.id("messages"),
 });
+
+async function toJobView(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+  job: Doc<"jobs">
+) {
+  return {
+    _id: job._id,
+    assistantMessageId: job.assistantMessageId,
+    canCancel: await canCancelJob(ctx, userId, job),
+    chatId: job.chatId,
+    driverKind: job.driverKind,
+    error: job.error,
+    model: job.model,
+    options: job.options,
+    prompt: job.prompt,
+    runtimeId: job.runtimeId,
+    status: job.status,
+    triggerMessageId: job.triggerMessageId,
+  };
+}
 
 const claimView = v.union(
   v.object({
@@ -46,6 +73,7 @@ const claimView = v.union(
     status: jobStatus,
     triggerMessageId: v.id("messages"),
     leaseId: v.string(),
+    multicaTaskId: v.optional(v.string()),
     skills: v.array(jobSkillPayload),
     toolChatId: v.optional(v.id("chats")),
   }),
@@ -148,6 +176,7 @@ export const claimNext = mutation({
       driverKind: job.driverKind,
       leaseId,
       model: job.model,
+      multicaTaskId: job.multicaTaskId,
       options: job.options,
       prompt: job.prompt,
       runtimeId: job.runtimeId,
@@ -218,6 +247,10 @@ export const appendEvent = mutation({
   },
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const existing = await ctx.db.get("jobs", args.jobId);
+    if (!existing || existing.status === "cancelled") {
+      return null;
+    }
     const job = await requireJobLease(ctx, args);
     const text = args.text.slice(0, 20_000);
     await ctx.db.patch("jobs", job._id, { lastHeartbeatAt: Date.now() });
@@ -256,6 +289,15 @@ export const complete = mutation({
   },
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const existing = await ctx.db.get("jobs", args.jobId);
+    if (
+      !existing ||
+      existing.status === "cancelled" ||
+      existing.status === "done" ||
+      existing.status === "failed"
+    ) {
+      return null;
+    }
     const job = await requireJobLease(ctx, args);
     const failed = args.error !== undefined && args.error.length > 0;
     await ctx.db.patch("jobs", job._id, {
@@ -320,19 +362,7 @@ export const get = authedQuery({
     return {
       continueCursor: eventPage.continueCursor,
       isDone: eventPage.isDone,
-      job: {
-        _id: job._id,
-        chatId: job.chatId,
-        triggerMessageId: job.triggerMessageId,
-        assistantMessageId: job.assistantMessageId,
-        runtimeId: job.runtimeId,
-        driverKind: job.driverKind,
-        model: job.model,
-        options: job.options,
-        status: job.status,
-        prompt: job.prompt,
-        error: job.error,
-      },
+      job: await toJobView(ctx, ctx.user._id, job),
       events: events.map((event) => ({
         _id: event._id,
         type: event.type,
@@ -374,19 +404,103 @@ export const listByChat = authedQuery({
       .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
       .order("desc")
       .take(50);
-    return jobs.map((job) => ({
-      _id: job._id,
-      chatId: job.chatId,
-      triggerMessageId: job.triggerMessageId,
-      assistantMessageId: job.assistantMessageId,
-      runtimeId: job.runtimeId,
-      driverKind: job.driverKind,
-      model: job.model,
-      options: job.options,
-      status: job.status,
-      prompt: job.prompt,
-      error: job.error,
-    }));
+    const views = [];
+    for (const job of jobs) {
+      views.push(await toJobView(ctx, ctx.user._id, job));
+    }
+    return views;
   },
   returns: v.array(jobView),
+});
+
+const ACTIVE_STATUSES = ["running", "queued"] as const;
+
+export const activeForChat = authedQuery({
+  args: { chatId: v.id("chats") },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get("chats", args.chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
+    let latest: Doc<"jobs"> | null = null;
+    for (const status of ACTIVE_STATUSES) {
+      const page = await ctx.db
+        .query("jobs")
+        .withIndex("by_chat_and_status", (q) =>
+          q.eq("chatId", args.chatId).eq("status", status)
+        )
+        .order("desc")
+        .take(1);
+      const candidate = page[0];
+      if (!candidate) {
+        continue;
+      }
+      if (!latest || candidate._creationTime > latest._creationTime) {
+        latest = candidate;
+      }
+    }
+    return latest ? await toJobView(ctx, ctx.user._id, latest) : null;
+  },
+  returns: v.union(jobView, v.null()),
+});
+
+export const cancel = authedMutation({
+  args: { jobId: v.id("jobs") },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get("jobs", args.jobId);
+    if (!job) {
+      throw new Error("ジョブが見つかりません");
+    }
+    const allowed = await canCancelJob(ctx, ctx.user._id, job);
+    if (!allowed) {
+      const denial = await jobCancelDenial(ctx, ctx.user._id, job);
+      throw new Error(
+        denial === "hidden"
+          ? "ジョブが見つかりません"
+          : "このジョブを中断する権限がありません"
+      );
+    }
+    if (job.status === "cancelled") {
+      return null;
+    }
+    if (job.status === "done" || job.status === "failed") {
+      throw new Error("このジョブはすでに終了しています");
+    }
+    await markJobCancelled(ctx, job);
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const shouldAbort = mutation({
+  args: {
+    jobId: v.id("jobs"),
+    leaseId: v.optional(v.string()),
+    runtimeId: v.id("runtimes"),
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const job = await ctx.db.get("jobs", args.jobId);
+    if (!job) {
+      return true;
+    }
+    if (String(job.runtimeId) !== String(args.runtimeId)) {
+      throw new Error("Job belongs to another runtime");
+    }
+    if (
+      job.leaseId &&
+      args.leaseId !== undefined &&
+      args.leaseId !== job.leaseId
+    ) {
+      return true;
+    }
+    return job.status === "cancelled";
+  },
+  returns: v.boolean(),
 });

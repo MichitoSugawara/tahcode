@@ -88,7 +88,7 @@ export function ContextPane({ chatId }: { chatId?: string }) {
         const status: TaskRow["status"] =
           job.status === "done"
             ? "done"
-            : job.status === "failed"
+            : job.status === "failed" || job.status === "cancelled"
               ? "failed"
               : job.status === "running"
                 ? "running"
@@ -99,7 +99,10 @@ export function ContextPane({ chatId }: { chatId?: string }) {
             : providerLabel(job.driverKind),
           details: [
             { label: "ランタイム", meta: runtime?.name ?? "—" },
-            { label: "状態", meta: job.status },
+            {
+              label: "状態",
+              meta: job.status === "cancelled" ? "中断" : job.status,
+            },
             ...(job.error
               ? [{ label: "エラー", meta: truncate(job.error, 40) }]
               : []),
