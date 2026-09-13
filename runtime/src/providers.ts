@@ -15,6 +15,7 @@ import { spawn } from "node:child_process";
 import { agentToolsMcpFlags } from "../../shared/agentTools.ts";
 import type { StreamArtifact } from "../../shared/artifacts.ts";
 import { extractStreamArtifacts } from "../../shared/artifacts.ts";
+import { resolveCursorCliModel } from "../../shared/cursorModels.ts";
 import {
   rewriteImagegenPrompt,
   usesCodexImagegen,
@@ -236,10 +237,15 @@ export function headlessArgs(
   prompt: string,
   model?: string,
   options?: readonly ProviderOptionSelection[],
-  mcpConfigPath?: string
+  mcpConfigPath?: string,
+  liveModelSlugs?: readonly string[]
 ): string[] {
   const effort = planHeadlessEffort(kind, prompt, model, options);
-  const modelFlag = model ? ["--model", model] : [];
+  const cliModel =
+    kind === "cursor" && model
+      ? resolveCursorCliModel(model, liveModelSlugs)
+      : model;
+  const modelFlag = cliModel ? ["--model", cliModel] : [];
   const toolFlags = agentToolsMcpFlags(kind, mcpConfigPath);
   switch (kind) {
     case "codex": {
@@ -306,14 +312,19 @@ export async function runHeadless(
   signal: AbortSignal,
   model?: string,
   options?: readonly ProviderOptionSelection[],
-  extras?: { env?: NodeJS.ProcessEnv; mcpConfigPath?: string }
+  extras?: {
+    env?: NodeJS.ProcessEnv;
+    liveModelSlugs?: readonly string[];
+    mcpConfigPath?: string;
+  }
 ): Promise<{ exitCode: number; output: string }> {
   const args = headlessArgs(
     kind,
     prompt,
     model,
     options,
-    extras?.mcpConfigPath
+    extras?.mcpConfigPath,
+    extras?.liveModelSlugs
   );
   const child = spawn(binary, args, {
     cwd,

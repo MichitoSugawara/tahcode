@@ -18,8 +18,9 @@
  *    is "manual", shown to the owner as a command to run themselves. No
  *    `curl | sh`, no shell interpolation.
  */
+import { cursorModelFamily } from "./cursorModels.ts";
 import { catalogFor, isValidModelSlug } from "./providers.ts";
-import type { ProviderDriverKind } from "./providers.ts";
+import type { ProviderDriverKind, ProviderModel } from "./providers.ts";
 
 /* ── vocabulary ──────────────────────────────────────────── */
 
@@ -455,6 +456,24 @@ export type CatalogModel = LiveModel & {
   aliases?: readonly string[];
 };
 
+function staticCatalogMatch(
+  kind: ProviderDriverKind,
+  slug: string,
+  statics: readonly ProviderModel[]
+): ProviderModel | undefined {
+  const exact = statics.find((model) => model.slug === slug);
+  if (exact) {
+    return exact;
+  }
+  if (kind !== "cursor") {
+    return undefined;
+  }
+  const family = cursorModelFamily(slug);
+  return statics.find(
+    (model) => model.slug === family || cursorModelFamily(model.slug) === family
+  );
+}
+
 /**
  * What a picker should show for a provider: the live list when a machine
  * reported one (the account's real catalog — the same choice Multica makes),
@@ -465,28 +484,21 @@ export function mergeModelCatalog(
   live: readonly LiveModel[] | null | undefined
 ): { models: CatalogModel[]; source: ModelSource } {
   const statics = catalogFor(kind).models;
-  const aliasesBySlug = new Map(
-    statics.flatMap((model) =>
-      model.aliases && model.aliases.length > 0
-        ? ([[model.slug, model.aliases]] as const)
-        : []
-    )
-  );
   const withAliases = (model: CatalogModel, slug: string): CatalogModel => {
-    const aliases = aliasesBySlug.get(slug);
-    return aliases ? { ...model, aliases } : model;
+    const match = staticCatalogMatch(kind, slug, statics);
+    return match?.aliases ? { ...model, aliases: match.aliases } : model;
   };
   if (live && live.length > 0) {
-    const named = new Map(
-      statics.map((model) => [model.slug, model.name] as const)
-    );
     return {
       source: "live",
       models: live.map((model) =>
         withAliases(
           {
             ...model,
-            name: model.name ?? named.get(model.slug) ?? model.slug,
+            name:
+              model.name ??
+              staticCatalogMatch(kind, model.slug, statics)?.name ??
+              model.slug,
             source: "live",
           },
           model.slug

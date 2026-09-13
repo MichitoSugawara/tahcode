@@ -8,6 +8,7 @@ import {
 import { buildAgentContext } from "./context";
 import type { AgentTarget } from "./mentions";
 import {
+  expandResolvedMentions,
   parseMentions,
   preferredProvider,
   preferredTarget,
@@ -16,7 +17,11 @@ import {
 import type { ProviderOptionSelection } from "./modelOptions";
 import { sanitizeOptionSelections } from "./modelOptions";
 import type { ProviderDriverKind } from "./providers";
-import { isValidModelSlug, resolveModelSlug } from "./providers";
+import {
+  isValidModelSlug,
+  resolveCursorCliModel,
+  resolveModelSlug,
+} from "./providers";
 import { STALE_RUNTIME_MS } from "./runtimeHealth";
 import { loadJobSkills } from "./skills";
 
@@ -54,14 +59,44 @@ export async function sendUserMessage(
   }
   await assertChatVisible(ctx, chat, user._id, membership.role);
 
-  const body = args.body.trim();
-  if (body.length < 1) {
+  const trimmed = args.body.trim();
+  if (trimmed.length < 1) {
     throw new Error("Message is required");
   }
-  if (body.length > 20_000) {
+  if (trimmed.length > 20_000) {
     throw new Error("Message is too long");
   }
   const explicit = explicitTarget(args);
+  const previewMentions = parseMentions(trimmed);
+  const dispatch =
+    args.dispatch ??
+    shouldDispatchAgent({ chatKind: chat.kind, mentions: previewMentions });
+  const bound: AgentTarget | undefined =
+    explicit ??
+    (chat.driverKind
+      ? {
+          driverKind: chat.driverKind,
+          model: chat.model,
+          options: chat.options,
+        }
+      : undefined);
+  const wantedKind = preferredProvider(
+    previewMentions,
+    bound?.driverKind ?? "codex"
+  );
+  const runtime = dispatch
+    ? await pickRuntime(ctx, {
+        hint: args.runtimeId,
+        orgId: chat.orgId,
+        role: membership.role,
+        userId: user._id,
+        wantedKind,
+      })
+    : null;
+  const body = expandResolvedMentions(trimmed, runtime?.liveSlugs);
+  if (body.length > 20_000) {
+    throw new Error("Message is too long");
+  }
   const mentions = parseMentions(body);
   const messageId = await ctx.db.insert("messages", {
     authorId: user._id,
@@ -71,8 +106,6 @@ export async function sendUserMessage(
     mentions: mentions.map((mention) => mention.raw),
   });
 
-  const dispatch =
-    args.dispatch ?? shouldDispatchAgent({ chatKind: chat.kind, mentions });
   if (!dispatch) {
     return { dispatched: false, messageId };
   }
@@ -97,29 +130,15 @@ export async function sendUserMessage(
       slug: skill.slug,
     })),
   });
-
-  const bound: AgentTarget | undefined =
-    explicit ??
-    (chat.driverKind
-      ? {
-          driverKind: chat.driverKind,
-          model: chat.model,
-          options: chat.options,
-        }
-      : undefined);
-  const wantedKind = preferredProvider(mentions, bound?.driverKind ?? "codex");
-  const runtime = await pickRuntime(ctx, {
-    hint: args.runtimeId,
-    orgId: chat.orgId,
-    role: membership.role,
-    userId: user._id,
-    wantedKind,
-  });
   const target = preferredTarget(
     mentions,
     bound ?? { driverKind: runtime?.installedDriver ?? "codex" }
   );
-  const { driverKind, model, options } = target;
+  const { driverKind, options } = target;
+  const model =
+    driverKind === "cursor" && target.model
+      ? resolveCursorCliModel(target.model, runtime?.liveSlugs)
+      : target.model;
 
   if (!runtime) {
     const assistantMessageId = await ctx.db.insert("messages", {
@@ -207,6 +226,7 @@ type RuntimePick = {
     ownerUserId: Id<"users">;
   };
   installedDriver: ProviderDriverKind | undefined;
+  liveSlugs?: string[];
 } | null;
 
 async function pickRuntime(
@@ -234,6 +254,7 @@ async function pickRuntime(
     doc: (typeof online)[number];
     hasWanted: boolean;
     installed: ProviderDriverKind | undefined;
+    liveSlugs?: string[];
   }[] = [];
   for (const runtime of online) {
     try {
@@ -246,12 +267,14 @@ async function pickRuntime(
       .withIndex("by_runtime", (q) => q.eq("runtimeId", runtime._id))
       .take(10);
     const available = providers.filter((provider) => provider.available);
+    const wanted = available.find(
+      (provider) => provider.driverKind === input.wantedKind
+    );
     usable.push({
       doc: runtime,
-      hasWanted: available.some(
-        (provider) => provider.driverKind === input.wantedKind
-      ),
+      hasWanted: wanted !== undefined,
       installed: available[0]?.driverKind,
+      liveSlugs: wanted?.models?.map((model) => model.slug),
     });
   }
   const hinted = input.hint
@@ -264,5 +287,6 @@ async function pickRuntime(
   return {
     doc: pick.doc,
     installedDriver: pick.hasWanted ? input.wantedKind : pick.installed,
+    liveSlugs: pick.liveSlugs,
   };
 }

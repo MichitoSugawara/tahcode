@@ -183,7 +183,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         console.log(
           `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""}${job.options?.length ? ` +${job.options.length} opt` : ""})`
         );
-        await executeJob(client, options, job, probes, heartbeatMs);
+        await executeJob(client, options, job, probes, heartbeatMs, models);
         continue;
       }
 
@@ -372,7 +372,8 @@ async function executeJob(
     }[];
   },
   probes: ProviderProbe[],
-  heartbeatMs: number
+  heartbeatMs: number,
+  modelCache?: ModelCache
 ): Promise<void> {
   const controller = new AbortController();
   // `tahcode start --provider <kind>` pins every job to one CLI on this
@@ -590,7 +591,13 @@ async function executeJob(
       controller.signal,
       model,
       jobOptions,
-      { env: jobEnv, mcpConfigPath }
+      {
+        env: jobEnv,
+        liveModelSlugs: modelCache
+          ?.get(wanted)
+          ?.models.map((item) => item.slug),
+        mcpConfigPath,
+      }
     );
     if (controller.signal.aborted) {
       await client.complete({

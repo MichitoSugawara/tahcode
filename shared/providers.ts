@@ -1,3 +1,5 @@
+import { cursorModelFamily, resolveCursorCliModel } from "./cursorModels.ts";
+
 /**
  * Provider kinds and metadata, ported from t3code's BUILT_IN_DRIVERS.
  * Source of truth: pingdotgg/t3code `apps/server/src/provider/builtInDrivers.ts`
@@ -136,6 +138,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
       { slug: "composer-2.5", name: "Composer 2.5" },
       { slug: "composer-2.5-fast", name: "Composer 2.5 Fast" },
       {
+        /* Family id. `agent --model` wants an effort suffix; resolve to `-medium`. */
         slug: "cursor-grok-4.6",
         name: "Grok 4.6 (Cursor)",
         aliases: ["grok", "grok-4.6"],
@@ -263,28 +266,37 @@ export function isValidModelSlug(value: string): boolean {
 
 /**
  * Normalize a requested model for a provider: trims, resolves catalog aliases
- * (`@claude/opus` → `claude-opus-5`), and returns `undefined` for an empty
- * request so callers fall back to the CLI default. Unknown slugs pass through
- * untouched — the CLI's own catalog is the authority, not this snapshot.
+ * (`@claude/opus` → `claude-opus-5`, `@cursor/grok` → `cursor-grok-4.6-medium`),
+ * and returns `undefined` for an empty request so callers fall back to the CLI
+ * default. Cursor families that the CLI rejects without an effort suffix
+ * become `{family}-medium` (or a live prefix). Unknown slugs otherwise pass
+ * through — the CLI's own catalog is the authority, not this snapshot.
  */
 export function resolveModelSlug(
   kind: ProviderDriverKind,
-  requested: string | undefined | null
+  requested: string | undefined | null,
+  liveSlugs?: readonly string[] | null
 ): string | undefined {
   const trimmed = requested?.trim();
   if (!trimmed) {
     return undefined;
   }
   const lower = trimmed.toLowerCase();
+  let resolved = trimmed;
   for (const model of catalogFor(kind).models) {
     if (model.slug.toLowerCase() === lower) {
-      return model.slug;
+      resolved = model.slug;
+      break;
     }
     if (model.aliases?.some((alias) => alias.toLowerCase() === lower)) {
-      return model.slug;
+      resolved = model.slug;
+      break;
     }
   }
-  return trimmed;
+  if (kind === "cursor") {
+    return resolveCursorCliModel(resolved, liveSlugs);
+  }
+  return resolved;
 }
 
 /** Display name for a model slug, falling back to the slug itself. */
@@ -295,9 +307,22 @@ export function modelDisplayName(
   if (!slug) {
     return undefined;
   }
-  return (
-    catalogFor(kind).models.find((model) => model.slug === slug)?.name ?? slug
-  );
+  const models = catalogFor(kind).models;
+  const exact = models.find((model) => model.slug === slug);
+  if (exact) {
+    return exact.name;
+  }
+  if (kind === "cursor") {
+    const family = cursorModelFamily(slug);
+    const named = models.find(
+      (model) =>
+        model.slug === family || cursorModelFamily(model.slug) === family
+    );
+    if (named) {
+      return named.name;
+    }
+  }
+  return slug;
 }
 
 /** `@cursor/muse-spark-1.3`, or `@cursor` when no model is set. */

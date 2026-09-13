@@ -36,12 +36,14 @@ import {
   MENTION_BOUNDARY,
   MENTION_HANDLE,
   activeAgentToken,
+  expandResolvedMentions,
   hasAgentMention,
 } from "@/lib/mentions";
 import { isPlaceholderId, placeholderId, resolveId } from "@/lib/optimistic";
 import {
   PROVIDERS,
   agentMention,
+  cursorMentionSuggestItems,
   effortFooterFor,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
@@ -305,6 +307,13 @@ export function useSendMessage(chat: Chat | null) {
       if (chat.kind === "project" && !hasAgentMention(body)) {
         body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
       }
+      const cursorCatalog = modelCatalogFor("cursor", org.runtimes);
+      body = expandResolvedMentions(
+        body,
+        cursorCatalog.source === "live"
+          ? cursorCatalog.models.map((model) => model.slug)
+          : undefined
+      );
       const result = await sendMessage({
         body,
         chatId,
@@ -423,28 +432,55 @@ export function Composer({
     const token = activeAgentToken(draft);
     return token && token.modelQuery !== null ? token : null;
   }, [draft]);
+  const cursorSuggestKind = useMemo(() => {
+    if (modelToken?.providerKind !== "cursor") {
+      return;
+    }
+    return cursorMentionSuggestItems(
+      modelToken.handle,
+      modelToken.modelQuery ?? "",
+      modelCatalogFor("cursor", org.runtimes).models
+    )[0]?.kind;
+  }, [modelToken, org.runtimes]);
 
   const mentions: PromptMenuItem[] = useMemo(() => {
     if (modelToken) {
       const kind = modelToken.providerKind;
       const info = PROVIDERS[kind];
       const catalog = modelCatalogFor(kind, org.runtimes);
-      return catalog.models.map((model) => ({
-        desc: model.name ?? model.slug,
+      const rows =
+        kind === "cursor"
+          ? cursorMentionSuggestItems(
+              modelToken.handle,
+              modelToken.modelQuery ?? "",
+              catalog.models
+            )
+          : catalog.models.map((model) => ({
+              desc: model.name ?? model.slug,
+              insert: `@${modelToken.handle}/${model.slug} `,
+              key: `m-${kind}-${model.slug}`,
+              kind: "family" as const,
+              name: `@${modelToken.handle}/${model.slug}`,
+              search: [model.slug, model.name, ...(model.aliases ?? [])]
+                .filter((part): part is string => Boolean(part))
+                .join(" "),
+              slug: model.slug,
+              trailing: model.default
+                ? "CLI の既定"
+                : model.legacy
+                  ? "legacy"
+                  : catalog.source === "live"
+                    ? "live"
+                    : undefined,
+            }));
+      return rows.map((row) => ({
+        desc: row.desc,
         icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
-        insert: `@${modelToken.handle}/${model.slug} `,
-        key: `m-${kind}-${model.slug}`,
-        name: `@${modelToken.handle}/${model.slug}`,
-        search: [model.slug, model.name, ...(model.aliases ?? [])]
-          .filter((part): part is string => Boolean(part))
-          .join(" "),
-        trailing: model.default
-          ? "CLI の既定"
-          : model.legacy
-            ? "legacy"
-            : catalog.source === "live"
-              ? "live"
-              : undefined,
+        insert: row.insert,
+        key: row.key,
+        name: row.name,
+        search: row.search,
+        trailing: row.trailing,
       }));
     }
     const agents: PromptMenuItem[] = [
@@ -738,7 +774,9 @@ export function Composer({
         autoFocus={autoFocus}
         menuFooter={{
           at: modelToken
-            ? `${PROVIDERS[modelToken.providerKind].label} のモデル · @${modelToken.handle} だけなら CLI の既定モデル`
+            ? cursorSuggestKind === "effort"
+              ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
+              : `${PROVIDERS[modelToken.providerKind].label} のモデル · @${modelToken.handle} だけなら CLI の既定モデル`
             : "エージェントかメンバーを選択 · @provider/ でモデル候補",
           dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
         }}
