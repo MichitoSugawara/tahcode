@@ -201,6 +201,7 @@ describe("headless agent --model", () => {
       headlessArgs("cursor", "こんにちは", "cursor-grok-4.6")
     ).toStrictEqual([
       "-p",
+      "--trust",
       "--model",
       "cursor-grok-4.6-medium",
       "--output-format",
@@ -221,6 +222,7 @@ describe("headless agent --model", () => {
   it("omits --model for a bare @cursor (CLI default)", () => {
     expect(headlessArgs("cursor", "こんにちは")).toStrictEqual([
       "-p",
+      "--trust",
       "--output-format",
       "stream-json",
       "こんにちは",
