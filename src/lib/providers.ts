@@ -1,6 +1,15 @@
-import { PROVIDER_CATALOG, type ProviderDriverKind } from "@shared/providers.ts";
+import {
+  PROVIDER_CATALOG,
+  catalogFor,
+  formatAgentMention,
+  modelDisplayName,
+  resolveModelSlug,
+  type ProviderDriverKind,
+  type ProviderModel,
+} from "@shared/providers.ts";
 
-export type { ProviderDriverKind };
+export type { ProviderDriverKind, ProviderModel };
+export { formatAgentMention, modelDisplayName, resolveModelSlug };
 
 export const PROVIDER_KINDS = PROVIDER_CATALOG.map((entry) => entry.kind);
 
@@ -31,4 +40,35 @@ export function providerHandle(kind?: string | null): string {
 
 export function isProviderKind(value: string): value is ProviderDriverKind {
   return value in PROVIDERS;
+}
+
+/** Models a provider is known to accept (current ones first, legacy after). */
+export function modelsFor(kind: ProviderDriverKind): readonly ProviderModel[] {
+  const models = catalogFor(kind).models;
+  return [...models.filter((model) => !model.legacy), ...models.filter((model) => model.legacy)];
+}
+
+/** Whether the provider's CLI takes a model flag at all (Antigravity has no CLI). */
+export function supportsModelPick(kind: ProviderDriverKind): boolean {
+  return catalogFor(kind).modelFlag !== null;
+}
+
+export function modelSourceHint(kind: ProviderDriverKind): string {
+  return catalogFor(kind).modelSource;
+}
+
+/** `Cursor · muse-spark-1.3` / `Cursor · 既定モデル` — the short agent label used in pills and headers. */
+export function agentLabel(kind?: string | null, model?: string | null): string {
+  const label = providerLabel(kind);
+  return model ? `${label} · ${model}` : label;
+}
+
+/** The mention the composer prepends when a project message names no agent. */
+export function agentMention(kind: ProviderDriverKind, model?: string | null): string {
+  return formatAgentMention(kind, model ?? undefined);
+}
+
+/** An `@provider/model` example from a different provider than the chat's, for hints. */
+export function modelMentionExample(current: ProviderDriverKind): string {
+  return current === "cursor" ? agentMention("codex", "gpt-5.6-sol") : agentMention("cursor", "muse-spark-1.3");
 }

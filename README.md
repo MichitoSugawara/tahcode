@@ -20,7 +20,8 @@ Multica からは Org / member / project / chat の考え方と作成フロー�
 - ✅ Org → Project 階層、プロジェクト可視性（org / private）+ プライベートチャットの per-chat 追加
 - ✅ Personal DM（Phase 1 は owner-only）+ プロジェクトチャット
 - ✅ エージェント応答: DM は常時、他は @mention（@agent / @codex / @claude / @cursor / @grok / @opencode / @antigravity / @rt-…）時のみ
-  - 仕様: プロジェクトチャットでメンションなしで送信すると、Composer が既定プロバイダのメンション（例 `@codex`）を自動付与してから送る。サーバ側ルール自体はメンション必須のまま（`convex/messages.ts`）。素のメッセージを送りたい場合は現状 UI からは不可（Phase 1 の簡略化）
+  - メンションは `@provider/model` の形でモデルまで指名できる（例 `@cursor/muse-spark-1.3`、`@claude/opus`）。`@cursor` だけなら Cursor CLI の既定モデル（従来どおり）。詳細は [プロバイダとモデル](#プロバイダとモデルproviderモデル)
+  - 仕様: チャットはエージェント（プロバイダ + モデル）に結びつけて作成でき、プロジェクトチャットでメンションなしで送信すると Composer がそのメンション（例 `@cursor/muse-spark-1.3`）を自動付与してから送る。DM はメンションなしでもチャットのエージェントで動く。サーバ側ルール自体はメンション必須のまま（`convex/messages.ts`）。素のメッセージを送りたい場合は現状 UI からは不可（Phase 1 の簡略化）
 - ✅ コンテキスト = 直近履歴 + メンション + プロジェクトリンク（Focus なし）
 - ✅ マシンランタイム（t3code 由来の headless CLI 実行）+ default deny のランタイム ACL（user / role 混在可）
 - ✅ ロール: owner（全体）/ admin（招待 + 権限）/ member（見える範囲のみ）
@@ -89,16 +90,25 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
 3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・招待・テーマ・サインアウト）、`/o/:slug/settings`
 4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
-5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲）。開いたチャットは上部タブに並ぶ
+5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g dalecode` / `dalecode link` / `dalecode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
-9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー、プロバイダ / ランタイムピッカー、プロジェクトリンクは Context タブ
+9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール）
     **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
 
-スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
+スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
+プロバイダ + モデルの結びつけと `@provider/model` メンションは `docs/ui-screenshots/agent-model/`（引数をそのまま返すフェイク CLI で `--model` が届くことを確認）。
+
+### プロバイダとモデル（`@provider/model`）
+
+- **カタログ** — `shared/providers.ts` が 6 プロバイダごとのモデル一覧を持つ。出典は t3code の `model-manifest.json`（Codex / Claude / Antigravity）、Multica の `models.go` 静的カタログ（Codex / Claude / Grok）、Cursor のモデルドキュメント（Cursor CLI の id）。Cursor / Grok / OpenCode は上流ではサインイン済み CLI から動的に取得するため、ここでの一覧はスナップショット。**一覧にないスラッグも `@cursor/<slug>` で直接指名でき、そのまま CLI に渡る**（CLI 側のカタログが正）。
+- **メンション文法** — `@provider/model`。最初の `/` で分割するので OpenCode の `@opencode/anthropic/claude-sonnet-5` も通る。Claude の別名（`@claude/opus` → `claude-opus-5`）はカタログで解決。`@agent` は「このチャットのエージェント」。
+- **既定モデル（後方互換）** — `@cursor` のようにプロバイダだけの指名は、そのプロバイダの既定モデル = **CLI 側の設定に従う**（`--model` を付けない）。これまでの `@codex` / `@claude` はそのまま同じ動きをする。チャットが `cursor/muse-spark-1.3` に結びついているときは素の `@cursor` もそのモデルで動く（別プロバイダを素で指名したときはその CLI の既定）。
+- **チャットへの結びつけ** — `chats.driverKind` / `chats.model`。「新しいチャット」ダイアログで選ぶか、コンポーザのプロバイダ / モデルピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。
+- **ランタイム** — ジョブが `model` を持つときだけ CLI にフラグを付ける: `codex exec --model`、`claude -p --model`、`agent -p --model`、`opencode run --model provider/model`、`grok --model`（Grok の headless 引数は暫定のまま）。指名されたプロバイダの CLI がそのマシンに無いときは別の CLI で黙って実行せず、「未インストール」を返信として返す。サーバ側も指名プロバイダが検出済みのマシンを優先して選ぶ。`dalecode start --provider <kind>` で固定した場合はメンションのモデル指定は無視される（モデル名はプロバイダ固有のため）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
 
 ## Stack
 
@@ -158,14 +168,14 @@ dalecode start        # Multica daemon を起動 → dalecode のジョブブリ
 リポジトリ内での開発: `npm run cli -- doctor`（tsx でソース実行）、`npm run cli:build`（`packages/cli/dist/dalecode.mjs` にバンドル）。
 公開手順は [`packages/cli/README.md`](packages/cli/README.md)。CI や 1 回限りの実行では環境変数 `DALECODE_URL` / `DALECODE_RUNTIME_ID` / `DALECODE_TOKEN` でもリンクできます。
 
-DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` のようにメンションする。
-送信時に既定プロバイダのメンションが自動付与される（プロジェクトのみ）。
+DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` や `@cursor/muse-spark-1.3 直して` のようにメンションする。
+送信時にチャットのエージェントのメンションが自動付与される（プロジェクトのみ。DM は付与なしでチャットのエージェントで動く）。
 
 ## 受け入れ基準の対応
 
 1. Org / Project 作成 → `/welcome` と ワークスペースメニュー（Org）、サイドバーの ＋ / `/project`（Project、org/private + リソース）
 2. DM / プロジェクトチャット → DM は Org 参加時に自動作成、プロジェクトチャットは「新しいチャット」ダイアログ / プロジェクト行の ＋
-3. DM 常時 / 他はメンション時のみ → `shared/mentions.ts` + `convex/messages.ts:send`
+3. DM 常時 / 他はメンション時のみ → `shared/mentions.ts`（`@provider/model` 文法）+ `convex/messages.ts:send`
 4. Context = 履歴 + メンション + プロジェクトリンク → `convex/lib/context.ts`（ジョブに JSON 同梱、ランタイムがプロンプトに付与）
 5. t3code 由来プロバイダで実行 → `dalecode start`（Multica daemon + ブリッジ）→ `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）
 6. 最小ロール + ランタイム許可 → Org ロール + `runtimeGrants`（default deny、machine owner 付与）
@@ -174,7 +184,8 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 ## スタブ・既知の制限
 
 - **Antigravity**: headless CLI がないためランタイムは「未対応」表示 + ガイド文。カタログには含む。
-- **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
+- **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`、モデルは `--model`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
+- **モデル一覧は静的**: `shared/providers.ts` のカタログは t3code / Multica / Cursor ドキュメントのスナップショット。ランタイム側で `agent models` / `grok models` / `opencode models` を叩いて一覧を同期するのは後続フェーズ（一覧外のスラッグは `@provider/<slug>` でそのまま指名できる）。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー招待・ロール・ランタイム許可まで。
 - **Org 名変更 / 削除なし**: 設定ページは表示のみ（Owner 向けの変更は後続フェーズ）。
 - **ファイル配信**: 本番は R2 バインディング必須（`wrangler deploy` 前に `team-harness-files` バケット作成）。ローカルは `wrangler dev` のローカル永続化。

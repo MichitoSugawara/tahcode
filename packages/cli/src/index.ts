@@ -104,7 +104,7 @@ ${bold("オプション")}
   --detach            start: バックグラウンドで実行（既定。明示したいとき用）
   --no-daemon         start / service install: Multica daemon を起動しない（ブリッジのみ）
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
-  --provider <kind>   ブリッジの既定プロバイダを固定（codex / claudeAgent / cursor / grok / opencode）
+  --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
 
 ファイル: ~/.dalecode/config.json（リンク）· bridge.json（ブリッジの pid）· bridge.log（ブリッジのログ）
 環境変数でもリンクできます: DALECODE_URL, DALECODE_RUNTIME_ID, DALECODE_TOKEN

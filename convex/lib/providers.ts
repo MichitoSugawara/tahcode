@@ -1,22 +1,19 @@
-export const PROVIDER_DRIVER_KINDS = [
-  "codex",
-  "claudeAgent",
-  "cursor",
-  "grok",
-  "opencode",
-  "antigravity",
-] as const;
-
-export type ProviderDriverKind = (typeof PROVIDER_DRIVER_KINDS)[number];
-
-export const mentionToProvider: Record<string, ProviderDriverKind> = {
-  codex: "codex",
-  claude: "claudeAgent",
-  claudeagent: "claudeAgent",
-  cursor: "cursor",
-  agent: "cursor",
-  grok: "grok",
-  opencode: "opencode",
-  antigravity: "antigravity",
-  agy: "antigravity",
-};
+/**
+ * Provider catalog for Convex functions — re-exported from `shared/` so the
+ * server, the web app and the machine runtime agree on driver kinds, mention
+ * handles and model slugs.
+ */
+export {
+  MENTION_TO_PROVIDER,
+  MODEL_SLUG_MAX_LENGTH,
+  PROVIDER_CATALOG,
+  PROVIDER_DRIVER_KINDS,
+  catalogFor,
+  formatAgentMention,
+  isProviderDriverKind,
+  isValidModelSlug,
+  mentionHandleFor,
+  modelDisplayName,
+  resolveModelSlug,
+} from "../../shared/providers.ts";
+export type { ProviderCatalogEntry, ProviderDriverKind, ProviderModel } from "../../shared/providers.ts";

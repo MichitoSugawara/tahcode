@@ -112,6 +112,7 @@ export default function PromptBar({
   const [expanded, setExpanded] = useState(false);
   const wide = expanded || tall;
   const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(null);
+  const [menuMaxHeight, setMenuMaxHeight] = useState(288);
   const [pickerBox, setPickerBox] = useState<{ top: number; height: number } | null>(null);
   const [pickerHovered, setPickerHovered] = useState<number | null>(null);
   const [pickerMenuLeft, setPickerMenuLeft] = useState(0);
@@ -153,8 +154,20 @@ export default function PromptBar({
    * toggling its own background — matches the gliding pill in the nav */
   useLayoutEffect(() => {
     const target = rowRefs.current[active];
-    if (target) setRowBox({ top: target.offsetTop, height: target.offsetHeight });
-  }, [menu, query, active, rows.length]);
+    if (target) {
+      setRowBox({ top: target.offsetTop, height: target.offsetHeight });
+      if (engaged) target.scrollIntoView({ block: "nearest" });
+    }
+  }, [menu, query, active, rows.length, engaged]);
+
+  /* The menu grows upward from the composer; in the hero layout that can be
+   * close to the top of the viewport, so cap it to the room that is there
+   * (model lists are long) and let it scroll. */
+  useLayoutEffect(() => {
+    if (!menu || !anchorRef.current) return;
+    const room = anchorRef.current.getBoundingClientRect().top - 16;
+    setMenuMaxHeight(Math.max(140, Math.min(288, room)));
+  }, [menu, rows.length]);
 
   const picker = pickers.find((item) => item.id === openPicker) ?? null;
   const pickerIndex = picker ? picker.items.findIndex((item) => item.key === picker.value) : -1;
@@ -262,8 +275,8 @@ export default function PromptBar({
         {menu && (
           <div
             onMouseLeave={() => setEngaged(false)}
-            className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised"
-            style={{ animation: POP, transformOrigin: "bottom center" }}
+            className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised"
+            style={{ animation: POP, transformOrigin: "bottom center", maxHeight: menuMaxHeight }}
           >
             <span
               aria-hidden
