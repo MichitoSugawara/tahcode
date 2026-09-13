@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -5,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   PREVIEW_R2_BUCKET,
   PREVIEW_RETRY,
+  PRODUCTION_PUBLIC_SITE_URL,
   classifyCreateOutput,
   classifyWranglerOutput,
   decideEnsureAction,
@@ -14,8 +16,11 @@ import {
   outputListsBucket,
   parseBucketNames,
   parseCloudflareUrl,
+  parseConvexEnvGetOutput,
   previewSkipReason,
+  productionSiteUrlError,
   readEnvPresence,
+  resolvePublicSiteUrl,
   toConvexSiteUrl,
 } from "../scripts/wrangler-classify.mjs";
 
@@ -275,6 +280,77 @@ describe("URL and env helpers", () => {
     );
   });
 
+  it("maps production SITE_URL to tahcode.com, not workers.dev", () => {
+    expect(
+      resolvePublicSiteUrl({
+        cloudflareUrl: "https://tahcode.gawara.workers.dev",
+        name: "production",
+      })
+    ).toBe(PRODUCTION_PUBLIC_SITE_URL);
+    expect(PRODUCTION_PUBLIC_SITE_URL).toBe("https://tahcode.com");
+  });
+
+  it("keeps staging and preview on the wrangler workers.dev URL", () => {
+    expect(
+      resolvePublicSiteUrl({
+        cloudflareUrl: "https://tahcode-staging.gawara.workers.dev",
+        name: "staging",
+      })
+    ).toBe("https://tahcode-staging.gawara.workers.dev");
+    expect(
+      resolvePublicSiteUrl({
+        cloudflareUrl: "https://pr-12-tahcode-preview.gawara.workers.dev",
+        name: "preview",
+      })
+    ).toBe("https://pr-12-tahcode-preview.gawara.workers.dev");
+  });
+
+  it("lets a non-workers.dev PUBLIC_SITE_URL override the name-based map", () => {
+    expect(
+      resolvePublicSiteUrl({
+        cloudflareUrl: "https://tahcode.gawara.workers.dev",
+        name: "production",
+        override: "https://example.com/",
+      })
+    ).toBe("https://example.com");
+  });
+
+  it("ignores a workers.dev PUBLIC_SITE_URL override on production", () => {
+    expect(
+      resolvePublicSiteUrl({
+        cloudflareUrl: "https://tahcode.gawara.workers.dev",
+        name: "production",
+        override: "https://tahcode.gawara.workers.dev",
+      })
+    ).toBe(PRODUCTION_PUBLIC_SITE_URL);
+  });
+
+  it("rejects production SITE_URL values that are not the public origin", () => {
+    expect(
+      productionSiteUrlError("https://tahcode.gawara.workers.dev")
+    ).toMatch(/workers\.dev/);
+    expect(productionSiteUrlError("https://evil.example")).toMatch(
+      /must be https:\/\/tahcode\.com/
+    );
+    expect(productionSiteUrlError("")).toMatch(/empty/);
+    expect(productionSiteUrlError("https://tahcode.com")).toBeNull();
+    expect(
+      productionSiteUrlError(
+        "https://tahcode.gawara.workers.dev",
+        "https://tahcode.gawara.workers.dev"
+      )
+    ).toMatch(/workers\.dev/);
+  });
+
+  it("reads the URL from convex env get output even with banners", () => {
+    expect(parseConvexEnvGetOutput("✔ Connected\nhttps://tahcode.com/\n")).toBe(
+      "https://tahcode.com"
+    );
+    expect(parseConvexEnvGetOutput("https://tahcode.com")).toBe(
+      "https://tahcode.com"
+    );
+  });
+
   it("reads credential presence without returning values", () => {
     const present = readEnvPresence(
       "CLOUDFLARE_API_TOKEN=secret\nCLOUDFLARE_ACCOUNT_ID=\n",
@@ -289,6 +365,140 @@ describe("URL and env helpers", () => {
 
   it("mentions preview retries in the transient hint", () => {
     expect(failureHint("transient", "preview")).toContain("retries");
+  });
+});
+
+describe("deploy-stack auth SITE_URL", () => {
+  it("points Convex Auth at public_site_url, not the wrangler workers.dev URL", () => {
+    const action = readFileSync(
+      ".github/actions/deploy-stack/action.yml",
+      "utf-8"
+    );
+    expect(action).toMatch(
+      /SITE_URL:\s*\$\{\{\s*steps\.cf\.outputs\.public_site_url\s*\}\}/
+    );
+    expect(action).not.toMatch(
+      /SITE_URL:\s*\$\{\{\s*steps\.cf\.outputs\.cloudflare_url\s*\}\}/
+    );
+    expect(action).toMatch(/DEPLOY_NAME:\s*\$\{\{\s*inputs\.name\s*\}\}/);
+    expect(action).toContain("workers.dev is only the Worker hostname");
+  });
+
+  it("refuses to sync a workers.dev SITE_URL on production (dry-run)", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "",
+          DEPLOY_NAME: "production",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          SITE_URL: "https://tahcode.gawara.workers.dev",
+        },
+      }
+    );
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toMatch(/workers\.dev/);
+  });
+
+  it("also fail-closes production when only --prod is set", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "--prod",
+          DEPLOY_NAME: "",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          SITE_URL: "https://tahcode.gawara.workers.dev",
+        },
+      }
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("still allows workers.dev SITE_URL on staging", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "",
+          DEPLOY_NAME: "staging",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          SITE_URL: "https://tahcode-staging.gawara.workers.dev",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it("accepts tahcode.com SITE_URL on production in dry-run", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "--prod",
+          DEPLOY_NAME: "production",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          SITE_URL: "https://tahcode.com",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it("lists tahcode.com as the production App URL and keeps workers.dev as Worker", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/write-deploy-summary.mjs", "production"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CLOUDFLARE_URL: "https://tahcode.gawara.workers.dev",
+          GITHUB_STEP_SUMMARY: "",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("**App:** https://tahcode.com");
+    expect(result.stdout).toContain(
+      "**Worker:** https://tahcode.gawara.workers.dev"
+    );
+  });
+
+  it("keeps staging summary on the workers.dev URL only", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/write-deploy-summary.mjs", "staging"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CLOUDFLARE_URL: "https://tahcode-staging.gawara.workers.dev",
+          GITHUB_STEP_SUMMARY: "",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "**App:** https://tahcode-staging.gawara.workers.dev"
+    );
+    expect(result.stdout).not.toContain("**Worker:**");
   });
 });
 

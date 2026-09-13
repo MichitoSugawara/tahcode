@@ -11,7 +11,11 @@
 // the provided one is missing, malformed, or does not match.
 //
 // Usage (env vars):
-//   SITE_URL          required  public URL of the web app (OAuth redirect target)
+//   SITE_URL          required  public URL of the web app (OAuth redirect target).
+//                               Production CI sets https://tahcode.com, not workers.dev.
+//   DEPLOY_NAME       optional  preview | staging | production. Production
+//                               (or CONVEX_ENV_ARGS containing --prod) fail-closes
+//                               if SITE_URL is workers.dev or not the public origin.
 //   JWT_PRIVATE_KEY   required  PKCS8 PEM (newlines may be spaces or literal "\n")
 //   JWKS              optional  JSON web key set; derived from the key if unusable
 //   AUTH_GOOGLE_ID    optional  Google OAuth client id (synced when present)
@@ -22,6 +26,12 @@
 import { spawnSync } from "node:child_process";
 
 import { exportJWK, importPKCS8 } from "jose";
+
+import {
+  parseConvexEnvGetOutput,
+  productionSiteUrlError,
+  resolvePublicSiteUrl,
+} from "./wrangler-classify.mjs";
 
 const dryRun = process.env.DRY_RUN === "1";
 const convexArgs = (process.env.CONVEX_ENV_ARGS ?? "")
@@ -109,6 +119,57 @@ function setEnv(name, value) {
   }
 }
 
+function isProductionDeploy() {
+  const name = (process.env.DEPLOY_NAME ?? "").trim();
+  if (name === "production") {
+    return true;
+  }
+  return convexArgs.includes("--prod");
+}
+
+function expectedProductionSiteUrl() {
+  return resolvePublicSiteUrl({
+    name: "production",
+    override: process.env.PUBLIC_SITE_URL,
+  });
+}
+
+function assertProductionSiteUrl(effective, label) {
+  if (!isProductionDeploy()) {
+    return;
+  }
+  const err = productionSiteUrlError(effective, expectedProductionSiteUrl());
+  if (err) {
+    fail(`${label}: ${err}`);
+  }
+}
+
+function getEnv(name) {
+  const result = spawnSync(
+    "npx",
+    ["convex", "env", "get", ...convexArgs, name],
+    {
+      encoding: "utf-8",
+      env: process.env,
+    }
+  );
+  if (result.status !== 0) {
+    fail(`convex env get ${name} failed (exit ${result.status ?? "signal"})`);
+  }
+  return parseConvexEnvGetOutput(
+    `${result.stdout ?? ""}${result.stderr ?? ""}`
+  );
+}
+
+function assertEffectiveProductionSiteUrl() {
+  if (!isProductionDeploy() || dryRun) {
+    return;
+  }
+  const effective = getEnv("SITE_URL");
+  assertProductionSiteUrl(effective, "Convex deployment SITE_URL after sync");
+  console.log(`Verified production SITE_URL=${effective}`);
+}
+
 const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/$/, "");
 if (!siteUrl) {
   fail(
@@ -118,6 +179,7 @@ if (!siteUrl) {
 if (!/^https?:\/\//.test(siteUrl)) {
   fail(`SITE_URL must be an absolute http(s) URL, got: ${siteUrl}`);
 }
+assertProductionSiteUrl(siteUrl, "Refusing to write SITE_URL");
 
 const rawPrivateKey = process.env.JWT_PRIVATE_KEY ?? "";
 if (!rawPrivateKey.trim()) {
@@ -126,6 +188,7 @@ if (!rawPrivateKey.trim()) {
       "Generate a pair with `node scripts/generate-auth-keys.mjs` and add both values to the env file."
   );
   setEnv("SITE_URL", siteUrl);
+  assertEffectiveProductionSiteUrl();
   console.log("Synced SITE_URL only.");
   process.exit(0);
 }
@@ -187,6 +250,7 @@ if (!tryParseJwks(jwksValue)) {
 }
 
 setEnv("SITE_URL", siteUrl);
+assertEffectiveProductionSiteUrl();
 setEnv("JWT_PRIVATE_KEY", privateKey.pem);
 setEnv("JWKS", jwksValue);
 console.log(

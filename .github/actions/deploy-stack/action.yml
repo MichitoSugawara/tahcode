@@ -25,11 +25,19 @@ inputs:
     required: false
     default: ""
     description: Deployment selector for convex env set, e.g. --prod or --preview-name foo (--deployment is rejected when CONVEX_DEPLOY_KEY is set)
+  public_site_url:
+    required: false
+    default: ""
+    description: >
+      Public origin for Convex Auth SITE_URL (OAuth return URL). Invariant: the custom domain is the OAuth return URL; workers.dev is only the Worker hostname. Production defaults to https://tahcode.com and fail-closes if SITE_URL is workers.dev. Staging/preview keep the wrangler workers.dev / preview-alias URL. Override with this input or PUBLIC_SITE_URL.
 
 outputs:
   cloudflare_url:
-    description: Deployed Cloudflare URL
+    description: Deployed Cloudflare workers.dev / preview-alias URL
     value: ${{ steps.cf.outputs.cloudflare_url }}
+  public_site_url:
+    description: Public site URL used for Convex Auth SITE_URL
+    value: ${{ steps.cf.outputs.public_site_url }}
   skipped:
     description: true when preview Cloudflare deploy was skipped
     value: ${{ steps.cf.outputs.skipped }}
@@ -85,6 +93,8 @@ runs:
     - name: Deploy Cloudflare
       id: cf
       shell: bash
+      env:
+        PUBLIC_SITE_URL: ${{ inputs.public_site_url }}
       run: |
         # Preview: retry transient `fetch failed` / connectivity with backoff,
         # bootstrap a missing Worker, create the preview R2 bucket if needed.
@@ -97,15 +107,22 @@ runs:
           -- \
           ${{ inputs.wrangler_args }}
 
-    # Validates JWT_PRIVATE_KEY / JWKS with jose, repairs dotenv escaping and
-    # derives the JWKS from the private key when the provided one is unusable.
-    # A JWKS pushed verbatim with escaped quotes served invalid JSON and broke
-    # every sign-in (AuthProviderDiscoveryFailed) on production and staging.
-    - name: Point Convex Auth at the Worker
+    # Invariant: Convex Auth SITE_URL is the public OAuth return origin
+    # (production → https://tahcode.com). wrangler workers.dev is only the
+    # Worker hostname and must never be written as SITE_URL on production.
+    # sync-convex-auth-env.mjs fail-closes if production SITE_URL is
+    # workers.dev or does not match the configured public origin, then
+    # reads the value back from Convex.
+    # Also validates JWT_PRIVATE_KEY / JWKS with jose (a JWKS pushed
+    # verbatim with escaped quotes once served invalid JSON and broke
+    # every sign-in via AuthProviderDiscoveryFailed).
+    - name: Point Convex Auth at the public site
       if: ${{ steps.cf.outputs.skipped != 'true' }}
       shell: bash
       env:
-        SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+        DEPLOY_NAME: ${{ inputs.name }}
+        SITE_URL: ${{ steps.cf.outputs.public_site_url }}
+        PUBLIC_SITE_URL: ${{ steps.cf.outputs.public_site_url }}
         CONVEX_ENV_ARGS: ${{ steps.convex.outputs.preview_name != '' && format('--preview-name {0}', steps.convex.outputs.preview_name) || inputs.convex_env_extra }}
       run: |
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/sync-convex-auth-env.mjs
@@ -114,4 +131,5 @@ runs:
       shell: bash
       env:
         CLOUDFLARE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+        PUBLIC_SITE_URL: ${{ steps.cf.outputs.public_site_url }}
       run: node scripts/write-deploy-summary.mjs ${{ inputs.name }}

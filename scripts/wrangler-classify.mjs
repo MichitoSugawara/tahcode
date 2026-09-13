@@ -165,6 +165,102 @@ export function parseCloudflareUrl(output) {
   return aliasMatch?.[1] ?? previewMatch?.[1] ?? publishedMatch?.[0] ?? "";
 }
 
+/** Public web origin for production Convex Auth (OAuth post-login redirect). */
+export const PRODUCTION_PUBLIC_SITE_URL = "https://tahcode.com";
+
+function trimUrl(value) {
+  return (value ?? "").trim().replace(/\/$/, "");
+}
+
+export function siteUrlHostname(url) {
+  try {
+    return new URL(trimUrl(url)).hostname;
+  } catch {
+    return "";
+  }
+}
+
+export function isWorkersDevHostname(hostname) {
+  return hostname === "workers.dev" || hostname.endsWith(".workers.dev");
+}
+
+/**
+ * Production SITE_URL must be the custom domain (default https://tahcode.com).
+ * workers.dev is only the Worker hostname — never the OAuth return URL.
+ * Returns an error message, or null when the value is acceptable.
+ */
+export function productionSiteUrlError(
+  siteUrl,
+  expectedOrigin = PRODUCTION_PUBLIC_SITE_URL
+) {
+  const actual = trimUrl(siteUrl);
+  let expected = trimUrl(expectedOrigin) || PRODUCTION_PUBLIC_SITE_URL;
+  if (isWorkersDevHostname(siteUrlHostname(expected))) {
+    expected = PRODUCTION_PUBLIC_SITE_URL;
+  }
+  if (!actual) {
+    return "production SITE_URL is empty; OAuth would have no return origin.";
+  }
+  const host = siteUrlHostname(actual);
+  if (!host) {
+    return `production SITE_URL is not a valid URL: ${actual}`;
+  }
+  if (isWorkersDevHostname(host)) {
+    return (
+      `production SITE_URL must be ${expected} (custom domain), not ` +
+      `workers.dev (${actual}). workers.dev is only the Worker hostname.`
+    );
+  }
+  if (actual !== expected) {
+    return `production SITE_URL must be ${expected}, got ${actual}`;
+  }
+  return null;
+}
+
+/**
+ * Last http(s) line from `npx convex env get SITE_URL` (CLI may print banners).
+ */
+export function parseConvexEnvGetOutput(output) {
+  const lines = stripAnsi(output ?? "")
+    .split(/\r?\n/)
+    .map((line) => trimUrl(line))
+    .filter(Boolean);
+  const urlLine = [...lines]
+    .reverse()
+    .find((line) => /^https?:\/\//.test(line));
+  return urlLine ?? lines.at(-1) ?? "";
+}
+
+/**
+ * Convex Auth SITE_URL / post-login redirect target.
+ *
+ * wrangler deploy always prints the workers.dev hostname. Production also
+ * serves https://tahcode.com (custom domain already bound on the Worker);
+ * auth must send users there, not to tahcode.gawara.workers.dev.
+ *
+ * Production never takes the wrangler URL. A workers.dev PUBLIC_SITE_URL
+ * override is ignored so a miswired input cannot silently regress. Staging
+ * and preview keep the workers.dev / alias URL unless overridden. Does not
+ * change Worker hostnames.
+ */
+export function resolvePublicSiteUrl({
+  cloudflareUrl = "",
+  name,
+  override = "",
+}) {
+  const fromOverride = trimUrl(override);
+  if (name === "production") {
+    if (fromOverride && !isWorkersDevHostname(siteUrlHostname(fromOverride))) {
+      return fromOverride;
+    }
+    return PRODUCTION_PUBLIC_SITE_URL;
+  }
+  if (fromOverride) {
+    return fromOverride;
+  }
+  return trimUrl(cloudflareUrl);
+}
+
 export function parseBucketNames(output) {
   const text = stripAnsi(output).trim();
   const fromJson = bucketsFromJson(text);
