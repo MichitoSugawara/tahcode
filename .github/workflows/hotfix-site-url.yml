@@ -1,0 +1,44 @@
+name: Hotfix Convex SITE_URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: production or staging
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
+      site_url:
+        description: Absolute public SITE_URL (no trailing slash)
+        required: true
+        default: https://tahcode.com
+
+jobs:
+  set-site-url:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Decrypt env
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
+        run: node scripts/env.mjs decrypt ${{ inputs.target }}
+      - name: Set SITE_URL on Convex
+        env:
+          SITE_URL: ${{ inputs.site_url }}
+        run: |
+          set -euo pipefail
+          dotenv_file=".env.${{ inputs.target }}"
+          # Prefer the existing sync script (SITE_URL-only early path if keys missing is OK —
+          # we force SITE_URL via env and let the script push it with CONVEX_DEPLOY_KEY).
+          npx dotenvx run -f "$dotenv_file" -- node scripts/sync-convex-auth-env.mjs
+          echo "Requested SITE_URL=$SITE_URL for ${{ inputs.target }}"
