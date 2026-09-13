@@ -1,4 +1,5 @@
-import { useMutation } from "convex/react";
+import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
+import { useMutation, useQuery } from "convex/react";
 import {
   AtSign,
   Brain,
@@ -30,7 +31,7 @@ import {
   activeAgentToken,
   hasAgentMention,
 } from "@/lib/mentions";
-import { placeholderId, resolveId } from "@/lib/optimistic";
+import { isPlaceholderId, placeholderId, resolveId } from "@/lib/optimistic";
 import {
   PROVIDERS,
   agentMention,
@@ -316,6 +317,33 @@ export function useSendMessage(chat: Chat | null) {
   return { busy, send };
 }
 
+export function useCancelJob() {
+  const cancelJob = useMutation(api.jobs.cancel);
+  const [stopping, setStopping] = useState(false);
+  const cancel = useCallback(
+    async (jobId: Id<"jobs">) => {
+      if (stopping) {
+        return false;
+      }
+      setStopping(true);
+      try {
+        await cancelJob({ jobId });
+        toast.success(JOB_CANCELLED_MESSAGE);
+        return true;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "中断に失敗しました"
+        );
+        return false;
+      } finally {
+        setStopping(false);
+      }
+    },
+    [cancelJob, stopping]
+  );
+  return { cancel, stopping };
+}
+
 export function Composer({
   chat,
   tall = false,
@@ -339,9 +367,15 @@ export function Composer({
   const org = useOrg();
   const { send: sendWithRules, busy } = useSendMessage(chat);
   const { agent, setAgent } = useChatAgent(chat);
+  const { cancel, stopping } = useCancelJob();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [draft, setDraft] = useState("");
+  const serverChatId = chat && !isPlaceholderId(chat._id) ? chat._id : null;
+  const activeJob = useQuery(
+    api.jobs.activeForChat,
+    serverChatId ? { chatId: serverChatId } : "skip"
+  );
 
   const disabled = !chat;
   const isProject = chat?.kind === "project";
@@ -615,6 +649,10 @@ export function Composer({
         を自動付与します（Phase 1 のルール）
       </span>
     );
+  } else if (activeJob) {
+    hint = activeJob.canCancel
+      ? "生成中 — 中断でこのジョブを止められます"
+      : "生成中です";
   } else if (isProject) {
     hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · ⏎ 送信 · ⇧⏎ 改行`;
   } else {
@@ -627,6 +665,9 @@ export function Composer({
         tall={tall}
         disabled={disabled}
         busy={busy}
+        jobRunning={!!activeJob}
+        canStop={!!activeJob?.canCancel && !stopping}
+        onStop={activeJob ? () => cancel(activeJob._id) : undefined}
         placeholder={
           placeholder ??
           (isProject

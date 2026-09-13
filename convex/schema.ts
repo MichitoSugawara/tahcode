@@ -99,7 +99,8 @@ export default defineSchema({
       v.literal("tool"),
       v.literal("text"),
       v.literal("error"),
-      v.literal("done")
+      v.literal("done"),
+      v.literal("cancelled")
     ),
     text: v.string(),
   }).index("by_job", ["jobId"]),
@@ -123,11 +124,16 @@ export default defineSchema({
     lastHeartbeatAt: v.optional(v.number()),
     attempt: v.optional(v.number()),
     leaseId: v.optional(v.string()),
+    /* who sent the trigger message; optional so existing rows still validate */
+    requestedBy: v.optional(v.id("users")),
+    /* Multica issue task id when the job was launched that way */
+    multicaTaskId: v.optional(v.string()),
     /* active chat for in-job tahcode tools; defaults to chatId */
     toolChatId: v.optional(v.id("chats")),
   })
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_chat", ["chatId"])
+    .index("by_chat_and_status", ["chatId", "status"])
     .index("by_status", ["status"]),
 
   messages: defineTable({
@@ -141,7 +147,12 @@ export default defineSchema({
     body: v.string(),
     mentions: v.array(v.string()),
     status: v.optional(
-      v.union(v.literal("streaming"), v.literal("done"), v.literal("error"))
+      v.union(
+        v.literal("streaming"),
+        v.literal("done"),
+        v.literal("error"),
+        v.literal("cancelled")
+      )
     ),
   }).index("by_chat", ["chatId"]),
 

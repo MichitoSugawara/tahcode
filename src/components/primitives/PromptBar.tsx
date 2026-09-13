@@ -1,4 +1,12 @@
-import { ArrowUp, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  FileText,
+  Plus,
+  Square,
+  X,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -107,10 +115,13 @@ export default function PromptBar({
   attachments = [],
   onRemoveAttachment,
   onSend,
+  onStop,
   onDraftChange,
   hint,
   autoFocus,
   menuFooter,
+  jobRunning = false,
+  canStop = false,
 }: {
   placeholder?: string;
   /** hero sizing: a multi-line input with controls on their own row */
@@ -129,12 +140,17 @@ export default function PromptBar({
   attachments?: PromptAttachment[];
   onRemoveAttachment?: (index: number) => void;
   onSend: (text: string) => boolean | Promise<boolean>;
+  /** Stop the in-flight chat job. Shown instead of Send while a job is running. */
+  onStop?: () => boolean | Promise<boolean>;
   onDraftChange?: (text: string) => void;
   /** one quiet line under the controls (shortcuts, auto-mention notice) */
   hint?: ReactNode;
   autoFocus?: boolean;
   /** footer copy under the @ menu */
   menuFooter?: { at?: string; slash?: string };
+  /** a chat job is queued or running — Send becomes Stop */
+  jobRunning?: boolean;
+  canStop?: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [dismissed, setDismissed] = useState(false);
@@ -348,7 +364,11 @@ export default function PromptBar({
   };
 
   const canSend =
-    !disabled && !busy && (draft.trim().length > 0 || attachments.length > 0);
+    !disabled &&
+    !busy &&
+    !jobRunning &&
+    (draft.trim().length > 0 || attachments.length > 0);
+  const stopEnabled = !disabled && jobRunning && canStop && !!onStop;
   const send = () => {
     if (!canSend) {
       return;
@@ -360,6 +380,14 @@ export default function PromptBar({
         update("");
       }
     });
+  };
+
+  const stop = () => {
+    if (!stopEnabled || !onStop) {
+      return;
+    }
+    closeMenus();
+    void Promise.resolve(onStop());
   };
 
   const footerAt = menuFooter?.at ?? "エージェントかメンバーを選択";
@@ -684,21 +712,37 @@ export default function PromptBar({
               ))}
             </div>
 
-            {/* send — tactile square, Dark Green+ button */}
+            {/* send — or Stop while a job is running */}
             <button
               type="button"
-              aria-label="送信"
-              disabled={!canSend}
-              onClick={send}
+              aria-label={jobRunning ? "生成を中断" : "送信"}
+              disabled={jobRunning ? !stopEnabled : !canSend}
+              onClick={jobRunning ? stop : send}
               className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform,opacity] duration-200 enabled:active:scale-[0.94] ${
                 wide ? "col-start-4 row-start-2" : "col-start-4 row-start-1"
               }`}
               style={{
-                background: canSend ? "var(--btn)" : "var(--line-strong)",
-                color: canSend ? "#ffffff" : "var(--ink-2)",
+                background: jobRunning
+                  ? stopEnabled
+                    ? "var(--red)"
+                    : "var(--line-strong)"
+                  : canSend
+                    ? "var(--btn)"
+                    : "var(--line-strong)",
+                color: jobRunning
+                  ? stopEnabled
+                    ? "#ffffff"
+                    : "var(--ink-2)"
+                  : canSend
+                    ? "#ffffff"
+                    : "var(--ink-2)",
               }}
             >
-              <ArrowUp size={16} strokeWidth={2.4} />
+              {jobRunning ? (
+                <Square size={12} strokeWidth={2.6} fill="currentColor" />
+              ) : (
+                <ArrowUp size={16} strokeWidth={2.4} />
+              )}
             </button>
           </div>
 
