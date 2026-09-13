@@ -4,10 +4,12 @@ import {
   AtSign,
   Folder,
   History,
+  Layers,
   Lock,
   UserRound,
 } from "lucide-react";
 import { useMemo } from "react";
+import { toast } from "sonner";
 
 import { Chip } from "@/components/atoms/Chip";
 import { Monogram } from "@/components/atoms/EntityChip";
@@ -19,9 +21,17 @@ import ContextCards from "@/components/primitives/ContextCards";
 import type { ContextChunk } from "@/components/primitives/ContextCards";
 import TaskRows from "@/components/primitives/TaskRows";
 import type { TaskRow } from "@/components/primitives/TaskRows";
+import { useSetChatProfile } from "@/harness/optimisticMutations";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
-import { colorFor, displayName, monogram, truncate } from "@/lib/format";
+import { ProfilePicker } from "@/harness/ui/ProfilePicker";
+import {
+  colorFor,
+  displayName,
+  errorSummary,
+  monogram,
+  truncate,
+} from "@/lib/format";
 import { isPlaceholderId } from "@/lib/optimistic";
 import {
   PROVIDERS,
@@ -39,7 +49,12 @@ import type { Id } from "../../../convex/_generated/dataModel";
 const NO_MESSAGES: never[] = [];
 
 export function ContextPane({ chatId }: { chatId?: string }) {
-  const { projects, runtimes, chats } = useOrg();
+  const { org, projects, runtimes, chats } = useOrg();
+  const bindProfile = useSetChatProfile();
+  const profiles = useQuery(
+    api.skillProfiles.list,
+    org ? { orgId: org._id } : "skip"
+  );
   /* a chat still being created has a placeholder id: nothing to ask the server for yet */
   const serverId =
     chatId && !isPlaceholderId(chatId) ? (chatId as Id<"chats">) : null;
@@ -150,6 +165,19 @@ export function ContextPane({ chatId }: { chatId?: string }) {
   }
 
   const historyCount = Math.min(messages?.length ?? 0, 30);
+  const boundAgent = chat.driverKind
+    ? agentMention(chat.driverKind, chat.model)
+    : null;
+  const attachedProfile = profiles?.find(
+    (profile) => String(profile._id) === String(chat.profileId)
+  );
+  const inheritedProfile =
+    !chat.profileId && project?.profileId
+      ? profiles?.find(
+          (profile) => String(profile._id) === String(project.profileId)
+        )
+      : undefined;
+  const effectiveProfile = attachedProfile ?? inheritedProfile;
   const chunks: ContextChunk[] = [
     {
       badge: "PRJ",
@@ -194,10 +222,17 @@ export function ContextPane({ chatId }: { chatId?: string }) {
       title: "メンション",
       tone: "bg-orange",
     },
+    {
+      badge: "SKL",
+      body: effectiveProfile
+        ? `${effectiveProfile.name}（${effectiveProfile.skillCount} 件）。本文はプロンプトに入れず、マシンへ同期します。`
+        : "プロファイル未設定。スキルは同期されません。",
+      chars: effectiveProfile ? `${effectiveProfile.skillCount} 件` : "0",
+      source: "skill profile",
+      title: "スキル",
+      tone: "bg-accent",
+    },
   ];
-  const boundAgent = chat.driverKind
-    ? agentMention(chat.driverKind, chat.model)
-    : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -263,8 +298,49 @@ export function ContextPane({ chatId }: { chatId?: string }) {
               boundAgent ? "このチャットの既定" : "未設定（コンポーザで選択）"
             }
           />
+          <TextRow
+            label={
+              <span className="inline-flex items-center gap-1.5">
+                <Layers size={13} /> プロファイル
+              </span>
+            }
+            value={effectiveProfile ? effectiveProfile.name : "なし"}
+            meta={
+              attachedProfile
+                ? "このチャット"
+                : inheritedProfile
+                  ? "プロジェクトの既定"
+                  : "未同期"
+            }
+          />
         </div>
       </div>
+
+      {serverId && (
+        <div className="rounded-card bg-surface shadow-card">
+          <div className="primitive-card-bar border-line text-ink border-b text-[13px] font-medium">
+            スキルプロファイル
+          </div>
+          <div className="px-3 py-2">
+            <ProfilePicker
+              profiles={profiles}
+              value={chat.profileId ?? null}
+              onChange={(next) => {
+                bindProfile({ chatId: serverId, profileId: next }).catch(
+                  (error: unknown) => {
+                    toast.error("プロファイルを変更できませんでした", {
+                      description: errorSummary(error),
+                    });
+                  }
+                );
+              }}
+            />
+            <p className="text-ink-3 mt-2 text-[12px] leading-relaxed">
+              未設定のときはプロジェクトの既定を使います。同期は次のジョブ開始時です。
+            </p>
+          </div>
+        </div>
+      )}
 
       <ContextCards
         chunks={chunks}

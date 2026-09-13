@@ -1,4 +1,4 @@
-import { Building2, Cpu, Users } from "lucide-react";
+import { BookOpen, Building2, Cpu, Users } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/atoms/StatusPill";
 import { TextRow } from "@/components/atoms/TextRow";
 import { useOrg } from "@/harness/OrgContext";
 import { RuntimePane } from "@/harness/rail/RuntimePane";
+import { SkillsPane } from "@/harness/rail/SkillsPane";
 import { TeamPane } from "@/harness/rail/TeamPane";
 import { CopyButton } from "@/harness/ui/CopyButton";
 import { roleLabel } from "@/lib/format";
@@ -122,6 +123,19 @@ export default function SettingsPage() {
             <RuntimePane />
           </section>
         </div>
+
+        <section
+          id="skills"
+          className="scroll-mt-4"
+          style={{
+            animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 240ms both",
+          }}
+        >
+          <div className="text-ink-3 mb-3 flex items-center gap-2 text-[12px]">
+            <BookOpen size={13} /> スキルライブラリとプロファイル
+          </div>
+          <SkillsPane />
+        </section>
       </div>
     </div>
   );

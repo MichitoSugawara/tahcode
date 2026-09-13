@@ -12,6 +12,7 @@ export interface AgentContext {
   } | null;
   mentions: ParsedMention[];
   history: { author: string; body: string; driverKind?: string }[];
+  skills: { description: string; name: string; slug: string }[];
 }
 
 export function buildAgentContext(input: {
@@ -19,6 +20,7 @@ export function buildAgentContext(input: {
   project: Doc<"projects"> | null;
   mentions: ParsedMention[];
   history: Doc<"messages">[];
+  skills?: { description: string; name: string; slug: string }[];
 }): AgentContext {
   return {
     chat: {
@@ -32,6 +34,7 @@ export function buildAgentContext(input: {
       driverKind: message.driverKind,
     })),
     mentions: input.mentions,
+    skills: input.skills ?? [],
     project: input.project
       ? {
           id: String(input.project._id),

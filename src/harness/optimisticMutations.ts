@@ -68,6 +68,7 @@ export interface ChatAgentArgs {
   options?: ProviderOptionSelection[];
 }
 export type CreateChatArgs = {
+  profileId?: Id<"skillProfiles">;
   projectId: Id<"projects">;
   title: string;
   visibility: "inherit" | "private";
@@ -90,6 +91,7 @@ export function useCreateProjectChat() {
           model: input.driverKind ? input.model : undefined,
           orgId: org._id,
           ownerId: undefined,
+          profileId: input.profileId,
           projectId: input.projectId,
           options: input.driverKind ? input.options : undefined,
           title: chatTitle(input.title),
@@ -125,6 +127,7 @@ export function useCreateProjectWithChat() {
           cwd: input.cwd,
           name: input.name.trim().slice(0, 80),
           orgId: input.orgId,
+          profileId: undefined,
           repoUrl: input.repoUrl,
           slug: projectSlug(input.name),
           visibility: input.visibility,
@@ -136,6 +139,7 @@ export function useCreateProjectWithChat() {
           model: undefined,
           orgId: input.orgId,
           ownerId: undefined,
+          profileId: undefined,
           projectId: projectPlaceholder,
           options: undefined,
           title: chatTitle(firstChatTitle),
@@ -192,4 +196,74 @@ export function useSetChatAgent() {
       );
     }
   });
+}
+
+/** Bind a skill profile to a chat. */
+export function useSetChatProfile() {
+  return useMutation(api.chats.setProfile).withOptimisticUpdate(
+    (store, args) => {
+      const patch = { profileId: args.profileId ?? undefined };
+      for (const { args: listArgs, value } of store.getAllQueries(
+        api.chats.list
+      )) {
+        if (
+          value === undefined ||
+          !value.some((chat) => chat._id === args.chatId)
+        ) {
+          continue;
+        }
+        store.setQuery(
+          api.chats.list,
+          listArgs,
+          value.map((chat) =>
+            chat._id === args.chatId ? { ...chat, ...patch } : chat
+          )
+        );
+      }
+      const current = store.getQuery(api.chats.get, { chatId: args.chatId });
+      if (current) {
+        store.setQuery(
+          api.chats.get,
+          { chatId: args.chatId },
+          { ...current, ...patch }
+        );
+      }
+    }
+  );
+}
+
+/** Bind a skill profile as a project's default for new chats. */
+export function useSetProjectProfile() {
+  return useMutation(api.projects.setProfile).withOptimisticUpdate(
+    (store, args) => {
+      const patch = { profileId: args.profileId ?? undefined };
+      for (const { args: listArgs, value } of store.getAllQueries(
+        api.projects.list
+      )) {
+        if (
+          value === undefined ||
+          !value.some((project) => project._id === args.projectId)
+        ) {
+          continue;
+        }
+        store.setQuery(
+          api.projects.list,
+          listArgs,
+          value.map((project) =>
+            project._id === args.projectId ? { ...project, ...patch } : project
+          )
+        );
+      }
+      const current = store.getQuery(api.projects.get, {
+        projectId: args.projectId,
+      });
+      if (current) {
+        store.setQuery(
+          api.projects.get,
+          { projectId: args.projectId },
+          { ...current, ...patch }
+        );
+      }
+    }
+  );
 }

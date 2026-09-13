@@ -12,6 +12,7 @@ import type { ProviderOptionSelection } from "./lib/modelOptions";
 import { sanitizeOptionSelections } from "./lib/modelOptions";
 import type { ProviderDriverKind } from "./lib/providers";
 import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
+import { requireOrgProfile } from "./lib/skills";
 import {
   chatKind,
   chatSummary,
@@ -55,6 +56,7 @@ function summarize(chat: Doc<"chats">) {
     model: chat.model,
     orgId: chat.orgId,
     ownerId: chat.ownerId,
+    profileId: chat.profileId,
     projectId: chat.projectId,
     options: chat.options,
     title: chat.title,
@@ -95,6 +97,7 @@ export const createProjectChat = authedMutation({
     driverKind: v.optional(providerKind),
     memberIds: v.optional(v.array(v.id("users"))),
     model: v.optional(v.string()),
+    profileId: v.optional(v.id("skillProfiles")),
     projectId: v.id("projects"),
     options: v.optional(v.array(optionSelection)),
     title: v.string(),
@@ -123,6 +126,10 @@ export const createProjectChat = authedMutation({
     }
     const title = args.title.trim().slice(0, 80) || "Untitled chat";
     const agent = normalizeAgentBinding(args);
+    const requestedProfile = args.profileId ?? project.profileId;
+    if (requestedProfile) {
+      await requireOrgProfile(ctx, project.orgId, requestedProfile);
+    }
     const chatId = await ctx.db.insert("chats", {
       orgId: project.orgId,
       projectId: args.projectId,
@@ -133,6 +140,7 @@ export const createProjectChat = authedMutation({
       driverKind: agent.driverKind,
       model: agent.model,
       options: agent.options,
+      profileId: requestedProfile,
     });
     for (const memberId of members) {
       await ctx.db.insert("chatMembers", { chatId, userId: memberId });
@@ -225,6 +233,32 @@ export const setAgent = authedMutation({
       driverKind: agent.driverKind,
       model: agent.model,
       options: agent.options,
+    });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const setProfile = authedMutation({
+  args: {
+    chatId: v.id("chats"),
+    profileId: v.union(v.id("skillProfiles"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get("chats", args.chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
+    if (args.profileId) {
+      await requireOrgProfile(ctx, chat.orgId, args.profileId);
+    }
+    await ctx.db.patch("chats", args.chatId, {
+      profileId: args.profileId ?? undefined,
     });
     return null;
   },

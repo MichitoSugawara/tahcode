@@ -8,7 +8,9 @@ import { authedQuery } from "./lib/customFunctions";
 import { randomToken, sha256Hex } from "./lib/ids";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
+import { loadJobSkills } from "./lib/skills";
 import {
+  jobSkillPayload,
   jobStatus,
   optionSelection,
   providerKind,
@@ -43,6 +45,7 @@ const claimView = v.union(
     status: jobStatus,
     triggerMessageId: v.id("messages"),
     leaseId: v.string(),
+    skills: v.array(jobSkillPayload),
   }),
   v.null()
 );
@@ -169,6 +172,8 @@ export const claimNext = mutation({
       lastSeenAt: now,
       status: "online",
     });
+    const chat = await ctx.db.get("chats", job.chatId);
+    const skills = chat ? await loadJobSkills(ctx, chat) : [];
     return {
       _id: job._id,
       assistantMessageId: job.assistantMessageId,
@@ -180,6 +185,7 @@ export const claimNext = mutation({
       options: job.options,
       prompt: job.prompt,
       runtimeId: job.runtimeId,
+      skills,
       status: "running" as const,
       triggerMessageId: job.triggerMessageId,
     };

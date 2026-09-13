@@ -51,6 +51,7 @@ export interface Project {
   visibility: "org" | "private";
   cwd?: string;
   repoUrl?: string;
+  profileId?: Id<"skillProfiles">;
 }
 export interface Chat {
   _id: Id<"chats">;
@@ -64,6 +65,7 @@ export interface Chat {
   driverKind?: ProviderDriverKind;
   model?: string;
   options?: ProviderOptionSelection[];
+  profileId?: Id<"skillProfiles">;
 }
 export interface RuntimeProvider {
   available: boolean;
@@ -171,7 +173,7 @@ interface OrgContextValue {
     placeholder: Id<"chats">,
     created: Promise<Id<"chats">>
   ) => void;
-  goSettings: () => void;
+  goSettings: (hash?: string) => void;
   switchOrg: (id: Id<"orgs">) => void;
   signOut: () => void;
 }
@@ -360,7 +362,15 @@ export function OrgProvider({
       },
       goHome: () => navigate(`/o/${org.slug}`),
       goPendingChat,
-      goSettings: () => navigate(`/o/${org.slug}/settings`),
+      goSettings: (hash) => {
+        const suffix =
+          typeof hash === "string" && hash.length > 0
+            ? hash.startsWith("#")
+              ? hash
+              : `#${hash}`
+            : "";
+        navigate(`/o/${org.slug}/settings${suffix}`);
+      },
       isAdmin: org.role === "owner" || org.role === "admin",
       isOwner: org.role === "owner",
       me,

@@ -40,6 +40,12 @@ export interface ClaimedJob {
   options?: ProviderOptionSelection[];
   prompt: string;
   runtimeId: string;
+  skills?: {
+    body: string;
+    description: string;
+    name: string;
+    slug: string;
+  }[];
   status: string;
   triggerMessageId: string;
 }

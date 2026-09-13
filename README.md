@@ -244,6 +244,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 - **ファイル Worker に認証なし**: `/api/files` は誰でも POST/GET 可能（メタデータ登録側の Convex は認証必須）。本番公開前に Worker 側で Convex トークン検証を足すこと。
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
+- **スキル同期のギャップ**: Codex / Claude / Cursor / OpenCode はジョブ開始時にローカルのスキルディレクトリへ SKILL.md を書く。Grok / Antigravity はストア規約がなく未書き込み。詳細は [`docs/skills.md`](docs/skills.md)。
 
 ## CI/CD（Convex + Cloudflare）
 

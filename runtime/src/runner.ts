@@ -17,6 +17,7 @@ import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
 import type { ProviderProbe } from "./providers.ts";
 import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
+import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
 
 export interface RunnerOptions {
   convexUrl: string;
@@ -347,6 +348,12 @@ async function executeJob(
     model?: string;
     options?: ProviderOptionSelection[];
     prompt: string;
+    skills?: {
+      body: string;
+      description: string;
+      name: string;
+      slug: string;
+    }[];
   },
   probes: ProviderProbe[],
   heartbeatMs: number
@@ -415,6 +422,20 @@ async function executeJob(
   const effortTag = jobOptions?.find(
     (item) => typeof item.value === "string"
   )?.value;
+  try {
+    const sync = await syncProfileSkills({
+      cwd: options.cwd,
+      driverKind: wanted,
+      homeDir: os.homedir(),
+      skills: job.skills ?? [],
+    });
+    await send("thinking", skillSyncSummary(sync));
+  } catch (error) {
+    await send(
+      "thinking",
+      `Skill sync failed (job continues): ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
   await send(
     "thinking",
     `Running ${probe.kind}${model ? ` (${model})` : ""}${typeof effortTag === "string" ? ` · ${effortTag}` : ""} via ${probe.binary}…`
@@ -512,6 +533,7 @@ function summarizeContext(contextJson: string): string {
       project?: { name?: string; cwd?: string; repoUrl?: string } | null;
       mentions?: { raw?: string }[];
       history?: { author?: string; body?: string }[];
+      skills?: { name?: string; slug?: string }[];
     };
     const lines: string[] = [];
     if (context.chat) {
@@ -525,6 +547,14 @@ function summarizeContext(contextJson: string): string {
     if (context.mentions && context.mentions.length > 0) {
       lines.push(
         `mentions: ${context.mentions.map((mention) => mention.raw).join(" ")}`
+      );
+    }
+    if (context.skills && context.skills.length > 0) {
+      lines.push(
+        `skills (synced to local harness store; load on demand, bodies not inlined): ${context.skills
+          .map((skill) => skill.slug ?? skill.name)
+          .filter(Boolean)
+          .join(", ")}`
       );
     }
     for (const item of context.history ?? []) {

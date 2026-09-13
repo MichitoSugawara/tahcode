@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import type { Doc } from "./_generated/dataModel";
 import {
   assertProjectVisible,
   canSeeProject,
@@ -9,7 +10,21 @@ import {
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { slugify } from "./lib/ids";
+import { requireOrgProfile } from "./lib/skills";
 import { projectSummary, userSummary, visibility } from "./lib/validators";
+
+function summarizeProject(project: Doc<"projects">) {
+  return {
+    _id: project._id,
+    cwd: project.cwd,
+    name: project.name,
+    orgId: project.orgId,
+    profileId: project.profileId,
+    repoUrl: project.repoUrl,
+    slug: project.slug,
+    visibility: project.visibility,
+  };
+}
 
 export const create = authedMutation({
   args: {
@@ -73,15 +88,7 @@ export const list = authedQuery({
         visible.push(project);
       }
     }
-    return visible.map((project) => ({
-      _id: project._id,
-      orgId: project.orgId,
-      name: project.name,
-      slug: project.slug,
-      visibility: project.visibility,
-      cwd: project.cwd,
-      repoUrl: project.repoUrl,
-    }));
+    return visible.map(summarizeProject);
   },
   returns: v.array(projectSummary),
 });
@@ -102,15 +109,7 @@ export const get = authedQuery({
     } catch {
       return null;
     }
-    return {
-      _id: project._id,
-      orgId: project.orgId,
-      name: project.name,
-      slug: project.slug,
-      visibility: project.visibility,
-      cwd: project.cwd,
-      repoUrl: project.repoUrl,
-    };
+    return summarizeProject(project);
   },
   returns: v.union(projectSummary, v.null()),
 });
@@ -181,6 +180,32 @@ export const addMember = authedMutation({
         userId: args.userId,
       });
     }
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const setProfile = authedMutation({
+  args: {
+    profileId: v.union(v.id("skillProfiles"), v.null()),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    if (args.profileId) {
+      await requireOrgProfile(ctx, project.orgId, args.profileId);
+    }
+    await ctx.db.patch("projects", args.projectId, {
+      profileId: args.profileId ?? undefined,
+    });
     return null;
   },
   returns: v.null(),

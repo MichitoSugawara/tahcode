@@ -105,11 +105,59 @@ export const orgSummary = v.object({
   slug: v.string(),
 });
 
+export const skillSourceKind = v.union(
+  v.literal("manual"),
+  v.literal("url"),
+  v.literal("skills_sh")
+);
+
+export const librarySkillSummary = v.object({
+  _id: v.id("librarySkills"),
+  description: v.string(),
+  name: v.string(),
+  orgId: v.id("orgs"),
+  slug: v.string(),
+  sourceKind: skillSourceKind,
+  sourceUrl: v.optional(v.string()),
+  updatedAt: v.number(),
+});
+
+export const librarySkillDoc = v.object({
+  _id: v.id("librarySkills"),
+  body: v.string(),
+  createdBy: v.id("users"),
+  description: v.string(),
+  name: v.string(),
+  orgId: v.id("orgs"),
+  slug: v.string(),
+  sourceKind: skillSourceKind,
+  sourceUrl: v.optional(v.string()),
+  updatedAt: v.number(),
+});
+
+export const skillProfileSummary = v.object({
+  _id: v.id("skillProfiles"),
+  description: v.optional(v.string()),
+  name: v.string(),
+  orgId: v.id("orgs"),
+  skillCount: v.number(),
+  skillIds: v.array(v.id("librarySkills")),
+  updatedAt: v.number(),
+});
+
+export const jobSkillPayload = v.object({
+  body: v.string(),
+  description: v.string(),
+  name: v.string(),
+  slug: v.string(),
+});
+
 export const projectSummary = v.object({
   _id: v.id("projects"),
   cwd: v.optional(v.string()),
   name: v.string(),
   orgId: v.id("orgs"),
+  profileId: v.optional(v.id("skillProfiles")),
   repoUrl: v.optional(v.string()),
   slug: v.string(),
   visibility,
@@ -122,6 +170,7 @@ export const chatSummary = v.object({
   model: v.optional(v.string()),
   orgId: v.id("orgs"),
   ownerId: v.optional(v.id("users")),
+  profileId: v.optional(v.id("skillProfiles")),
   projectId: v.optional(v.id("projects")),
   title: v.string(),
   visibility: chatVisibility,

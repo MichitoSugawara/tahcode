@@ -21,6 +21,7 @@ import { sanitizeOptionSelections } from "./lib/modelOptions";
 import type { ProviderDriverKind } from "./lib/providers";
 import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
 import { STALE_RUNTIME_MS } from "./lib/runtimeHealth";
+import { loadJobSkills } from "./lib/skills";
 import { messageDoc, optionSelection, providerKind } from "./lib/validators";
 
 async function enrichMessages(
@@ -128,11 +129,17 @@ export const send = authedMutation({
     const project = chat.projectId
       ? await ctx.db.get("projects", chat.projectId)
       : null;
+    const jobSkills = await loadJobSkills(ctx, chat);
     const context = buildAgentContext({
       chat,
       project,
       mentions,
       history: [...history].reverse(),
+      skills: jobSkills.map((skill) => ({
+        description: skill.description,
+        name: skill.name,
+        slug: skill.slug,
+      })),
     });
 
     // Fallback when nothing is @mentioned: composer pick > chat binding >
