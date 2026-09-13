@@ -14,17 +14,25 @@ import TaskRows, { type TaskRow } from "@/components/primitives/TaskRows";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { colorFor, displayName, monogram, truncate } from "@/lib/format";
+import { isPlaceholderId } from "@/lib/optimistic";
 import { PROVIDERS, agentLabel, agentMention, providerLabel } from "@/lib/providers";
 
 /* What the agent receives on the next run: history + mentions +
  * project link (Phase 1: no Focus mode). Rendered with Beautiful
  * UI's ContextCards so it reads like retrieved context, because it is. */
+const NO_MESSAGES: never[] = [];
+
 export function ContextPane({ chatId }: { chatId?: string }) {
-  const { projects, runtimes } = useOrg();
-  const chat = useQuery(api.chats.get, chatId ? { chatId: chatId as Id<"chats"> } : "skip");
-  const messages = useQuery(api.messages.list, chatId ? { chatId: chatId as Id<"chats">, limit: 200 } : "skip");
-  const chatMembers = useQuery(api.chats.members, chatId && chat?.kind === "project" ? { chatId: chatId as Id<"chats"> } : "skip");
-  const jobs = useQuery(api.jobs.listByChat, chatId && chat ? { chatId: chatId as Id<"chats"> } : "skip");
+  const { projects, runtimes, chats } = useOrg();
+  /* a chat still being created has a placeholder id: nothing to ask the server for yet */
+  const serverId = chatId && !isPlaceholderId(chatId) ? (chatId as Id<"chats">) : null;
+  const fetched = useQuery(api.chats.get, serverId ? { chatId: serverId } : "skip");
+  const listed = chats?.find((item) => String(item._id) === chatId);
+  const chat = fetched === undefined ? listed : fetched;
+  const fetchedMessages = useQuery(api.messages.list, serverId ? { chatId: serverId, limit: 200 } : "skip");
+  const messages = serverId ? fetchedMessages : NO_MESSAGES;
+  const chatMembers = useQuery(api.chats.members, serverId && chat?.kind === "project" ? { chatId: serverId } : "skip");
+  const jobs = useQuery(api.jobs.listByChat, serverId && chat ? { chatId: serverId } : "skip");
   const project = chat?.projectId ? projects?.find((item) => item._id === chat.projectId) : undefined;
 
   const taskRows = useMemo<TaskRow[]>(

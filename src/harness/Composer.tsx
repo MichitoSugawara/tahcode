@@ -7,8 +7,10 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { Monogram } from "@/components/atoms/EntityChip";
 import PromptBar, { type PromptMenuItem, type PromptPicker } from "@/components/primitives/PromptBar";
 import { isLive, useOrg, type Chat } from "@/harness/OrgContext";
+import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
 import { MENTION_BOUNDARY, MENTION_HANDLE, activeAgentToken, hasAgentMention } from "@/lib/mentions";
+import { placeholderId, resolveId } from "@/lib/optimistic";
 import {
   PROVIDERS,
   agentMention,
@@ -32,6 +34,8 @@ const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
  * plain message still reaches it.
  * ───────────────────────────────────────────────────────── */
 
+const MENTION_RE = new RegExp(`@${MENTION_HANDLE}+`, "g");
+
 export type ComposerAgent = { driverKind: ProviderDriverKind; model: string | null };
 
 /**
@@ -41,7 +45,7 @@ export type ComposerAgent = { driverKind: ProviderDriverKind; model: string | nu
  */
 export function useChatAgent(chat: Chat | null) {
   const org = useOrg();
-  const bindChat = useMutation(api.chats.setAgent);
+  const bindChat = useSetChatAgent();
   const agent: ComposerAgent = chat?.driverKind
     ? { driverKind: chat.driverKind, model: chat.model ?? null }
     : { driverKind: org.provider, model: org.model };
@@ -49,9 +53,10 @@ export function useChatAgent(chat: Chat | null) {
     (driverKind: ProviderDriverKind, model: string | null) => {
       org.setAgent(driverKind, model);
       if (chat) {
-        void bindChat({ chatId: chat._id, driverKind, model: model ?? undefined }).catch((error: unknown) =>
-          toast.error(error instanceof Error ? error.message : "エージェントの設定に失敗しました"),
-        );
+        /* a chat opened straight from its create dialog may still carry a placeholder id */
+        void resolveId(chat._id)
+          .then((chatId) => bindChat({ chatId, driverKind, model: model ?? undefined }))
+          .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "エージェントの設定に失敗しました"));
       }
     },
     [org, chat, bindChat],
@@ -61,22 +66,42 @@ export function useChatAgent(chat: Chat | null) {
 
 /** Send with the Phase 1 rules applied (auto-mention in project chats,
  *  R2 uploads appended as links, runtime hint from the picker, and the
- *  chat's provider / model sent along so DMs bind to them too). */
+ *  chat's provider / model sent along so DMs bind to them too).
+ *  The user's bubble is inserted optimistically so the thread moves the
+ *  moment ⏎ is pressed; the agent's reply row still comes from the server. */
 export function useSendMessage(chat: Chat | null) {
   const org = useOrg();
   const { agent } = useChatAgent(chat);
-  const sendMessage = useMutation(api.messages.send);
+  const sendMessage = useMutation(api.messages.send).withOptimisticUpdate((store, args) => {
+    for (const { args: listArgs, value } of store.getAllQueries(api.messages.list)) {
+      if (value === undefined || listArgs.chatId !== args.chatId) continue;
+      store.setQuery(api.messages.list, listArgs, [
+        ...value,
+        {
+          _id: placeholderId("messages"),
+          _creationTime: Date.now(),
+          chatId: args.chatId,
+          authorType: "user",
+          authorId: org.me._id,
+          body: args.body,
+          mentions: Array.from(new Set(args.body.match(MENTION_RE) ?? [])),
+          authorName: org.me.name,
+          authorHandle: org.me.handle,
+        },
+      ]);
+    }
+  });
   const recordFile = useMutation(api.files.record);
   const [busy, setBusy] = useState(false);
 
-  const upload = async (file: File): Promise<string> => {
+  const upload = async (chatId: Id<"chats">, file: File): Promise<string> => {
     const response = await fetch("/api/files", { method: "POST", headers: { "X-File-Name": encodeURIComponent(file.name) }, body: file });
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(text || "ファイルサーバに接続できません（wrangler dev の起動を確認）");
     }
     const uploaded = (await response.json()) as { key: string; name: string; contentType: string; size: number; url: string };
-    await recordFile({ orgId: org.org._id, chatId: chat?._id, key: uploaded.key, name: uploaded.name, contentType: uploaded.contentType, size: uploaded.size });
+    await recordFile({ orgId: org.org._id, chatId, key: uploaded.key, name: uploaded.name, contentType: uploaded.contentType, size: uploaded.size });
     return `📎 [${uploaded.name}](${uploaded.url})`;
   };
 
@@ -84,18 +109,20 @@ export function useSendMessage(chat: Chat | null) {
     if (!chat || busy) return null;
     setBusy(true);
     try {
+      /* a chat opened straight from its create dialog may still carry a placeholder id */
+      const chatId = await resolveId(chat._id);
       const links: string[] = [];
-      for (const file of files) links.push(await upload(file));
+      for (const file of files) links.push(await upload(chatId, file));
       let body = [text, ...links].filter(Boolean).join("\n");
       if (chat.kind === "project" && !hasAgentMention(body)) body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
       const result = await sendMessage({
-        chatId: chat._id,
+        chatId,
         body,
         runtimeId: org.runtimeId ?? undefined,
         driverKind: agent.driverKind,
         model: agent.model ?? undefined,
       });
-      return { chatId: chat._id, dispatched: result.dispatched, jobId: result.jobId };
+      return { chatId, dispatched: result.dispatched, jobId: result.jobId };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "送信に失敗しました");
       return null;
@@ -112,12 +139,15 @@ export function Composer({
   tall = false,
   placeholder,
   autoFocus,
+  onSubmit,
   onSent,
 }: {
   chat: Chat | null;
   tall?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
+  /** fires as the message leaves the composer — before the round-trip, so callers can navigate at once */
+  onSubmit?: (chat: Chat) => void;
   onSent?: (result: { chatId: Id<"chats">; dispatched: boolean; jobId?: Id<"jobs"> }) => void;
 }) {
   const org = useOrg();
@@ -252,6 +282,7 @@ export function Composer({
   ];
 
   const send = async (text: string) => {
+    if (chat && !busy) onSubmit?.(chat);
     const result = await sendWithRules(text, pending);
     if (result) {
       setPending([]);

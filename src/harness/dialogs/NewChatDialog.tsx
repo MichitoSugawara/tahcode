@@ -1,13 +1,14 @@
-import { useMutation } from "convex/react";
 import { Folder, Lock, MessageSquare, Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../../../convex/_generated/api";
+import { toast } from "sonner";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
+import { useCreateProjectChat, useSetChatAgent } from "@/harness/optimisticMutations";
 import { AgentPicker } from "@/harness/ui/AgentPicker";
 import { Dialog } from "@/harness/ui/Dialog";
-import { ChoiceList, InlineError, Input, Label } from "@/harness/ui/Field";
+import { ChoiceList, Input, Label } from "@/harness/ui/Field";
+import { errorSummary } from "@/lib/format";
 import { agentMention, type ProviderDriverKind } from "@/lib/providers";
 
 /* ─────────────────────────────────────────────────────────
@@ -16,6 +17,8 @@ import { agentMention, type ProviderDriverKind } from "@/lib/providers";
  * the agent (provider + model) the chat runs on. The binding is
  * stored on the chat, so its first message and every auto-mention
  * use `@provider/model` — not whatever this browser last picked.
+ * Submitting opens the chat at once (optimistic placeholder);
+ * a failed create backs out and reports through a toast.
  * ───────────────────────────────────────────────────────── */
 
 type Target = "dm" | Id<"projects">;
@@ -30,16 +33,14 @@ export function NewChatDialog({
   initialProjectId?: Id<"projects">;
 }) {
   const org = useOrg();
-  const { projects, dmId, goChat, openDialog } = org;
-  const createChat = useMutation(api.chats.createProjectChat);
-  const bindChat = useMutation(api.chats.setAgent);
+  const { projects, dmId, goChat, goPendingChat, openDialog } = org;
+  const createChat = useCreateProjectChat();
+  const bindChat = useSetChatAgent();
   const [target, setTarget] = useState<Target | null>(initialProjectId ?? null);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"inherit" | "private">("inherit");
   const [driverKind, setDriverKind] = useState<ProviderDriverKind>(org.provider);
   const [model, setModel] = useState<string | null>(org.model);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -48,7 +49,6 @@ export function NewChatDialog({
       setVisibility("inherit");
       setDriverKind(org.provider);
       setModel(org.model);
-      setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialProjectId, projects]);
@@ -79,8 +79,8 @@ export function NewChatDialog({
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               キャンセル
             </Button>
-            <Button type="submit" form="new-chat" variant="accent" size="sm" disabled={!target || busy}>
-              {isDm ? (busy ? "設定中…" : "DM を開く") : busy ? "作成中…" : "チャットを作成"}
+            <Button type="submit" form="new-chat" variant="accent" size="sm" disabled={!target}>
+              {isDm ? "DM を開く" : "チャットを作成"}
             </Button>
           </div>
         </>
@@ -89,35 +89,27 @@ export function NewChatDialog({
       <form
         id="new-chat"
         className="flex flex-col gap-4"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          if (!target || busy) return;
-          setBusy(true);
-          setError(null);
-          try {
-            org.setAgent(driverKind, model);
-            if (target === "dm") {
-              if (dmId) {
-                await bindChat({ chatId: dmId, driverKind, model: model ?? undefined });
-                goChat(dmId);
-              }
-              onOpenChange(false);
-              return;
+          if (!target) return;
+          org.setAgent(driverKind, model);
+          if (target === "dm") {
+            if (dmId) {
+              goChat(dmId);
+              bindChat({ chatId: dmId, driverKind, model: model ?? undefined }).catch((e: unknown) => {
+                toast.error("DM のエージェントを設定できませんでした", { description: errorSummary(e) });
+              });
             }
-            const chatId = await createChat({
-              projectId: target,
-              title: title.trim() || "新しいチャット",
-              visibility,
-              driverKind,
-              model: model ?? undefined,
-            });
             onOpenChange(false);
-            goChat(chatId);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "作成に失敗しました");
-          } finally {
-            setBusy(false);
+            return;
           }
+          const chatTitle = title.trim() || "新しいチャット";
+          const { placeholder, created } = createChat({ projectId: target, title: chatTitle, visibility, driverKind, model: model ?? undefined });
+          onOpenChange(false);
+          goPendingChat(placeholder, created);
+          created.catch((e: unknown) => {
+            toast.error(`「${chatTitle}」を作成できませんでした`, { description: errorSummary(e) });
+          });
         }}
       >
         <div>
@@ -183,7 +175,6 @@ export function NewChatDialog({
             />
           </div>
         )}
-        {error && <InlineError>{error}</InlineError>}
       </form>
     </Dialog>
   );

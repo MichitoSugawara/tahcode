@@ -12,18 +12,30 @@ import { useOrg, type Chat } from "@/harness/OrgContext";
 import { Thread, type ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
+import { hasPlaceholder, isFresh, isPlaceholderId, markLoaded, placeholderOf } from "@/lib/optimistic";
 import { agentLabel, agentMention, modelMentionExample } from "@/lib/providers";
 import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
  * CHAT — empty: the hero with chat-specific prompt ideas;
  * otherwise the reading column with the floating composer.
+ * A chat that is still being created arrives here under a
+ * placeholder id: it is read from the org's (optimistically
+ * patched) chat list and renders as empty until the real id
+ * replaces it in the URL.
  * ───────────────────────────────────────────────────────── */
 export default function ChatPage() {
   const { chatId } = useParams();
   const org = useOrg();
-  const chat = useQuery(api.chats.get, chatId ? { chatId: chatId as Id<"chats"> } : "skip") as Chat | null | undefined;
-  const messages = useQuery(api.messages.list, chatId ? { chatId: chatId as Id<"chats">, limit: 200 } : "skip") as ThreadMessage[] | undefined;
+  const placeholder = isPlaceholderId(chatId);
+  const onServer = chatId && !placeholder ? { chatId: chatId as Id<"chats"> } : null;
+  const fetched = useQuery(api.chats.get, onServer ?? "skip") as Chat | null | undefined;
+  const fetchedMessages = useQuery(api.messages.list, onServer ? { ...onServer, limit: 200 } : "skip") as ThreadMessage[] | undefined;
+  /* while `get` is in flight the sidebar list already knows the row — placeholder or just-created;
+   * a placeholder nobody is creating (stale URL after a reload) is treated like a missing chat */
+  const listed = org.chats?.find((item) => String(item._id) === chatId);
+  const chat = fetched !== undefined ? fetched : placeholder && !hasPlaceholder(chatId) ? null : listed;
+  const messages = placeholder || (fetchedMessages === undefined && isFresh(chatId)) ? [] : fetchedMessages;
   const { send } = useSendMessage(chat ?? null);
   const { agent } = useChatAgent(chat ?? null);
   useDocumentTitle(chat ? (chat.kind === "dm" ? "Personal DM" : chat.title) : undefined, org.org.name);
@@ -31,6 +43,9 @@ export default function ChatPage() {
   useEffect(() => {
     if (chat) org.openTab(chat._id);
   }, [chat, org]);
+  useEffect(() => {
+    if (chatId && fetchedMessages !== undefined) markLoaded(chatId);
+  }, [chatId, fetchedMessages]);
 
   if (chat === undefined || (chat && messages === undefined)) {
     return (
@@ -72,7 +87,8 @@ export default function ChatPage() {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <EmptyHero
-          replayKey={String(chat._id)}
+          /* keep the entrance storyboard from replaying when the placeholder id becomes the real one */
+          replayKey={placeholderOf(String(chat._id)) ?? String(chat._id)}
           greeting={chat.kind === "dm" ? `こんにちは、${displayName(org.me)}` : project ? project.name : "プロジェクトチャット"}
           question={chat.kind === "dm" ? "何を手伝いましょう？" : `${chat.title} — 何から始めますか？`}
           composer={<Composer chat={chat} tall autoFocus />}

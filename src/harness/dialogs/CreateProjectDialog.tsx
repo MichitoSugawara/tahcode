@@ -1,31 +1,29 @@
-import { useMutation } from "convex/react";
 import { Building2, ChevronDown, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
+import { useCreateProjectWithChat } from "@/harness/optimisticMutations";
 import { Dialog } from "@/harness/ui/Dialog";
-import { ChoiceList, InlineError, Input, Label } from "@/harness/ui/Field";
+import { ChoiceList, Input, Label } from "@/harness/ui/Field";
+import { errorSummary } from "@/lib/format";
 
 /* ─────────────────────────────────────────────────────────
  * CREATE PROJECT — Multica's create dialog: name, visibility,
  * and optional resources (repo / working directory) that
  * become the agent's project context. Creates a first chat
- * ("General") so the project lands somewhere usable.
+ * ("General") so the project lands somewhere usable — and opens
+ * it at once as an optimistic placeholder while both creates run.
  * ───────────────────────────────────────────────────────── */
 
 export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { org, goChat } = useOrg();
-  const createProject = useMutation(api.projects.create);
-  const createChat = useMutation(api.chats.createProjectChat);
+  const { org, goPendingChat } = useOrg();
+  const createProject = useCreateProjectWithChat();
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<"org" | "private">("org");
   const [more, setMore] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
   const [cwd, setCwd] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setName("");
@@ -33,7 +31,6 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
     setMore(false);
     setRepoUrl("");
     setCwd("");
-    setError(null);
   };
 
   return (
@@ -58,9 +55,9 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
               form="create-project"
               variant="accent"
               size="sm"
-              disabled={!name.trim() || busy}
+              disabled={!name.trim()}
             >
-              {busy ? "作成中…" : "プロジェクトを作成"}
+              プロジェクトを作成
             </Button>
           </div>
         </>
@@ -69,29 +66,25 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
       <form
         id="create-project"
         className="flex flex-col gap-4"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          if (!name.trim() || busy) return;
-          setBusy(true);
-          setError(null);
-          try {
-            const projectId = await createProject({
-              orgId: org._id,
-              name: name.trim(),
-              visibility,
-              repoUrl: repoUrl.trim() || undefined,
-              cwd: cwd.trim() || undefined,
-            });
-            const chatId = await createChat({ projectId, title: "General", visibility: "inherit" });
-            toast.success(`プロジェクト「${name.trim()}」を作成しました`);
-            reset();
-            onOpenChange(false);
-            goChat(chatId);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "作成に失敗しました");
-          } finally {
-            setBusy(false);
-          }
+          const projectName = name.trim();
+          if (!projectName) return;
+          const { chatPlaceholder, projectCreated, chatCreated } = createProject(
+            { name: projectName, visibility, repoUrl: repoUrl.trim() || undefined, cwd: cwd.trim() || undefined },
+            "General",
+          );
+          reset();
+          onOpenChange(false);
+          goPendingChat(chatPlaceholder, chatCreated);
+          projectCreated.then(
+            () => {
+              toast.success(`プロジェクト「${projectName}」を作成しました`);
+              /* the project landed; only its first chat can still fail from here */
+              chatCreated.catch((e: unknown) => toast.error("General チャットを作成できませんでした", { description: errorSummary(e) }));
+            },
+            (e: unknown) => toast.error(`プロジェクト「${projectName}」を作成できませんでした`, { description: errorSummary(e) }),
+          );
         }}
       >
         <div>
@@ -150,7 +143,6 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
             </div>
           </div>
         </div>
-        {error && <InlineError>{error}</InlineError>}
       </form>
     </Dialog>
   );
