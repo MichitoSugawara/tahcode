@@ -32,7 +32,14 @@ export async function requireJobLease(
   if (job.status !== "running") {
     throw new Error("Job is not running");
   }
-  if (job.leaseId && args.leaseId !== job.leaseId) {
+  // Published tahcode@0.1.0 omits leaseId on appendEvent/complete. Token +
+  // runtimeId already prove this runtime owns the job; only reject a
+  // provided lease that does not match the current claim.
+  if (
+    job.leaseId &&
+    args.leaseId !== undefined &&
+    args.leaseId !== job.leaseId
+  ) {
     throw new Error("Job lease expired");
   }
   return job;
