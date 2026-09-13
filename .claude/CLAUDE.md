@@ -132,3 +132,5 @@ Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run
 This repo is **tahcode**, a multi-harness control plane — not a generic Ultracite demo. Read [`docs/agent-rules.md`](docs/agent-rules.md) before changing providers, runtime, or user-facing copy. Short version also lives in `.cursor/rules/tahcode.mdc`.
 
 Primary quality gate: `npm run check` (Ultracite / Oxlint + Oxfmt, `--deny-warnings`). Convex-only validators that Oxlint does not cover: `npm run lint:convex` (`eslint.convex.config.js`, not a root `eslint.config.*`, so Ultracite stays on Oxlint).
+
+Convex work must use the **official Convex agent skills** in [`.agents/skills/`](../.agents/skills/) (installed from [get-convex/agent-skills](https://github.com/get-convex/agent-skills); see [docs](https://docs.convex.dev/ai/agent-skills)). Start at `/convex` and route to setup-auth, schema, migrations, components, or performance-audit as needed. Do not rely on the Cursor Marketplace plugin alone — Cloud Agents only see these repo-local skills.

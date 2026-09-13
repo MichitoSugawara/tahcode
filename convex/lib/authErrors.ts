@@ -12,9 +12,9 @@ export const AUTH_ERROR_CODES = [
 ] as const;
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[number];
 
-export interface AuthErrorData {
-  code: AuthErrorCode;
-}
+// Type alias (not interface): ConvexError<T> requires T extends Value, and
+// interfaces lack the implicit index signature that object type aliases have.
+export type AuthErrorData = { code: AuthErrorCode };
 
 export function authError(code: AuthErrorCode): ConvexError<AuthErrorData> {
   return new ConvexError<AuthErrorData>({ code });

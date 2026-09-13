@@ -36,3 +36,7 @@ Prefer **Japanese** for user-facing product copy (toasts, empty states, validati
 - Convex access + custom functions: `convex/lib/`
 
 Do not commit secrets, decrypted env files, `.tahcode/` tokens, or `.staging-deploy-key`. Encrypted env is `.env.<name>.enc` only.
+
+## Convex skills
+
+Convex changes must follow the official skills in `.agents/skills/` (`/convex`, `/convex-setup-auth`, `/convex-migration-helper` / `convex-migrate`, `/convex-create-component`, `/convex-performance-audit` / `convex-optimize`, etc.). See [Convex Agent Skills](https://docs.convex.dev/ai/agent-skills). These are repo-local so Cloud Agents can load them; do not rely on the Cursor Marketplace plugin alone.

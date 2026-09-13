@@ -13,6 +13,9 @@ const projectIgnores = [
   "**/artifacts",
   "**/agent-tools",
   "**/.tahcode",
+  // Vendored agent skills (hashes in skills-lock.json must stay upstream).
+  "**/.agents/skills/**",
+  "**/.claude/skills/**",
 ];
 
 export default defineConfig({
@@ -25,6 +28,10 @@ export default defineConfig({
     // Existing helpers and components use function declarations.
     "func-style": "off",
     "react/function-component-definition": "off",
+
+    // Preferring `interface` autofixes ConvexError payloads into a shape
+    // that is not assignable to Convex `Value` (missing index signature).
+    "typescript/consistent-type-definitions": "off",
 
     // Convex schema and insert documents keep domain field order, not A–Z.
     "sort-keys": "off",

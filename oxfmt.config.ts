@@ -13,5 +13,7 @@ export default defineConfig({
     "**/artifacts",
     "**/agent-tools",
     "**/.tahcode",
+    "**/.agents/skills/**",
+    "**/.claude/skills/**",
   ],
 });
