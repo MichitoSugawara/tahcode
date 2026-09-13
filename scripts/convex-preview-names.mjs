@@ -29,6 +29,13 @@ export function isDeploymentQuotaError(text) {
   return /DeploymentQuotaReached/i.test(String(text ?? ""));
 }
 
+/** Reused previews sometimes race `convex deploy --cmd` against env writes. */
+export function isEnvChangedDuringPush(text) {
+  return /Environment variables have changed during push/i.test(
+    String(text ?? "")
+  );
+}
+
 export function nextPreviewClaim(candidates, failedName) {
   const index = candidates.indexOf(failedName);
   if (index === -1) {
