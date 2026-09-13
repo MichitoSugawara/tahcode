@@ -2,7 +2,8 @@
 
 Status: Proposed  
 Date: 2026-09-13  
-Issue: [TAH-20](https://linear.app/tahcode/issue/TAH-20)
+Issue: [TAH-20](https://linear.app/tahcode/issue/TAH-20)  
+Repo: [https://github.com/MichitoSugawara/tahcode](https://github.com/MichitoSugawara/tahcode)
 
 スケールに備えたテストの層分け・優先順位・CI 方針。**この文書は設計のみ。** テストコードの大量追加は後続 issue。カバレッジ％の目標は置かない。
 
@@ -16,7 +17,7 @@ tahcode は「Web UI → Convex →（チケット）Cloudflare Worker / R2 → 
 
 ```
         ┌─────────────────────────┐
-        │  Desktop smoke（殻）     │  起動・deep link・offline。件数は极少
+        │  Desktop smoke（殻）     │  起動・deep link・offline。件数はごく少数
         ├─────────────────────────┤
         │  E2E（後回し・任意）      │  preview の黄金経路。Phase 1–2 では作らない
         ├─────────────────────────┤
