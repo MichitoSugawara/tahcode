@@ -67,7 +67,7 @@ export function RuntimeCard({ runtime, compact = false }: { runtime: Runtime; co
           ) : runtime.providers.length > 0 ? (
             <span className="text-[12px] text-ink-3">CLI が見つかりません（codex / claude / agent のいずれかにログインしてください）</span>
           ) : (
-            <span className="text-[12px] text-ink-3">未報告 — <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode start</code> で接続すると検出した CLI が並びます</span>
+            <span className="text-[12px] text-ink-3">未報告 — <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode start</code> で接続すると検出した CLI が並びます</span>
           )}
         </div>
 
@@ -144,7 +144,7 @@ export function RuntimePane() {
             </Button>
           }
         >
-          エージェントはあなたの手元のマシンで Multica daemon 経由で動きます。登録すると <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">npm i -g dalecode</code> → <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode link</code> → <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode start</code> のコマンドが発行されます。
+          エージェントはあなたの手元のマシンで Multica daemon 経由で動きます。登録すると <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">npm i -g tahcode</code> → <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode link</code> → <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode start</code> のコマンドが発行されます。
         </Notice>
       ) : (
         <>

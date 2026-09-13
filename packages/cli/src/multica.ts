@@ -1,11 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
 
 /* ─────────────────────────────────────────────────────────
- * Multica CLI / daemon adapter. dalecode does not ship its own
+ * Multica CLI / daemon adapter. tahcode does not ship its own
  * execution daemon: the Multica daemon detects agent CLIs and
- * owns the machine's task execution; dalecode wraps its
- * lifecycle with dalecode branding and links the machine to a
- * dalecode org.
+ * owns the machine's task execution; tahcode wraps its
+ * lifecycle with tahcode branding and links the machine to a
+ * tahcode org.
  * ───────────────────────────────────────────────────────── */
 
 export const MULTICA_BIN = process.env.MULTICA_BIN ?? "multica";

@@ -1,11 +1,11 @@
 {
-  "name": "dalecode",
-  "version": "0.1.1",
-  "description": "dalecode machine CLI \u2014 link this computer to a dalecode org and run agents through the Multica daemon.",
+  "name": "tahcode",
+  "version": "0.1.0",
+  "description": "tahcode (team agent harness) machine CLI \u2014 link this computer to a tahcode org and run agents through the Multica daemon.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "dalecode": "./dist/dalecode"
+    "tahcode": "./dist/tahcode"
   },
   "files": [
     "dist",
@@ -22,7 +22,8 @@
     "convex": "^1.31.2"
   },
   "keywords": [
-    "dalecode",
+    "tahcode",
+    "team-agent-harness",
     "multica",
     "coding-agent",
     "codex",

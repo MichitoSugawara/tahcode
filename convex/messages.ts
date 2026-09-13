@@ -131,7 +131,7 @@ export const send = authedMutation({
       const assistantMessageId = await ctx.db.insert("messages", {
         chatId: args.chatId,
         authorType: "agent",
-        body: "オンラインのマシンランタイムがありません。Runtime タブでこのマシンを登録し、`npm i -g dalecode` → `dalecode link …` → `dalecode start` を実行してください。",
+        body: "オンラインのマシンランタイムがありません。Runtime タブでこのマシンを登録し、`npm i -g tahcode` → `tahcode link …` → `tahcode start` を実行してください。",
         mentions: [],
         status: "done",
         driverKind,

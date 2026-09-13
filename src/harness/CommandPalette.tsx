@@ -57,7 +57,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       { key: "home", label: "ホーム", icon: <Home size={14} />, keywords: "home", onSelect: run(org.goHome) },
       { key: "new-chat", label: "新しいチャット", hint: "/new", icon: <MessageSquarePlus size={14} />, onSelect: run(() => org.openDialog({ kind: "newChat" })) },
       { key: "new-project", label: "新しいプロジェクト", hint: "/project", icon: <Folder size={14} />, onSelect: run(() => org.openDialog({ kind: "createProject" })) },
-      { key: "runtime", label: "このマシンをランタイムとして登録", hint: "npm i -g dalecode", icon: <Cpu size={14} />, onSelect: run(() => org.openDialog({ kind: "registerRuntime" })) },
+      { key: "runtime", label: "このマシンをランタイムとして登録", hint: "npm i -g tahcode", icon: <Cpu size={14} />, onSelect: run(() => org.openDialog({ kind: "registerRuntime" })) },
       ...(org.isAdmin ? [{ key: "invite", label: "メンバーを招待", hint: "Admin 以上", icon: <UserPlus size={14} />, onSelect: run(() => org.openDialog({ kind: "invite" })) }] : []),
       ...((org.runtimes ?? []).length > 0
         ? [{ key: "grants", label: "ランタイムの利用許可を管理", hint: "default deny", icon: <ShieldCheck size={14} />, onSelect: run(() => org.goSettings()) }]

@@ -10,7 +10,7 @@ export const yellow = wrap(33, 39);
 export const red = wrap(31, 39);
 export const cyan = wrap(36, 39);
 
-export const BRAND = `${green("●")} ${bold("dalecode")}`;
+export const BRAND = `${green("●")} ${bold("tahcode")}`;
 
 export function ok(text: string) {
   console.log(`  ${green("✓")} ${text}`);

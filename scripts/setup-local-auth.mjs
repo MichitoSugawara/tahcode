@@ -5,12 +5,12 @@
 //   1. Start the backend once: CONVEX_AGENT_MODE=anonymous npx convex dev
 //   2. Run: npm run setup:local-auth
 //
-// Keys are stored in .team-harness/ (gitignored). The backend persists env
+// Keys are stored in .tahcode/ (gitignored). The backend persists env
 // vars in its local sqlite, so this is only needed once per fresh .convex/.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 
-const DIR = ".team-harness";
+const DIR = ".tahcode";
 const PK_PATH = `${DIR}/jwt_private.key`;
 const JWKS_PATH = `${DIR}/jwks.json`;
 const BACKEND_URL = process.env.CONVEX_URL ?? "http://127.0.0.1:3210";
@@ -22,7 +22,7 @@ let jwks;
 if (existsSync(PK_PATH) && existsSync(JWKS_PATH)) {
   privateKey = readFileSync(PK_PATH, "utf8").trim();
   jwks = readFileSync(JWKS_PATH, "utf8").trim();
-  console.log("Reusing existing keys in .team-harness/");
+  console.log("Reusing existing keys in .tahcode/");
 } else {
   const keys = await generateKeyPair("RS256");
   privateKey = (await exportPKCS8(keys.privateKey)).trimEnd().replace(/\n/g, " ");
@@ -30,7 +30,7 @@ if (existsSync(PK_PATH) && existsSync(JWKS_PATH)) {
   jwks = JSON.stringify({ keys: [{ use: "sig", ...publicKey }] });
   writeFileSync(PK_PATH, `${privateKey}\n`);
   writeFileSync(JWKS_PATH, `${jwks}\n`);
-  console.log("Generated new RS256 keypair in .team-harness/");
+  console.log("Generated new RS256 keypair in .tahcode/");
 }
 
 const config = JSON.parse(

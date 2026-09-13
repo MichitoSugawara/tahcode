@@ -75,7 +75,7 @@ export default function HomePage() {
         link={{ label: (org.runtimes ?? []).length === 0 ? "ランタイムを接続してエージェントを動かす" : "Personal DM を開く", onClick: () => ((org.runtimes ?? []).length === 0 ? org.openDialog({ kind: "registerRuntime" }) : dm && org.goChat(dm._id)) }}
       />
       <div className="pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] text-ink-3 xl:flex">
-        <Sparkles size={11} /> dalecode · Beautiful UI harness · Dark Green+
+        <Sparkles size={11} /> tahcode · Beautiful UI harness · Dark Green+
       </div>
     </div>
   );

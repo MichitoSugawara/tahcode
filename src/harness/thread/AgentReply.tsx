@@ -163,7 +163,7 @@ export function AgentReply({ message, prompt, onRetry }: { message: AgentMessage
               <Button type="button" size="xs" variant="accent" onClick={() => openDialog({ kind: "registerRuntime" })}>
                 <Cpu size={12} /> このマシンを登録
               </Button>
-              <span className="self-center text-[11.5px] text-ink-3">登録済みなら <code className="font-mono">dalecode start</code> の起動と Runtime タブの許可を確認</span>
+              <span className="self-center text-[11.5px] text-ink-3">登録済みなら <code className="font-mono">tahcode start</code> の起動と Runtime タブの許可を確認</span>
             </>
           }
         >

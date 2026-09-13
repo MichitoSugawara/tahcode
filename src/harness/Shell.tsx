@@ -105,7 +105,7 @@ function Sidebar({ theme, onToggleTheme, collapsible, onNavigate }: { theme: The
       fill
       collapsible={collapsible}
       className="lg:pl-0"
-      brand={{ mark: <BrandMark />, name: "dalecode", badge: "Phase 1" }}
+      brand={{ mark: <BrandMark />, name: "tahcode", badge: "Phase 1" }}
       workspace={{ id: String(org.org._id), name: org.org.name, monogram: monogram(org.org.name), meta: roleLabel(org.role) }}
       workspaces={org.orgs.map((item) => ({ id: String(item._id), name: item.name, monogram: monogram(item.name), meta: roleLabel(item.role) }))}
       onSwitchWorkspace={(id) => {
