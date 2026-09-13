@@ -7,6 +7,7 @@ import { useOrg } from "@/harness/OrgContext";
 import { useCreateProjectChat } from "@/harness/optimisticMutations";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
+import { errorSummary } from "@/lib/format";
 
 /* ─────────────────────────────────────────────────────────
  * NEW CHAT — pick a project (or the personal DM), name it,
@@ -86,7 +87,7 @@ export function NewChatDialog({
           onOpenChange(false);
           goPendingChat(placeholder, created);
           created.catch((e: unknown) => {
-            toast.error(`「${chatTitle}」を作成できませんでした`, { description: e instanceof Error ? e.message : undefined });
+            toast.error(`「${chatTitle}」を作成できませんでした`, { description: errorSummary(e) });
           });
         }}
       >

@@ -19,6 +19,19 @@ export function displayName(user: { name?: string; handle?: string; email?: stri
   return user.name?.trim() || (user.handle ? `@${user.handle}` : "") || user.email || "member";
 }
 
+/** One-line reason from a thrown error, minus Convex's `[CONVEX M/…] [Request ID: …]` prefix and stack;
+ *  undefined when nothing useful survives (e.g. a redacted "Server Error"). */
+export function errorSummary(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const line = error.message
+    .replace(/^\[CONVEX [^\]]*\]\s*(\[Request ID: [^\]]*\]\s*)?/, "")
+    .replace(/^Server Error\s*/, "")
+    .replace(/^Uncaught (\w*Error):\s*/, "")
+    .split("\n")[0]
+    ?.trim();
+  return line || undefined;
+}
+
 export function relativeTime(ms: number, now = Date.now()): string {
   const diff = Math.max(0, now - ms);
   const s = Math.floor(diff / 1000);

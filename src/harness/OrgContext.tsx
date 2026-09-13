@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { trackPlaceholder } from "@/lib/optimistic";
+import { isPlaceholderId, trackPlaceholder } from "@/lib/optimistic";
 import { useStoredState } from "@/lib/storage";
 import type { ProviderDriverKind } from "@/lib/providers";
 import { isProviderKind } from "@/lib/providers";
@@ -176,8 +176,10 @@ export function OrgProvider({
 
   const goPendingChat = useCallback(
     (placeholder: Id<"chats">, created: Promise<Id<"chats">>) => {
-      /* BrowserRouter: window.location is the router's location, read at call time so the memo below stays stable */
-      const from = `${window.location.pathname}${window.location.search}`;
+      /* BrowserRouter: window.location is the router's location, read at call time so the memo below stays stable.
+       * Never fall back onto another placeholder page — by the time we return it may have been swapped away. */
+      const here = `${window.location.pathname}${window.location.search}`;
+      const from = isPlaceholderId(window.location.pathname.split("/c/")[1]) ? `/o/${org.slug}` : here;
       const chatPath = (id: Id<"chats">) => `/o/${org.slug}/c/${String(id)}`;
       const stillHere = () => window.location.pathname === chatPath(placeholder);
       openTab(placeholder);

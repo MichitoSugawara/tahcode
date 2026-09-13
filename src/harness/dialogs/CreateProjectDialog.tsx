@@ -6,6 +6,7 @@ import { useOrg } from "@/harness/OrgContext";
 import { useCreateProjectWithChat } from "@/harness/optimisticMutations";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
+import { errorSummary } from "@/lib/format";
 
 /* ─────────────────────────────────────────────────────────
  * CREATE PROJECT — Multica's create dialog: name, visibility,
@@ -76,14 +77,13 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
           reset();
           onOpenChange(false);
           goPendingChat(chatPlaceholder, chatCreated);
-          const describe = (e: unknown) => ({ description: e instanceof Error ? e.message : undefined });
           projectCreated.then(
             () => {
               toast.success(`プロジェクト「${projectName}」を作成しました`);
               /* the project landed; only its first chat can still fail from here */
-              chatCreated.catch((e: unknown) => toast.error("General チャットを作成できませんでした", describe(e)));
+              chatCreated.catch((e: unknown) => toast.error("General チャットを作成できませんでした", { description: errorSummary(e) }));
             },
-            (e: unknown) => toast.error(`プロジェクト「${projectName}」を作成できませんでした`, describe(e)),
+            (e: unknown) => toast.error(`プロジェクト「${projectName}」を作成できませんでした`, { description: errorSummary(e) }),
           );
         }}
       >

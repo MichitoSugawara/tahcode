@@ -47,6 +47,11 @@ export function trackPlaceholder<T extends TableNames>(placeholder: Id<T>, creat
   return tracked;
 }
 
+/** Whether a create was registered for this placeholder in this session (a stale URL after a reload has none). */
+export function hasPlaceholder(id: string | null | undefined): boolean {
+  return !!id && creates.has(id);
+}
+
 /** The server id for `id`, waiting on the create if `id` is still a placeholder. */
 export async function resolveId<T extends TableNames>(id: Id<T>): Promise<Id<T>> {
   if (!isPlaceholderId(id)) return id;

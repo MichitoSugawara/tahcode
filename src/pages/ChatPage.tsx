@@ -12,7 +12,7 @@ import { useOrg, type Chat } from "@/harness/OrgContext";
 import { Thread, type ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
-import { isFresh, isPlaceholderId, markLoaded, placeholderOf } from "@/lib/optimistic";
+import { hasPlaceholder, isFresh, isPlaceholderId, markLoaded, placeholderOf } from "@/lib/optimistic";
 import { PROVIDERS } from "@/lib/providers";
 import { useDocumentTitle } from "@/lib/title";
 
@@ -31,9 +31,10 @@ export default function ChatPage() {
   const onServer = chatId && !placeholder ? { chatId: chatId as Id<"chats"> } : null;
   const fetched = useQuery(api.chats.get, onServer ?? "skip") as Chat | null | undefined;
   const fetchedMessages = useQuery(api.messages.list, onServer ? { ...onServer, limit: 200 } : "skip") as ThreadMessage[] | undefined;
-  /* while `get` is in flight the sidebar list already knows the row — placeholder or just-created */
+  /* while `get` is in flight the sidebar list already knows the row — placeholder or just-created;
+   * a placeholder nobody is creating (stale URL after a reload) is treated like a missing chat */
   const listed = org.chats?.find((item) => String(item._id) === chatId);
-  const chat = fetched === undefined ? listed : fetched;
+  const chat = fetched !== undefined ? fetched : placeholder && !hasPlaceholder(chatId) ? null : listed;
   const messages = placeholder || (fetchedMessages === undefined && isFresh(chatId)) ? [] : fetchedMessages;
   const { send } = useSendMessage(chat ?? null);
   useDocumentTitle(chat ? (chat.kind === "dm" ? "Personal DM" : chat.title) : undefined, org.org.name);
