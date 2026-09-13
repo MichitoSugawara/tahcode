@@ -96,4 +96,31 @@ describe(filterSuggestItems, () => {
       "@cursor/composer-2.5"
     );
   });
+
+  it("ranks @cursor/cursor-grok-4.6 for cursor/grok", () => {
+    const models = [
+      {
+        desc: "Muse Spark 1.3",
+        insert: "@cursor/muse-spark-1.3 ",
+        name: "@cursor/muse-spark-1.3",
+      },
+      {
+        desc: "Grok 4.6 (Cursor)",
+        insert: "@cursor/cursor-grok-4.6 ",
+        name: "@cursor/cursor-grok-4.6",
+        search: "cursor-grok-4.6 Grok 4.6 (Cursor) grok grok-4.6",
+      },
+      {
+        desc: "Composer 2.5",
+        insert: "@cursor/composer-2.5 ",
+        name: "@cursor/composer-2.5",
+      },
+    ];
+    expect(
+      filterSuggestItems(models, "cursor/grok").map((item) => item.name)
+    ).toStrictEqual(["@cursor/cursor-grok-4.6"]);
+    expect(filterSuggestItems(models, "grok")[0]?.name).toBe(
+      "@cursor/cursor-grok-4.6"
+    );
+  });
 });

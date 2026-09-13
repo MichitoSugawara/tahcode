@@ -38,6 +38,8 @@ export interface PromptMenuItem {
   name: string;
   desc?: string;
   icon?: ReactNode;
+  /** aliases / slugs the fuzzy filter should rank with the visible label */
+  search?: string;
   /** text that replaces the typed token (e.g. "@codex ") */
   insert?: string;
   /** runs instead of inserting (attach, slash commands) */

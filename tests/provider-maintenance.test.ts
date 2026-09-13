@@ -241,6 +241,15 @@ describe("updatePlanFor (the allowlist)", () => {
 });
 
 describe(mergeModelCatalog, () => {
+  it("attaches static aliases onto a matching live slug", () => {
+    const merged = mergeModelCatalog("cursor", [{ slug: "cursor-grok-4.6" }]);
+    expect(merged.models[0]).toMatchObject({
+      aliases: ["grok", "grok-4.6"],
+      name: "Grok 4.6 (Cursor)",
+      slug: "cursor-grok-4.6",
+    });
+  });
+
   it("prefers the live list and borrows display names from the static snapshot", () => {
     const merged = mergeModelCatalog("cursor", [
       { slug: "composer-2.5", default: true },
