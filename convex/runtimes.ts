@@ -8,18 +8,21 @@ import {
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { randomToken, sha256Hex, slugify } from "./lib/ids";
-import { grantTarget, orgRole, providerKind } from "./lib/validators";
-
-const providerInput = v.object({
-  available: v.boolean(),
-  binaryPath: v.optional(v.string()),
-  driverKind: providerKind,
-  version: v.optional(v.string()),
-});
+import { upsertProviderReports } from "./lib/runtimeReports";
+import {
+  grantTarget,
+  installMethod,
+  liveModel,
+  orgRole,
+  providerKind,
+  runtimeProviderReport,
+} from "./lib/validators";
 
 const runtimeView = v.object({
   _id: v.id("runtimes"),
+  bridgeVersion: v.optional(v.string()),
   canUse: v.boolean(),
+  capabilities: v.array(v.string()),
   cwd: v.optional(v.string()),
   grants: v.array(
     v.object({
@@ -31,14 +34,20 @@ const runtimeView = v.object({
   ),
   hostname: v.optional(v.string()),
   lastSeenAt: v.optional(v.number()),
+  maintenanceByAdmins: v.boolean(),
   name: v.string(),
   ownerUserId: v.id("users"),
   providers: v.array(
     v.object({
-      driverKind: providerKind,
       available: v.boolean(),
-      version: v.optional(v.string()),
       binaryPath: v.optional(v.string()),
+      driverKind: providerKind,
+      installMethod: v.optional(installMethod),
+      models: v.optional(v.array(liveModel)),
+      modelsCheckedAt: v.optional(v.number()),
+      modelsError: v.optional(v.string()),
+      updateCommand: v.optional(v.string()),
+      version: v.optional(v.string()),
     })
   ),
   slug: v.string(),
@@ -101,6 +110,9 @@ export const list = authedQuery({
         status: runtime.status,
         lastSeenAt: runtime.lastSeenAt,
         ownerUserId: runtime.ownerUserId,
+        bridgeVersion: runtime.bridgeVersion,
+        capabilities: runtime.capabilities ?? [],
+        maintenanceByAdmins: runtime.maintenanceByAdmins ?? false,
         canUse: canUseRuntime({
           actorUserId: String(ctx.user._id),
           runtimeOwnerUserId: String(runtime.ownerUserId),
@@ -118,6 +130,11 @@ export const list = authedQuery({
           available: provider.available,
           version: provider.version,
           binaryPath: provider.binaryPath,
+          installMethod: provider.installMethod,
+          models: provider.models,
+          modelsCheckedAt: provider.modelsCheckedAt,
+          modelsError: provider.modelsError,
+          updateCommand: provider.updateCommand,
         })),
         grants: grants.map((grant) => ({
           _id: grant._id,
@@ -228,16 +245,48 @@ export const remove = authedMutation({
     for (const provider of providers) {
       await ctx.db.delete("runtimeProviders", provider._id);
     }
+    const commands = await ctx.db
+      .query("runtimeCommands")
+      .withIndex("by_runtime", (q) => q.eq("runtimeId", runtime._id))
+      .take(200);
+    for (const command of commands) {
+      await ctx.db.delete("runtimeCommands", command._id);
+    }
     await ctx.db.delete("runtimes", runtime._id);
     return null;
   },
   returns: v.null(),
 });
 
+/**
+ * Machine-owner setting: whether org Owner/Admin may trigger CLI updates on
+ * this machine. Default off — updating software on someone's computer stays
+ * with the person who owns it unless they opt in.
+ */
+export const setMaintenancePolicy = authedMutation({
+  args: { runtimeId: v.id("runtimes"), maintenanceByAdmins: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const runtime = await ctx.db.get("runtimes", args.runtimeId);
+    if (!runtime) {
+      throw new Error("Runtime not found");
+    }
+    if (String(runtime.ownerUserId) !== String(ctx.user._id)) {
+      throw new Error(
+        "Only the machine owner can change who may update its CLIs"
+      );
+    }
+    await ctx.db.patch("runtimes", runtime._id, {
+      maintenanceByAdmins: args.maintenanceByAdmins,
+    });
+    return null;
+  },
+});
+
 export const report = authedMutation({
   args: {
     hostname: v.optional(v.string()),
-    providers: v.array(providerInput),
+    providers: v.array(runtimeProviderReport),
     runtimeId: v.id("runtimes"),
   },
   handler: async (ctx, args) => {
@@ -253,29 +302,7 @@ export const report = authedMutation({
       lastSeenAt: Date.now(),
       hostname: args.hostname?.slice(0, 120) ?? runtime.hostname,
     });
-    for (const provider of args.providers) {
-      const existing = await ctx.db
-        .query("runtimeProviders")
-        .withIndex("by_runtime_and_kind", (q) =>
-          q.eq("runtimeId", runtime._id).eq("driverKind", provider.driverKind)
-        )
-        .unique();
-      if (existing) {
-        await ctx.db.patch("runtimeProviders", existing._id, {
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      } else {
-        await ctx.db.insert("runtimeProviders", {
-          runtimeId: runtime._id,
-          driverKind: provider.driverKind,
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      }
-    }
+    await upsertProviderReports(ctx, runtime._id, args.providers);
     return null;
   },
   returns: v.null(),

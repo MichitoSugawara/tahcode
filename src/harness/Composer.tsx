@@ -1,6 +1,7 @@
 import { useMutation } from "convex/react";
 import {
   AtSign,
+  Brain,
   Cpu,
   Folder,
   MessageSquarePlus,
@@ -33,20 +34,95 @@ import { placeholderId, resolveId } from "@/lib/optimistic";
 import {
   PROVIDERS,
   agentMention,
+  effortFooterFor,
+  getProviderOptionCurrentLabel,
+  getProviderOptionCurrentValue,
   isProviderKind,
+  modelCatalogFor,
   modelDisplayName,
   modelMentionExample,
-  modelSourceHint,
-  modelsFor,
+  optionDescriptorsFor,
+  primaryOptionDescriptor,
+  retainValidOptions,
   supportsModelPick,
+  upsertOptionSelection,
 } from "@/lib/providers";
-import type { ProviderDriverKind } from "@/lib/providers";
+import type {
+  ProviderDriverKind,
+  ProviderOptionSelection,
+} from "@/lib/providers";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
 /* the draft ends in an @token still being typed — hold the auto-mention hint */
 const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
+
+function effortPickers(
+  agent: ComposerAgent,
+  models: {
+    slug: string;
+    defaultReasoningLevel?: string;
+    supportedReasoningLevels?: string[];
+  }[],
+  setAgent: (
+    driverKind: ProviderDriverKind,
+    model: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void
+): PromptPicker[] {
+  const hint = models.find((model) => model.slug === agent.model);
+  const primary = primaryOptionDescriptor(
+    optionDescriptorsFor(agent.driverKind, agent.model, hint)
+  );
+  if (!primary) {
+    return [];
+  }
+  const current = getProviderOptionCurrentValue(primary, agent.options);
+  if (primary.type === "boolean") {
+    return [
+      {
+        id: "effort",
+        ariaLabel: "Thinking を切替",
+        icon: <Brain size={12} />,
+        label: getProviderOptionCurrentLabel(primary, agent.options),
+        items: [
+          { key: "false", name: "Off" },
+          { key: "true", name: "On" },
+        ],
+        value: current ? "true" : "false",
+        onChange: (key) =>
+          setAgent(
+            agent.driverKind,
+            agent.model,
+            upsertOptionSelection(agent.options, primary.id, key === "true")
+          ),
+        footer: effortFooterFor(agent.driverKind),
+      },
+    ];
+  }
+  return [
+    {
+      id: "effort",
+      ariaLabel: "推論レベルを選択",
+      icon: <Brain size={12} />,
+      label: getProviderOptionCurrentLabel(primary, agent.options),
+      items: primary.options.map((option) => ({
+        key: option.id,
+        name: option.label,
+        tag: option.isDefault ? "既定" : undefined,
+      })),
+      value: typeof current === "string" ? current : "",
+      onChange: (key) =>
+        setAgent(
+          agent.driverKind,
+          agent.model,
+          upsertOptionSelection(agent.options, primary.id, key)
+        ),
+      footer: effortFooterFor(agent.driverKind),
+    },
+  ];
+}
 
 /* ─────────────────────────────────────────────────────────
  * COMPOSER — PromptBar wired to the org: @ agents + members,
@@ -61,6 +137,7 @@ const MENTION_RE = new RegExp(`@${MENTION_HANDLE}+`, "g");
 export interface ComposerAgent {
   driverKind: ProviderDriverKind;
   model: string | null;
+  options?: ProviderOptionSelection[];
 }
 
 /**
@@ -72,16 +149,33 @@ export function useChatAgent(chat: Chat | null) {
   const org = useOrg();
   const bindChat = useSetChatAgent();
   const agent: ComposerAgent = chat?.driverKind
-    ? { driverKind: chat.driverKind, model: chat.model ?? null }
-    : { driverKind: org.provider, model: org.model };
+    ? {
+        driverKind: chat.driverKind,
+        model: chat.model ?? null,
+        options: chat.options,
+      }
+    : { driverKind: org.provider, model: org.model, options: org.options };
   const setAgent = useCallback(
-    (driverKind: ProviderDriverKind, model: string | null) => {
-      org.setAgent(driverKind, model);
+    (
+      driverKind: ProviderDriverKind,
+      model: string | null,
+      nextOptions?: ProviderOptionSelection[] | null
+    ) => {
+      const options =
+        nextOptions === undefined
+          ? retainValidOptions(driverKind, model, agent.options)
+          : (nextOptions ?? undefined);
+      org.setAgent(driverKind, model, options ?? null);
       if (chat) {
         /* a chat opened straight from its create dialog may still carry a placeholder id */
         void resolveId(chat._id)
           .then((chatId) =>
-            bindChat({ chatId, driverKind, model: model ?? undefined })
+            bindChat({
+              chatId,
+              driverKind,
+              model: model ?? undefined,
+              options,
+            })
           )
           .catch((error: unknown) =>
             toast.error(
@@ -92,7 +186,7 @@ export function useChatAgent(chat: Chat | null) {
           );
       }
     },
-    [org, chat, bindChat]
+    [org, chat, bindChat, agent.options]
   );
   return { agent, setAgent };
 }
@@ -205,6 +299,7 @@ export function useSendMessage(chat: Chat | null) {
         chatId,
         driverKind: agent.driverKind,
         model: agent.model ?? undefined,
+        options: agent.options,
         runtimeId: org.runtimeId ?? undefined,
       });
       return { chatId, dispatched: result.dispatched, jobId: result.jobId };
@@ -289,13 +384,20 @@ export function Composer({
     if (modelToken) {
       const kind = modelToken.providerKind;
       const info = PROVIDERS[kind];
-      return modelsFor(kind).map((model) => ({
-        desc: model.name,
+      const catalog = modelCatalogFor(kind, org.runtimes);
+      return catalog.models.map((model) => ({
+        desc: model.name ?? model.slug,
         icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
         insert: `@${modelToken.handle}/${model.slug} `,
         key: `m-${kind}-${model.slug}`,
         name: `@${modelToken.handle}/${model.slug}`,
-        trailing: model.legacy ? "legacy" : undefined,
+        trailing: model.default
+          ? "CLI の既定"
+          : model.legacy
+            ? "legacy"
+            : catalog.source === "live"
+              ? "live"
+              : undefined,
       }));
     }
     const agents: PromptMenuItem[] = [
@@ -335,7 +437,14 @@ export function Composer({
           String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
     return [...agents, ...people];
-  }, [modelToken, org.members, org.me._id, installed, liveRuntimes.length]);
+  }, [
+    modelToken,
+    org.members,
+    org.me._id,
+    org.runtimes,
+    installed,
+    liveRuntimes.length,
+  ]);
 
   const commands: PromptMenuItem[] = [
     {
@@ -389,7 +498,12 @@ export function Composer({
     },
   ];
 
-  const models = modelsFor(agent.driverKind);
+  /* live list from a connected machine when one reported it, static snapshot otherwise */
+  const catalog = useMemo(
+    () => modelCatalogFor(agent.driverKind, org.runtimes),
+    [agent.driverKind, org.runtimes]
+  );
+  const models = catalog.models;
   const pickers: PromptPicker[] = [
     {
       ariaLabel: "プロバイダを選択",
@@ -409,7 +523,7 @@ export function Composer({
       onChange: (key) => {
         /* model slugs are provider-specific, so a provider change resets to that CLI's default */
         if (isProviderKind(key) && key !== agent.driverKind) {
-          setAgent(key, null);
+          setAgent(key, null, null);
         }
       },
       value: agent.driverKind,
@@ -417,7 +531,7 @@ export function Composer({
     {
       ariaLabel: "モデルを選択",
       footer: supportsModelPick(agent.driverKind)
-        ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · 出典: ${modelSourceHint(agent.driverKind)}`
+        ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · ${catalog.source === "live" ? "live: " : ""}${catalog.note}`
         : `${provider.label} は headless CLI がなく、モデルは選べません`,
       id: "model",
       items: [
@@ -425,8 +539,12 @@ export function Composer({
         ...(supportsModelPick(agent.driverKind)
           ? models.map((model) => ({
               key: model.slug,
-              name: model.name,
-              tag: model.legacy ? "legacy" : undefined,
+              name: model.name ?? model.slug,
+              tag: model.default
+                ? "CLI の既定"
+                : model.legacy
+                  ? "legacy"
+                  : undefined,
             }))
           : []),
       ],
@@ -436,6 +554,7 @@ export function Composer({
       onChange: (key) => setAgent(agent.driverKind, key || null),
       value: agent.model ?? "",
     },
+    ...effortPickers(agent, catalog.models, setAgent),
     {
       ariaLabel: "ランタイムを選択",
       emptyHint: "ランタイムがありません",

@@ -8,7 +8,7 @@ import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
  * A composer with real controls: attach, @ mentions, / commands,
- * pill pickers (provider · runtime), and send.
+ * pill pickers (provider · model · effort · runtime), and send.
  * Type @ or / to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
  * Enter sends (IME-safe), Shift+Enter breaks a line.
  *
@@ -155,6 +155,7 @@ export default function PromptBar({
   const [pickerHovered, setPickerHovered] = useState<number | null>(null);
   const [pickerMenuLeft, setPickerMenuLeft] = useState(0);
   const [pickerMenuBottom, setPickerMenuBottom] = useState(0);
+  const [pickerMaxHeight, setPickerMaxHeight] = useState(360);
   const anchorRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const pickersRef = useRef<HTMLDivElement>(null);
@@ -236,6 +237,9 @@ export default function PromptBar({
       pickerRowRefs.current[pickerHovered ?? Math.max(pickerIndex, 0)];
     if (target) {
       setPickerBox({ top: target.offsetTop, height: target.offsetHeight });
+      if (pickerHovered === null) {
+        target.scrollIntoView({ block: "nearest" });
+      }
     }
   }, [picker, pickerHovered, pickerIndex]);
 
@@ -258,6 +262,8 @@ export default function PromptBar({
       )
     );
     setPickerMenuBottom(anchorRect.bottom - triggerRect.top + 8);
+    // Live model lists can be long: cap the menu to the room above its trigger and scroll.
+    setPickerMaxHeight(Math.max(160, Math.min(360, triggerRect.top - 8 - 16)));
   }, [picker, wide]);
 
   useEffect(() => {
@@ -434,63 +440,66 @@ export default function PromptBar({
         {picker && (
           <div
             onMouseLeave={() => setPickerHovered(null)}
-            className="bg-surface shadow-raised absolute z-20 w-56 rounded-[10px] p-1"
+            className="bg-surface shadow-raised absolute z-20 flex w-56 flex-col rounded-[10px] p-1"
             style={{
               animation: POP,
               bottom: pickerMenuBottom,
               left: pickerMenuLeft,
+              maxHeight: pickerMaxHeight,
               transformOrigin: "bottom left",
             }}
           >
-            <span
-              aria-hidden
-              className="bg-hover pointer-events-none absolute inset-x-1 rounded-[6px]"
-              style={{
-                height: pickerBox?.height ?? 0,
-                opacity: pickerBox && pickerHovered !== null ? 1 : 0,
-                top: pickerBox?.top ?? 0,
-                transition: GLIDE,
-              }}
-            />
-            {picker.items.map((item, i) => (
-              <button
-                key={item.key}
-                type="button"
-                disabled={item.disabled}
-                ref={(el) => {
-                  pickerRowRefs.current[i] = el;
+            <div className="relative min-h-0 flex-1 overflow-y-auto">
+              <span
+                aria-hidden
+                className="bg-hover pointer-events-none absolute inset-x-0 rounded-[6px]"
+                style={{
+                  height: pickerBox?.height ?? 0,
+                  opacity: pickerBox && pickerHovered !== null ? 1 : 0,
+                  top: pickerBox?.top ?? 0,
+                  transition: GLIDE,
                 }}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setPickerHovered(i)}
-                onClick={() => {
-                  picker.onChange(item.key);
-                  setOpenPicker(null);
-                  inputRef.current?.focus();
-                }}
-                className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left disabled:opacity-45"
-              >
-                <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
-                  {item.name}
-                </span>
-                {item.tag && (
-                  <span className="text-ink-3 shrink-0 text-[11px]">
-                    {item.tag}
-                  </span>
-                )}
-                <span
-                  className={`text-ink shrink-0 ${item.key === picker.value ? "" : "invisible"}`}
+              />
+              {picker.items.map((item, i) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  disabled={item.disabled}
+                  ref={(el) => {
+                    pickerRowRefs.current[i] = el;
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setPickerHovered(i)}
+                  onClick={() => {
+                    picker.onChange(item.key);
+                    setOpenPicker(null);
+                    inputRef.current?.focus();
+                  }}
+                  className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left disabled:opacity-45"
                 >
-                  <Check size={13} strokeWidth={2.5} />
-                </span>
-              </button>
-            ))}
-            {picker.items.length === 0 && (
-              <div className="text-ink-3 px-2 py-2 text-[12px] leading-[1.5]">
-                {picker.emptyHint ?? "候補がありません"}
-              </div>
-            )}
+                  <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                    {item.name}
+                  </span>
+                  {item.tag && (
+                    <span className="text-ink-3 shrink-0 text-[11px]">
+                      {item.tag}
+                    </span>
+                  )}
+                  <span
+                    className={`text-ink shrink-0 ${item.key === picker.value ? "" : "invisible"}`}
+                  >
+                    <Check size={13} strokeWidth={2.5} />
+                  </span>
+                </button>
+              ))}
+              {picker.items.length === 0 && (
+                <div className="text-ink-3 px-2 py-2 text-[12px] leading-[1.5]">
+                  {picker.emptyHint ?? "候補がありません"}
+                </div>
+              )}
+            </div>
             {picker.footer && (
-              <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px]">
+              <div className="border-line text-ink-3 mt-1 shrink-0 border-t px-2 pt-1.5 pb-1 text-[11px]">
                 {picker.footer}
               </div>
             )}

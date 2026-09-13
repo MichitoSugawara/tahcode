@@ -1,3 +1,4 @@
+import type { ProviderOptionSelection } from "./modelOptions.ts";
 import {
   isValidModelSlug,
   providerKindFromHandle,
@@ -21,6 +22,8 @@ export interface AgentTarget {
   driverKind: ProviderDriverKind;
   /** `undefined` = the CLI's own default model (no model flag). */
   model?: string;
+  /** t3code ModelSelection.options — dropped when a mention names another provider. */
+  options?: ProviderOptionSelection[];
 }
 
 const MENTION_RE = /@([a-zA-Z0-9_./-]+)/g;
@@ -115,19 +118,42 @@ export function preferredProvider(
  * keeps that model for a bare `@cursor`), else the CLI default. Without a
  * provider mention the fallback (chat binding / composer pick) is used as is.
  */
+function withFallbackOptions(
+  target: AgentTarget,
+  fallback: AgentTarget,
+  sameProvider: boolean
+): AgentTarget {
+  if (!sameProvider || !fallback.options || fallback.options.length === 0) {
+    return target;
+  }
+  return { ...target, options: fallback.options };
+}
+
 export function preferredTarget(
   mentions: readonly ParsedMention[],
   fallback: AgentTarget
 ): AgentTarget {
   const mentioned = mentions.find((mention) => mention.providerKind);
   if (!mentioned?.providerKind) {
-    return { driverKind: fallback.driverKind, model: fallback.model };
+    return withFallbackOptions(
+      { driverKind: fallback.driverKind, model: fallback.model },
+      fallback,
+      true
+    );
   }
   if (mentioned.model) {
-    return { driverKind: mentioned.providerKind, model: mentioned.model };
+    return withFallbackOptions(
+      { driverKind: mentioned.providerKind, model: mentioned.model },
+      fallback,
+      mentioned.providerKind === fallback.driverKind
+    );
   }
   if (mentioned.providerKind === fallback.driverKind) {
-    return { driverKind: fallback.driverKind, model: fallback.model };
+    return withFallbackOptions(
+      { driverKind: fallback.driverKind, model: fallback.model },
+      fallback,
+      true
+    );
   }
   return { driverKind: mentioned.providerKind, model: undefined };
 }

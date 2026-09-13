@@ -151,6 +151,24 @@ describe(preferredTarget, () => {
       model: undefined,
     });
   });
+
+  it("keeps effort options on the same provider and drops them on another", () => {
+    const withEffort = {
+      driverKind: "codex" as const,
+      model: "gpt-5.6-sol",
+      options: [{ id: "reasoningEffort" as const, value: "high" as const }],
+    };
+    expect(preferredTarget([], withEffort)).toStrictEqual(withEffort);
+    expect(
+      preferredTarget(parseMentions("@codex keep going"), withEffort)
+    ).toStrictEqual(withEffort);
+    expect(
+      preferredTarget(parseMentions("@claude/opus do it"), withEffort)
+    ).toStrictEqual({
+      driverKind: "claudeAgent",
+      model: "claude-opus-5",
+    });
+  });
 });
 
 describe("model slugs", () => {
@@ -214,5 +232,69 @@ describe(headlessArgs, () => {
       "--prompt",
       "hi",
     ]);
+  });
+
+  it("adds provider-native effort flags only when the option is explicit", () => {
+    expect(
+      headlessArgs("codex", "hi", "gpt-5.6-sol", [
+        { id: "reasoningEffort", value: "high" },
+      ])
+    ).toStrictEqual([
+      "exec",
+      "--model",
+      "gpt-5.6-sol",
+      "--config",
+      "model_reasoning_effort=high",
+      "--json",
+      "hi",
+    ]);
+    expect(
+      headlessArgs("claudeAgent", "hi", "claude-opus-5", [
+        { id: "effort", value: "xhigh" },
+      ]).slice(0, 5)
+    ).toStrictEqual(["-p", "--model", "claude-opus-5", "--effort", "xhigh"]);
+    expect(
+      headlessArgs("opencode", "hi", "anthropic/claude-sonnet-5", [
+        { id: "variant", value: "high" },
+      ])
+    ).toStrictEqual([
+      "run",
+      "--model",
+      "anthropic/claude-sonnet-5",
+      "--variant",
+      "high",
+      "hi",
+    ]);
+    expect(
+      headlessArgs("cursor", "hi", "muse-spark-1.3", [
+        { id: "reasoning", value: "high" },
+      ])
+    ).toStrictEqual([
+      "-p",
+      "--model",
+      "muse-spark-1.3",
+      "--output-format",
+      "stream-json",
+      "hi",
+    ]);
+  });
+
+  it("injects Claude ultrathink into the prompt and maps ultracode to --effort xhigh", () => {
+    expect(
+      headlessArgs("claudeAgent", "fix it", "claude-fable-5-1", [
+        { id: "effort", value: "ultrathink" },
+      ])
+    ).toContain("Ultrathink:\nfix it");
+    expect(
+      headlessArgs("claudeAgent", "fix it", "claude-fable-5-1", [
+        { id: "effort", value: "ultrathink" },
+      ])
+    ).not.toContain("--effort");
+    const ultracode = headlessArgs("claudeAgent", "fix it", "claude-opus-5", [
+      { id: "effort", value: "ultracode" },
+    ]);
+    expect(ultracode).toContain("--effort");
+    expect(ultracode).toContain("xhigh");
+    expect(ultracode).toContain(JSON.stringify({ ultracode: true }));
   });
 });

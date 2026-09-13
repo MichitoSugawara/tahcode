@@ -35,6 +35,8 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 | `tahcode service install\|uninstall\|status` | **macOS only.** Register the bridge as a launchd user agent (`~/Library/LaunchAgents/com.tahcode.bridge.plist`, RunAtLoad + KeepAlive) so it starts at login and is restarted if it dies. `install` accepts the same `--cwd` / `--provider` / `--no-daemon` as `start`. |
 | `tahcode doctor` | Node, Multica install/login/daemon, detected agent CLIs, backend connectivity, bridge status. |
 | `tahcode providers` | Agents seen by the Multica daemon + the t3code provider set the bridge can launch directly. |
+| `tahcode models [provider]` | Models each CLI can use, fetched live where the CLI has a list command (`agent models`, `opencode models`, `grok models`); Codex / Claude / Antigravity fall back to the static catalog. |
+| `tahcode update <provider\|all> [--yes]` | Update an agent CLI with the **same allowlisted command the web UI's「CLI を更新」runs**: npm / Homebrew installs via `npm i -g …@latest` / `brew upgrade …`, everything else via the CLI's own updater (`claude update`, `agent update`, `grok update`, `opencode upgrade`). Prints the command and exits unless `--yes`. |
 | `tahcode install-multica [--yes]` | Print (or with `--yes` run) the Multica install command: Homebrew tap, official install script, or PowerShell on Windows. |
 | `tahcode multica <args…>` | Anything else on the Multica CLI, unchanged (e.g. `tahcode multica login --token mul_…`). |
 | `tahcode unlink` | Remove the stored link. |

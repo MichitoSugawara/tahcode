@@ -7,7 +7,13 @@ import { assertChatVisible, getMembership } from "./lib/access";
 import { authedQuery } from "./lib/customFunctions";
 import { randomToken, sha256Hex } from "./lib/ids";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
-import { jobStatus, providerKind } from "./lib/validators";
+import { upsertProviderReports } from "./lib/runtimeReports";
+import {
+  jobStatus,
+  optionSelection,
+  providerKind,
+  runtimeProviderReport,
+} from "./lib/validators";
 
 const jobView = v.object({
   _id: v.id("jobs"),
@@ -16,6 +22,7 @@ const jobView = v.object({
   driverKind: providerKind,
   error: v.optional(v.string()),
   model: v.optional(v.string()),
+  options: v.optional(v.array(optionSelection)),
   prompt: v.string(),
   runtimeId: v.id("runtimes"),
   status: jobStatus,
@@ -30,6 +37,7 @@ const claimView = v.union(
     contextJson: v.string(),
     driverKind: providerKind,
     model: v.optional(v.string()),
+    options: v.optional(v.array(optionSelection)),
     prompt: v.string(),
     runtimeId: v.id("runtimes"),
     status: jobStatus,
@@ -169,6 +177,7 @@ export const claimNext = mutation({
       driverKind: job.driverKind,
       leaseId,
       model: job.model,
+      options: job.options,
       prompt: job.prompt,
       runtimeId: job.runtimeId,
       status: "running" as const,
@@ -181,16 +190,10 @@ export const claimNext = mutation({
 export const heartbeat = mutation({
   args: {
     hostname: v.optional(v.string()),
-    providers: v.optional(
-      v.array(
-        v.object({
-          driverKind: providerKind,
-          available: v.boolean(),
-          version: v.optional(v.string()),
-          binaryPath: v.optional(v.string()),
-        })
-      )
-    ),
+    /* newer bridges identify themselves so the UI can tell an old bridge from a missing feature */
+    bridgeVersion: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
+    providers: v.optional(v.array(runtimeProviderReport)),
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
@@ -199,34 +202,27 @@ export const heartbeat = mutation({
     const now = Date.now();
     await recoverStaleJobs(ctx, runtime._id, now);
     await touchRunningJobs(ctx, runtime._id, now);
-    await ctx.db.patch("runtimes", runtime._id, {
+    const runtimePatch: {
+      hostname: string | undefined;
+      lastSeenAt: number;
+      status: "online";
+      bridgeVersion?: string;
+      capabilities?: string[];
+    } = {
       hostname: args.hostname?.slice(0, 120) ?? runtime.hostname,
       lastSeenAt: now,
       status: "online",
-    });
-    for (const provider of args.providers ?? []) {
-      const existing = await ctx.db
-        .query("runtimeProviders")
-        .withIndex("by_runtime_and_kind", (q) =>
-          q.eq("runtimeId", runtime._id).eq("driverKind", provider.driverKind)
-        )
-        .unique();
-      if (existing) {
-        await ctx.db.patch("runtimeProviders", existing._id, {
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      } else {
-        await ctx.db.insert("runtimeProviders", {
-          runtimeId: runtime._id,
-          driverKind: provider.driverKind,
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      }
+    };
+    if (args.bridgeVersion !== undefined) {
+      runtimePatch.bridgeVersion = args.bridgeVersion.slice(0, 40);
     }
+    if (args.capabilities !== undefined) {
+      runtimePatch.capabilities = args.capabilities
+        .slice(0, 10)
+        .map((item) => item.slice(0, 40));
+    }
+    await ctx.db.patch("runtimes", runtime._id, runtimePatch);
+    await upsertProviderReports(ctx, runtime._id, args.providers ?? []);
     return null;
   },
   returns: v.null(),
@@ -359,6 +355,7 @@ export const get = authedQuery({
         runtimeId: job.runtimeId,
         driverKind: job.driverKind,
         model: job.model,
+        options: job.options,
         status: job.status,
         prompt: job.prompt,
         error: job.error,
@@ -412,6 +409,7 @@ export const listByChat = authedQuery({
       runtimeId: job.runtimeId,
       driverKind: job.driverKind,
       model: job.model,
+      options: job.options,
       status: job.status,
       prompt: job.prompt,
       error: job.error,

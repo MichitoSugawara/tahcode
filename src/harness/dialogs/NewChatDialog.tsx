@@ -13,7 +13,10 @@ import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
 import { errorSummary } from "@/lib/format";
 import { agentMention } from "@/lib/providers";
-import type { ProviderDriverKind } from "@/lib/providers";
+import type {
+  ProviderDriverKind,
+  ProviderOptionSelection,
+} from "@/lib/providers";
 
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -51,6 +54,9 @@ export function NewChatDialog({
     org.provider
   );
   const [model, setModel] = useState<string | null>(org.model);
+  const [options, setOptions] = useState<ProviderOptionSelection[] | undefined>(
+    org.options
+  );
 
   useEffect(() => {
     if (open) {
@@ -62,6 +68,7 @@ export function NewChatDialog({
       setVisibility("inherit");
       setDriverKind(org.provider);
       setModel(org.model);
+      setOptions(org.options);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialProjectId, projects]);
@@ -131,7 +138,7 @@ export function NewChatDialog({
           if (!target) {
             return;
           }
-          org.setAgent(driverKind, model);
+          org.setAgent(driverKind, model, options ?? null);
           if (target === "dm") {
             if (dmId) {
               goChat(dmId);
@@ -139,6 +146,7 @@ export function NewChatDialog({
                 chatId: dmId,
                 driverKind,
                 model: model ?? undefined,
+                options,
               }).catch((error: unknown) => {
                 toast.error("DM のエージェントを設定できませんでした", {
                   description: errorSummary(error),
@@ -152,6 +160,7 @@ export function NewChatDialog({
           const { placeholder, created } = createChat({
             driverKind,
             model: model ?? undefined,
+            options,
             projectId: target,
             title: chatTitle,
             visibility,
@@ -244,9 +253,15 @@ export function NewChatDialog({
             <AgentPicker
               driverKind={driverKind}
               model={model}
-              onChange={(kind, next) => {
+              options={options}
+              onChange={(kind, next, nextOptions) => {
                 setDriverKind(kind);
                 setModel(next);
+                setOptions(
+                  nextOptions === undefined
+                    ? undefined
+                    : (nextOptions ?? undefined)
+                );
               }}
             />
           </div>

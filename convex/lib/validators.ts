@@ -26,6 +26,57 @@ export const providerKind = v.union(
   v.literal("antigravity")
 );
 
+export const installMethod = v.union(
+  v.literal("npm"),
+  v.literal("brew"),
+  v.literal("installer"),
+  v.literal("unknown")
+);
+
+export const liveModel = v.object({
+  slug: v.string(),
+  name: v.optional(v.string()),
+  default: v.optional(v.boolean()),
+  /** From `codex debug models` JSON — used to size the effort picker. */
+  defaultReasoningLevel: v.optional(v.string()),
+  supportedReasoningLevels: v.optional(v.array(v.string())),
+});
+
+/** t3code `ProviderOptionSelection` — `{ id, value }` persisted with the agent binding. */
+export const optionSelection = v.object({
+  id: v.string(),
+  value: v.union(v.string(), v.boolean()),
+});
+
+export const maintenanceKind = v.union(
+  v.literal("updateCli"),
+  v.literal("refreshModels")
+);
+
+export const maintenanceStatus = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("cancelled")
+);
+
+/** What a bridge reports about one provider CLI on its machine (heartbeat + owner report). */
+export const runtimeProviderReport = v.object({
+  driverKind: providerKind,
+  available: v.boolean(),
+  version: v.optional(v.string()),
+  binaryPath: v.optional(v.string()),
+  installMethod: v.optional(installMethod),
+  /** Live catalog from the CLI's own `models` command; absent = static catalog applies. */
+  models: v.optional(v.array(liveModel)),
+  modelsCheckedAt: v.optional(v.number()),
+  /** Why live discovery produced nothing (command missing, timeout, unparsable output). */
+  modelsError: v.optional(v.string()),
+  /** Display form of the update the bridge would run (`agent update`), absent = manual only. */
+  updateCommand: v.optional(v.string()),
+});
+
 export const messageAuthorType = v.union(
   v.literal("user"),
   v.literal("agent"),
@@ -74,6 +125,7 @@ export const chatSummary = v.object({
   projectId: v.optional(v.id("projects")),
   title: v.string(),
   visibility: chatVisibility,
+  options: v.optional(v.array(optionSelection)),
 });
 
 export const messageDoc = v.object({

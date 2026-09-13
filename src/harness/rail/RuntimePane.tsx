@@ -1,5 +1,13 @@
 import { useMutation } from "convex/react";
-import { Check, Cpu, Plus, ShieldCheck, Trash2, Zap } from "lucide-react";
+import {
+  Check,
+  Cpu,
+  Plus,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
@@ -8,7 +16,7 @@ import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Runtime } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName, relativeTime, roleLabel } from "@/lib/format";
-import { PROVIDERS } from "@/lib/providers";
+import { PROVIDERS, mergeModelCatalog } from "@/lib/providers";
 
 import { api } from "../../../convex/_generated/api";
 
@@ -93,25 +101,45 @@ export function RuntimeCard({
       <div className="flex flex-col gap-2.5 px-3 py-2.5">
         <div className="flex flex-wrap gap-1">
           {available.length > 0 ? (
-            available.map((provider) => (
-              <span
-                key={provider.driverKind}
-                title={provider.binaryPath ?? provider.version ?? ""}
-                className="rounded-chip bg-field text-ink-2 shadow-hairline inline-flex h-5.5 items-center gap-1 px-1.5 font-mono text-[11px]"
-              >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{
-                    background:
-                      PROVIDERS[provider.driverKind]?.color ?? "var(--accent)",
-                  }}
-                />
-                {PROVIDERS[provider.driverKind]?.label ?? provider.driverKind}
-                {provider.version && (
-                  <span className="text-ink-3">{provider.version}</span>
-                )}
-              </span>
-            ))
+            available.map((provider) => {
+              const catalog = mergeModelCatalog(
+                provider.driverKind,
+                provider.models
+              );
+              return (
+                <button
+                  key={provider.driverKind}
+                  type="button"
+                  title={`${provider.binaryPath ?? ""}${provider.version ? ` ${provider.version}` : ""} · モデル ${catalog.models.length} 件（${catalog.source === "live" ? "live" : "静的"}）— クリックでプロバイダ設定`}
+                  onClick={() =>
+                    openDialog({
+                      kind: "runtimeProviders",
+                      runtimeId: runtime._id,
+                      focus: provider.driverKind,
+                    })
+                  }
+                  className="rounded-chip bg-field text-ink-2 shadow-hairline hover:bg-hover inline-flex h-5.5 items-center gap-1 px-1.5 font-mono text-[11px] transition-[background-color] duration-150"
+                >
+                  <span
+                    className="size-1.5 rounded-full"
+                    style={{
+                      background:
+                        PROVIDERS[provider.driverKind]?.color ??
+                        "var(--accent)",
+                    }}
+                  />
+                  {PROVIDERS[provider.driverKind]?.label ?? provider.driverKind}
+                  {provider.version && (
+                    <span className="text-ink-3">{provider.version}</span>
+                  )}
+                  <span
+                    className={`text-[10px] ${catalog.source === "live" ? "text-green" : "text-ink-3"}`}
+                  >
+                    {catalog.models.length}
+                  </span>
+                </button>
+              );
+            })
           ) : runtime.providers.length > 0 ? (
             <span className="text-ink-3 text-[12px]">
               CLI が見つかりません（codex / claude / agent
@@ -166,6 +194,16 @@ export function RuntimeCard({
                 <Zap size={12} /> {selected ? "指定を解除" : "このマシンを使う"}
               </Button>
             )}
+            <Button
+              type="button"
+              size="xs"
+              variant="secondary"
+              onClick={() =>
+                openDialog({ kind: "runtimeProviders", runtimeId: runtime._id })
+              }
+            >
+              <SlidersHorizontal size={12} /> プロバイダ設定
+            </Button>
             {(mine || isAdmin) && (
               <Button
                 type="button"

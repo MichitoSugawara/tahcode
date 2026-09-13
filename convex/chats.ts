@@ -8,12 +8,15 @@ import {
   requireRole,
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
-import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
+import type { ProviderOptionSelection } from "./lib/modelOptions";
+import { sanitizeOptionSelections } from "./lib/modelOptions";
 import type { ProviderDriverKind } from "./lib/providers";
+import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
 import {
   chatKind,
   chatSummary,
   chatVisibility,
+  optionSelection,
   providerKind,
   userSummary,
 } from "./lib/validators";
@@ -26,9 +29,10 @@ import {
 function normalizeAgentBinding(input: {
   driverKind?: ProviderDriverKind;
   model?: string;
+  options?: ProviderOptionSelection[];
 }) {
   if (!input.driverKind) {
-    return { driverKind: undefined, model: undefined };
+    return { driverKind: undefined, model: undefined, options: undefined };
   }
   const trimmed = input.model?.trim();
   if (trimmed && !isValidModelSlug(trimmed)) {
@@ -39,6 +43,7 @@ function normalizeAgentBinding(input: {
   return {
     driverKind: input.driverKind,
     model: resolveModelSlug(input.driverKind, trimmed),
+    options: sanitizeOptionSelections(input.options),
   };
 }
 
@@ -51,6 +56,7 @@ function summarize(chat: Doc<"chats">) {
     orgId: chat.orgId,
     ownerId: chat.ownerId,
     projectId: chat.projectId,
+    options: chat.options,
     title: chat.title,
     visibility: chat.visibility,
   };
@@ -90,6 +96,7 @@ export const createProjectChat = authedMutation({
     memberIds: v.optional(v.array(v.id("users"))),
     model: v.optional(v.string()),
     projectId: v.id("projects"),
+    options: v.optional(v.array(optionSelection)),
     title: v.string(),
     visibility: chatVisibility,
   },
@@ -125,6 +132,7 @@ export const createProjectChat = authedMutation({
       createdBy: ctx.user._id,
       driverKind: agent.driverKind,
       model: agent.model,
+      options: agent.options,
     });
     for (const memberId of members) {
       await ctx.db.insert("chatMembers", { chatId, userId: memberId });
@@ -200,6 +208,7 @@ export const setAgent = authedMutation({
     chatId: v.id("chats"),
     driverKind: providerKind,
     model: v.optional(v.string()),
+    options: v.optional(v.array(optionSelection)),
   },
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
@@ -215,6 +224,7 @@ export const setAgent = authedMutation({
     await ctx.db.patch("chats", args.chatId, {
       driverKind: agent.driverKind,
       model: agent.model,
+      options: agent.options,
     });
     return null;
   },

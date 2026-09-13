@@ -7,6 +7,7 @@ import { GrantAccessDialog } from "./GrantAccessDialog";
 import { InviteDialog } from "./InviteDialog";
 import { NewChatDialog } from "./NewChatDialog";
 import { RegisterRuntimeDialog } from "./RegisterRuntimeDialog";
+import { RuntimeProvidersDialog } from "./RuntimeProvidersDialog";
 
 /** Renders whichever org-scoped dialog is open in context. */
 export function DialogHost({
@@ -47,6 +48,14 @@ export function DialogHost({
           open
           onOpenChange={close}
           runtimeId={dialog.runtimeId}
+        />
+      )}
+      {dialog?.kind === "runtimeProviders" && (
+        <RuntimeProvidersDialog
+          open
+          onOpenChange={close}
+          runtimeId={dialog.runtimeId}
+          focus={dialog.focus}
         />
       )}
       <InviteDialog open={dialog?.kind === "invite"} onOpenChange={close} />

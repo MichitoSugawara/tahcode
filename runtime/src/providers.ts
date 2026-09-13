@@ -9,15 +9,19 @@
  * codex exec, claude -p, agent -p, grok, opencode run. Antigravity has no CLI
  * and stays a guided stub.
  */
-import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 
+import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
+import { planHeadlessEffort } from "../../shared/modelOptions.ts";
+import type { InstallMethod } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 import {
   createUtf8LineBuffer,
   flushUtf8Lines,
   pushUtf8Lines,
 } from "../../shared/utf8.ts";
+import { plannedUpdateLabel, resolveInstallMethod } from "./maintenance.ts";
 
 export interface ProviderProbe {
   kind: ProviderDriverKind;
@@ -26,6 +30,10 @@ export interface ProviderProbe {
   available: boolean;
   version: string | null;
   headlessSummary: string;
+  /** How the CLI got onto this machine (drives which update command is allowed). */
+  installMethod: InstallMethod;
+  /** Display form of the allowlisted update this bridge would run; undefined = manual only. */
+  updateCommand: string | undefined;
 }
 
 export interface RunEvents {
@@ -104,7 +112,9 @@ export async function probeProviders(): Promise<ProviderProbe[]> {
         displayName: DISPLAY[kind] ?? kind,
         headlessSummary:
           "native installer + Google sign-in (guided setup, no CLI)",
+        installMethod: "unknown",
         kind,
+        updateCommand: undefined,
         version: null,
       });
       continue;
@@ -116,11 +126,24 @@ export async function probeProviders(): Promise<ProviderProbe[]> {
       binary,
       displayName: DISPLAY[kind] ?? kind,
       headlessSummary: headlessSummary(kind),
+      installMethod: binary ? resolveInstallMethod(binary) : "unknown",
       kind,
+      updateCommand: binary ? plannedUpdateLabel(kind, binary) : undefined,
       version,
     });
   }
   return probes;
+}
+
+/** Re-read one provider's version after an update (same probe as the heartbeat uses). */
+export async function probeVersion(
+  kind: ProviderDriverKind
+): Promise<{ binary: string | null; version: string | null }> {
+  const binary = await whichBinary(BINARIES[kind] ?? []);
+  return {
+    binary,
+    version: binary ? await binaryVersion(binary, ["--version"]) : null,
+  };
 }
 
 function headlessSummary(kind: ProviderDriverKind): string {
@@ -154,7 +177,9 @@ export interface ProviderRun {
 /**
  * Headless argv per provider. `model` is the slug from `@provider/model` (or
  * the chat's bound model); when absent the CLI runs with its own default, so a
- * bare `@provider` behaves exactly as before. Flags follow what t3code and
+ * bare `@provider` behaves exactly as before. `options` are t3code
+ * `ProviderOptionSelection`s (effort / variant / thinking) and become
+ * provider-native flags when the CLI has one. Flags follow what t3code and
  * Multica pass: `codex exec --model`, `claude -p --model`, `agent -p --model`,
  * `opencode run --model provider/model`; Grok's headless flags stay
  * provisional (see README).
@@ -162,12 +187,14 @@ export interface ProviderRun {
 export function headlessArgs(
   kind: ProviderDriverKind,
   prompt: string,
-  model?: string
+  model?: string,
+  options?: readonly ProviderOptionSelection[]
 ): string[] {
+  const effort = planHeadlessEffort(kind, prompt, model, options);
   const modelFlag = model ? ["--model", model] : [];
   switch (kind) {
     case "codex": {
-      return ["exec", ...modelFlag, "--json", prompt];
+      return ["exec", ...modelFlag, ...effort.flags, "--json", effort.prompt];
     }
     case "claudeAgent": {
       // `--verbose` is required by the Claude CLI when combining
@@ -175,22 +202,29 @@ export function headlessArgs(
       return [
         "-p",
         ...modelFlag,
+        ...effort.flags,
         "--output-format",
         "stream-json",
         "--verbose",
         "--max-turns",
         "10",
-        prompt,
+        effort.prompt,
       ];
     }
     case "cursor": {
-      return ["-p", ...modelFlag, "--output-format", "stream-json", prompt];
+      return [
+        "-p",
+        ...modelFlag,
+        "--output-format",
+        "stream-json",
+        effort.prompt,
+      ];
     }
     case "grok": {
-      return [...modelFlag, "--prompt", prompt];
+      return [...modelFlag, "--prompt", effort.prompt];
     }
     case "opencode": {
-      return ["run", ...modelFlag, prompt];
+      return ["run", ...modelFlag, ...effort.flags, effort.prompt];
     }
     case "antigravity": {
       throw new Error(
@@ -207,9 +241,10 @@ export async function runHeadless(
   cwd: string | undefined,
   events: RunEvents,
   signal: AbortSignal,
-  model?: string
+  model?: string,
+  options?: readonly ProviderOptionSelection[]
 ): Promise<{ exitCode: number; output: string }> {
-  const args = headlessArgs(kind, prompt, model);
+  const args = headlessArgs(kind, prompt, model, options);
   const child = spawn(binary, args, {
     cwd,
     env: process.env,
