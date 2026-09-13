@@ -40,6 +40,8 @@ jobs:
           echo "preview_name=$name" >> "$GITHUB_OUTPUT"
           echo "Using Convex preview name: $name"
 
+      # Preview-only: deploy-stack lists/creates team-harness-files-preview
+      # when credentials allow, then retries transient Wrangler `fetch failed`.
       - id: deploy
         uses: ./.github/actions/deploy-stack
         with:
@@ -54,13 +56,19 @@ jobs:
         with:
           script: |
             const cloudflareUrl = '${{ steps.deploy.outputs.cloudflare_url }}';
+            const skipped = '${{ steps.deploy.outputs.skipped }}';
+            const skipReason = '${{ steps.deploy.outputs.skip_reason }}';
             const convexUrl = process.env.CONVEX_URL || '';
             const marker = '<!-- convex-cloudflare-preview -->';
+            const cloudflareLine =
+              skipped === 'true'
+                ? `- Cloudflare: skipped (${skipReason || 'see deploy logs'})`
+                : `- Cloudflare: ${cloudflareUrl}`;
             const body = [
               marker,
               '## Preview deployments',
               '',
-              `- Cloudflare: ${cloudflareUrl}`,
+              cloudflareLine,
               convexUrl ? `- Convex: ${convexUrl}` : null,
               '',
               'These URLs are rebuilt on each push to this PR. Staging and production are not updated.',
