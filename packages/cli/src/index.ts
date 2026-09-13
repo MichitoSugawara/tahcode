@@ -1,8 +1,32 @@
 import os from "node:os";
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { RuntimeClient } from "../../../runtime/src/convexClient.ts";
 import { probeProviders } from "../../../runtime/src/providers.ts";
 import { runLoop } from "../../../runtime/src/runner.ts";
+import {
+  BRIDGE_LOG_PATH,
+  LAUNCHD_LABEL,
+  LAUNCHD_PLIST_PATH,
+  followLog,
+  launchdInstall,
+  launchdInstalled,
+  launchdLoad,
+  launchdRestart,
+  launchdStatus,
+  launchdSupported,
+  launchdUninstall,
+  launchdUnload,
+  registerBridgeProcess,
+  runningBridge,
+  spawnDetachedBridge,
+  stopBridgeProcess,
+  tailLog,
+  uptime,
+  type BridgeLaunchOptions,
+  type BridgeMode,
+  type BridgeState,
+} from "./bridge.ts";
 import { CONFIG_PATH, maskToken, removeLink, resolveLink, writeLink, type LinkConfig } from "./config.ts";
 import { MULTICA_BIN, MULTICA_DOCS, daemonAgents, daemonHealth, daemonRunning, installCommand, multicaAuthOk, multicaInstalled, multicaVersion, passthrough } from "./multica.ts";
 import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
@@ -12,14 +36,15 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  *
  *   npm i -g dalecode
  *   dalecode link --url … --runtime … --token …   ← from the web UI
- *   dalecode start                                ← Multica daemon + bridge
+ *   dalecode start                                ← Multica daemon + bridge (background)
+ *   dalecode start --foreground                   ← bridge in this terminal
  *
  * A thin wrapper around the Multica CLI/daemon: dalecode owns
  * the org/runtime link and the chat→job bridge; Multica owns
  * agent-CLI detection and machine execution.
  * ───────────────────────────────────────────────────────── */
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 type Flags = Record<string, string | boolean>;
 
@@ -36,8 +61,13 @@ function parseArgs(argv: string[]): { command: string; positional: string[]; fla
     if (arg.startsWith("--")) {
       const [key, inline] = arg.slice(2).split("=", 2);
       if (inline !== undefined) flags[key!] = inline;
-      else if (tail[i + 1] && !tail[i + 1]!.startsWith("--")) flags[key!] = tail[++i]!;
+      else if (tail[i + 1] && !tail[i + 1]!.startsWith("-")) flags[key!] = tail[++i]!;
       else flags[key!] = true;
+    } else if (/^-[a-zA-Z]$/.test(arg)) {
+      // short flags: -f (boolean), -n <N> (value)
+      const key = arg.slice(1);
+      if (key === "n" && tail[i + 1] && !tail[i + 1]!.startsWith("-")) flags[key] = tail[++i]!;
+      else flags[key] = true;
     } else {
       positional.push(arg);
     }
@@ -56,20 +86,27 @@ function help(): void {
 ${bold("使い方")}
   ${code("dalecode link")} --url <convex-url> --runtime <id> --token <th_…> [--name <machine>]
                         Web UI「このマシンを登録」で表示されたコマンド（~/.dalecode/config.json に保存）
-  ${code("dalecode start")}      Multica daemon を起動し、dalecode のジョブブリッジをフォアグラウンドで実行
-  ${code("dalecode status")}     リンク状態と Multica daemon の状態
+  ${code("dalecode start")}      Multica daemon を起動し、dalecode のジョブブリッジをバックグラウンドで常駐させる
+                        （${code("--foreground")} でこのターミナルで実行、Ctrl+C で停止）
+  ${code("dalecode status")}     リンク状態・dalecode ブリッジ・Multica daemon の状態
+  ${code("dalecode stop [bridge|multica|all]")}      停止（既定: all）
+  ${code("dalecode restart [bridge|multica|all]")}   再起動（既定: all）
+  ${code("dalecode logs [bridge|multica|all] [-f] [-n N]")}   ログ（既定: bridge → ${dim("~/.dalecode/bridge.log")}）
+  ${code("dalecode service install|uninstall|status")}   macOS: launchd ユーザーエージェントとして登録（ログイン時に自動起動）
   ${code("dalecode doctor")}     Node / Multica / エージェント CLI / dalecode 接続の診断
   ${code("dalecode providers")}  検出済みのエージェント CLI（Multica の検出 + t3code セット）
-  ${code("dalecode stop")} · ${code("restart")} · ${code("logs [-f]")}   Multica daemon の停止 / 再起動 / ログ
   ${code("dalecode install-multica [--yes]")}   Multica CLI のインストールコマンドを表示（--yes で実行）
   ${code("dalecode multica <args…>")}          multica CLI にそのまま渡す（例: dalecode multica login）
   ${code("dalecode unlink")}     このマシンのリンクを削除
 
 ${bold("オプション")}
-  --no-daemon         start 時に Multica daemon を起動しない（ブリッジのみ）
+  --foreground        start: ブリッジをバックグラウンドにせず、このターミナルで実行（旧来の動作）
+  --detach            start: バックグラウンドで実行（既定。明示したいとき用）
+  --no-daemon         start / service install: Multica daemon を起動しない（ブリッジのみ）
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
-  --provider <kind>   ブリッジの既定プロバイダを固定（codex / claudeAgent / cursor / grok / opencode）
+  --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
 
+ファイル: ~/.dalecode/config.json（リンク）· bridge.json（ブリッジの pid）· bridge.log（ブリッジのログ）
 環境変数でもリンクできます: DALECODE_URL, DALECODE_RUNTIME_ID, DALECODE_TOKEN
 （互換: CONVEX_URL, HARNESS_RUNTIME_ID, HARNESS_RUNTIME_TOKEN）
 Multica: ${MULTICA_DOCS}`);
@@ -158,14 +195,100 @@ async function ensureDaemon(link: LinkConfig, flags: Flags): Promise<void> {
   else warn(`Multica daemon を確認できませんでした（exit ${codeExit}）。${code("dalecode logs")} で確認できます。`);
 }
 
+function bridgeOptions(flags: Flags): BridgeLaunchOptions {
+  return {
+    cwd: path.resolve(flagString(flags, "cwd") ?? process.env.DALECODE_CWD ?? process.env.HARNESS_CWD ?? process.cwd()),
+    provider: flagString(flags, "provider"),
+    noDaemon: !!flags["no-daemon"],
+  };
+}
+
+function describeBridge(state: BridgeState): string {
+  const mode = { foreground: "フォアグラウンド", detached: "バックグラウンド", launchd: "launchd" }[state.mode];
+  const up = uptime(state.startedAt);
+  return `pid ${state.pid} · ${mode}${up ? ` · ${up}` : ""} · cwd ${state.cwd}${state.provider ? ` · provider ${state.provider}` : ""}`;
+}
+
+/** Wait for the bridge process to register itself in ~/.dalecode/bridge.json. */
+async function waitForBridge(timeoutMs = 5000): Promise<BridgeState | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = runningBridge();
+    if (state) return state;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return null;
+}
+
 async function cmdStart(flags: Flags): Promise<void> {
   const link = requireLink();
+  const options = bridgeOptions(flags);
+  const foreground = !!flags.foreground || !!flags.fg;
+
+  const running = runningBridge();
+  if (running) {
+    ok(`dalecode ブリッジは既に起動中です（${describeBridge(running)}）`);
+    info(`ログ: ${code("dalecode logs -f")} · 停止: ${code("dalecode stop")} · 再起動: ${code("dalecode restart")}`);
+    return;
+  }
+
   console.log(`${BRAND} ${dim(`v${VERSION}`)} — ${link.name ?? os.hostname()} を ${link.url} に接続`);
   await ensureDaemon(link, flags);
-  heading("dalecode ブリッジ（Ctrl+C で停止）");
-  const cwd = flagString(flags, "cwd") ?? process.env.DALECODE_CWD ?? process.env.HARNESS_CWD ?? process.cwd();
-  const preferred = flagString(flags, "provider") as Parameters<typeof runLoop>[0]["preferredKind"];
-  await runLoop({ convexUrl: link.url, runtimeId: link.runtimeId, token: link.token, cwd, preferredKind: preferred });
+
+  if (foreground) {
+    const envMode = process.env.DALECODE_BRIDGE_MODE;
+    const mode: BridgeMode = envMode === "detached" || envMode === "launchd" ? envMode : "foreground";
+    registerBridgeProcess(options, mode);
+    heading(mode === "foreground" ? "dalecode ブリッジ（Ctrl+C で停止）" : `dalecode ブリッジ（${mode} · pid ${process.pid}）`);
+    const preferred = options.provider as Parameters<typeof runLoop>[0]["preferredKind"];
+    await runLoop({ convexUrl: link.url, runtimeId: link.runtimeId, token: link.token, cwd: options.cwd, preferredKind: preferred });
+    return;
+  }
+
+  // macOS: a registered launchd agent is resumed (or left alone while it restarts) instead of double-starting.
+  if (launchdInstalled()) {
+    if (launchdStatus().loaded) {
+      warn(`launchd（${LAUNCHD_LABEL}）がブリッジを管理中です。起動待ちの可能性があります — ${code("dalecode restart")} で即時再起動できます。`);
+      return;
+    }
+    heading("launchd エージェントを再開します…");
+    const loaded = launchdLoad();
+    if (loaded.ok) {
+      const state = await waitForBridge();
+      if (state) ok(`dalecode ブリッジ: 起動しました（${describeBridge(state)}）`);
+      else warn(`launchd に読み込みましたが、ブリッジの起動を確認できません。${code("dalecode logs")} を確認してください。`);
+      return;
+    }
+    warn(`launchd の読み込みに失敗（${loaded.detail}）。通常のバックグラウンド起動に切り替えます。`);
+  }
+
+  heading("dalecode ブリッジをバックグラウンドで起動します…");
+  // The Multica daemon was handled above; the child only runs the bridge.
+  const state = await spawnDetachedBridge({ ...options, noDaemon: true });
+  ok(`dalecode ブリッジ: 起動しました（${describeBridge(state)}）`);
+  info(`ログ: ${BRIDGE_LOG_PATH}`);
+  info(`状態: ${code("dalecode status")} · ログ: ${code("dalecode logs -f")} · 停止: ${code("dalecode stop")}`);
+  if (launchdSupported() && !launchdInstalled()) info(`ログイン時に自動起動するには: ${code("dalecode service install")}`);
+}
+
+function printBridgeStatus(): BridgeState | null {
+  heading("dalecode ブリッジ");
+  const state = runningBridge();
+  if (state) {
+    ok(`起動中（${describeBridge(state)}）`);
+    if (state.log) info(`ログ: ${state.log}`);
+  } else {
+    fail(`停止中（${code("dalecode start")} で起動）`);
+  }
+  if (launchdSupported()) {
+    if (launchdInstalled()) {
+      const status = launchdStatus();
+      (status.loaded ? ok : warn)(`launchd: 登録済み（${LAUNCHD_LABEL} · ${status.loaded ? "読み込み済み" : `停止中 — ${code("dalecode start")} で再開`}）`);
+    } else {
+      info(`launchd: 未登録（${code("dalecode service install")} でログイン時に自動起動）`);
+    }
+  }
+  return state;
 }
 
 async function cmdStatus(): Promise<void> {
@@ -177,6 +300,7 @@ async function cmdStatus(): Promise<void> {
   } else {
     fail("未リンク（dalecode link …）");
   }
+  printBridgeStatus();
   heading("Multica");
   const version = multicaVersion();
   if (!version) {
@@ -229,6 +353,8 @@ async function cmdDoctor(): Promise<void> {
   } catch (error) {
     fail(`接続に失敗: ${error instanceof Error ? error.message : String(error)}`);
   }
+  const bridge = runningBridge();
+  (bridge ? ok : warn)(bridge ? `ブリッジ起動中（${describeBridge(bridge)}）` : `ブリッジ停止中（${code("dalecode start")} で起動）`);
 }
 
 async function cmdProviders(): Promise<void> {
@@ -265,6 +391,171 @@ async function cmdInstallMultica(flags: Flags): Promise<void> {
   });
   if (exit === 0 && multicaInstalled()) ok(`インストールしました: ${multicaVersion()}`);
   else fail(`インストールに失敗しました（exit ${exit}）。${MULTICA_DOCS} を参照してください。`);
+}
+
+/* ── stop / restart / logs cover both the dalecode bridge and the Multica daemon ── */
+
+type Target = "bridge" | "multica" | "all";
+
+function parseTarget(positional: string[], fallback: Target): Target {
+  const raw = positional[0];
+  if (raw === undefined) return fallback;
+  if (raw === "bridge" || raw === "multica" || raw === "all") return raw;
+  if (raw === "daemon") return "multica";
+  fail(`対象は bridge / multica / all のいずれかです: ${raw}`);
+  process.exit(2);
+}
+
+/** Stop the bridge however it was started. Returns true if something was stopped. */
+async function stopBridge(): Promise<boolean> {
+  const state = runningBridge();
+  if (state?.mode === "launchd" || (!state && launchdStatus().loaded)) {
+    // KeepAlive would respawn a killed process: unload the agent instead (plist stays → back on next login / `dalecode start`).
+    const result = launchdUnload();
+    if (!result.ok) {
+      fail(`launchd から停止できません: ${result.detail}`);
+      return false;
+    }
+    if (state) await stopBridgeProcess(state);
+    ok(`dalecode ブリッジ: 停止しました（launchd · ${LAUNCHD_LABEL} を unload）`);
+    info(`再開: ${code("dalecode start")} · 自動起動を解除: ${code("dalecode service uninstall")}`);
+    return true;
+  }
+  if (!state) {
+    info("dalecode ブリッジ: 起動していません");
+    return false;
+  }
+  const stopped = await stopBridgeProcess(state);
+  (stopped ? ok : info)(stopped ? `dalecode ブリッジ: 停止しました（pid ${state.pid}）` : "dalecode ブリッジ: 起動していません");
+  return stopped;
+}
+
+async function cmdStop(positional: string[]): Promise<void> {
+  const target = parseTarget(positional, "all");
+  let exit = 0;
+  if (target !== "multica") {
+    heading("dalecode ブリッジ");
+    await stopBridge();
+  }
+  if (target !== "bridge") {
+    heading("Multica daemon");
+    if (!multicaInstalled()) info("Multica CLI 未インストール");
+    else exit = await passthrough(["daemon", "stop"]);
+  }
+  process.exit(exit);
+}
+
+async function cmdRestart(flags: Flags, positional: string[]): Promise<void> {
+  const target = parseTarget(positional, "all");
+  let exit = 0;
+  if (target !== "bridge" && multicaInstalled()) {
+    heading("Multica daemon");
+    exit = await passthrough(["daemon", "restart"]);
+  }
+  if (target !== "multica") {
+    heading("dalecode ブリッジ");
+    const previous = runningBridge();
+    if (previous?.mode === "launchd" || (!previous && launchdStatus().loaded)) {
+      const result = launchdRestart();
+      if (!result.ok) {
+        fail(`launchd で再起動できません: ${result.detail}`);
+        process.exit(1);
+      }
+      const state = await waitForBridge();
+      if (state) ok(`再起動しました（${describeBridge(state)}）`);
+      else warn(`再起動を要求しましたが、ブリッジの起動を確認できません。${code("dalecode logs")} を確認してください。`);
+      process.exit(exit);
+    }
+    if (previous) await stopBridgeProcess(previous);
+    requireLink();
+    // Reuse the previous cwd / provider unless overridden; a foreground bridge comes back detached.
+    const options: BridgeLaunchOptions = {
+      cwd: flagString(flags, "cwd") ? path.resolve(flagString(flags, "cwd")!) : (previous?.cwd ?? bridgeOptions(flags).cwd),
+      provider: flagString(flags, "provider") ?? previous?.provider,
+      noDaemon: true,
+    };
+    const state = await spawnDetachedBridge(options);
+    ok(`${previous ? "再起動" : "起動"}しました（${describeBridge(state)}）`);
+    info(`ログ: ${code("dalecode logs -f")}`);
+  }
+  process.exit(exit);
+}
+
+async function cmdLogs(flags: Flags, positional: string[]): Promise<void> {
+  const target = parseTarget(positional, "bridge");
+  const follow = !!flags.follow || !!flags.f;
+  const lines = Number(flagString(flags, "n") ?? flagString(flags, "lines") ?? 50) || 50;
+  if (target === "multica") {
+    process.exit(await passthrough(["daemon", "logs", ...(follow ? ["-f"] : []), "-n", String(lines)]));
+  }
+  if (target === "all") {
+    heading(`dalecode ブリッジ（${BRIDGE_LOG_PATH}）`);
+    const tail = tailLog(lines);
+    if (tail.length === 0) info("ログはまだありません");
+    for (const line of tail) console.log(line);
+    heading("Multica daemon");
+    if (!multicaInstalled()) info("Multica CLI 未インストール");
+    else await passthrough(["daemon", "logs", "-n", String(lines)]);
+    if (follow) info(`追従は対象を 1 つにしてください: ${code("dalecode logs bridge -f")} / ${code("dalecode logs multica -f")}`);
+    return;
+  }
+  if (follow) {
+    await followLog(lines);
+    return;
+  }
+  const tail = tailLog(lines);
+  if (tail.length === 0) info(`ログはまだありません（${BRIDGE_LOG_PATH}）`);
+  for (const line of tail) console.log(line);
+}
+
+/* ── macOS launchd user agent ───────────────────────────── */
+
+async function cmdService(flags: Flags, positional: string[]): Promise<void> {
+  const action = positional[0] ?? "status";
+  if (!launchdSupported()) {
+    fail("dalecode service（launchd）は macOS のみ対応です。他の OS では dalecode start（バックグラウンド）を使ってください。");
+    process.exit(2);
+  }
+  switch (action) {
+    case "install": {
+      requireLink();
+      const options = bridgeOptions(flags);
+      heading("launchd ユーザーエージェントを登録します");
+      info(`plist: ${LAUNCHD_PLIST_PATH}`);
+      info(`cwd ${options.cwd}${options.provider ? ` · provider ${options.provider}` : ""}${options.noDaemon ? " · --no-daemon" : ""}`);
+      const running = runningBridge();
+      if (running && running.mode !== "launchd") {
+        info(`既存のブリッジ（pid ${running.pid}）を停止して launchd に引き継ぎます`);
+        await stopBridgeProcess(running);
+      }
+      const result = launchdInstall(options);
+      if (!result.ok) {
+        fail(`launchctl に失敗しました: ${result.detail}`);
+        process.exit(1);
+      }
+      const state = await waitForBridge(8000);
+      if (state) ok(`登録して起動しました（${describeBridge(state)}）— ログイン時に自動起動します`);
+      else warn(`登録しましたが、ブリッジの起動を確認できません。${code("dalecode logs")} を確認してください。`);
+      info(`停止: ${code("dalecode stop")} · 解除: ${code("dalecode service uninstall")} · ログ: ${BRIDGE_LOG_PATH}`);
+      return;
+    }
+    case "uninstall": {
+      heading("launchd ユーザーエージェントを解除します");
+      const result = launchdUninstall();
+      if (!result.ok) warn(`launchctl bootout: ${result.detail}`);
+      (result.removed ? ok : info)(result.removed ? `削除しました: ${LAUNCHD_PLIST_PATH}` : "登録されていません");
+      const leftover = runningBridge();
+      if (leftover) await stopBridgeProcess(leftover);
+      return;
+    }
+    case "status":
+      printBridgeStatus();
+      if (launchdInstalled()) info(`plist: ${LAUNCHD_PLIST_PATH}`);
+      return;
+    default:
+      fail(`不明なサブコマンド: service ${action}（install / uninstall / status）`);
+      process.exit(2);
+  }
 }
 
 async function main(): Promise<void> {
@@ -309,14 +600,17 @@ async function main(): Promise<void> {
       await cmdProviders();
       return;
     case "stop":
-      process.exit(await passthrough(["daemon", "stop", ...positional]));
-      break;
+      await cmdStop(positional);
+      return;
     case "restart":
-      process.exit(await passthrough(["daemon", "restart", ...positional]));
-      break;
+      await cmdRestart(flags, positional);
+      return;
     case "logs":
-      process.exit(await passthrough(["daemon", "logs", ...positional, ...(flags.follow ? ["-f"] : []), ...(flagString(flags, "n") ? ["-n", flagString(flags, "n")!] : [])]));
-      break;
+      await cmdLogs(flags, positional);
+      return;
+    case "service":
+      await cmdService(flags, positional);
+      return;
     case "install-multica":
       await cmdInstallMultica(flags);
       return;

@@ -69,6 +69,8 @@ export const chatSummary = v.object({
   title: v.string(),
   visibility: chatVisibility,
   ownerId: v.optional(v.id("users")),
+  driverKind: v.optional(providerKind),
+  model: v.optional(v.string()),
 });
 
 export const messageDoc = v.object({
@@ -80,6 +82,7 @@ export const messageDoc = v.object({
   jobId: v.optional(v.id("jobs")),
   runtimeId: v.optional(v.id("runtimes")),
   driverKind: v.optional(providerKind),
+  model: v.optional(v.string()),
   body: v.string(),
   mentions: v.array(v.string()),
   status: v.optional(

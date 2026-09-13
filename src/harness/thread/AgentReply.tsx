@@ -31,10 +31,12 @@ export type AgentMessage = {
   body: string;
   status?: "streaming" | "done" | "error";
   driverKind?: string;
+  model?: string;
   jobId?: Id<"jobs">;
   runtimeId?: Id<"runtimes">;
 };
 
+/* `_Cursor · muse-spark-1.3 · 12.3s · agent_` — the model segment is optional */
 const FOOTER = /\n\n_([^_\n]+) · ([\d.]+)s · ([^_\n]+)_\s*$/;
 
 function splitFooter(body: string): { text: string; footer: { provider: string; seconds: string; binary: string } | null } {
@@ -184,6 +186,11 @@ export function AgentReply({ message, prompt, onRetry }: { message: AgentMessage
           {label.charAt(0)}
         </Monogram>
         <span className="font-medium text-ink">{label}</span>
+        {message.model && (
+          <code className="rounded-[4px] bg-inset px-1 py-px font-mono text-[11px] text-ink-2" title="このメッセージのモデル（@provider/model）">
+            {message.model}
+          </code>
+        )}
         {runtime && (
           <span className="inline-flex items-center gap-1 text-ink-3">
             <Cpu size={11} /> {runtime.name}

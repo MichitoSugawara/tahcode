@@ -8,7 +8,14 @@ import {
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { buildAgentContext } from "./lib/context";
-import { parseMentions, preferredProvider, shouldDispatchAgent } from "./lib/mentions";
+import {
+  parseMentions,
+  preferredProvider,
+  preferredTarget,
+  shouldDispatchAgent,
+  type AgentTarget,
+} from "./lib/mentions";
+import { isValidModelSlug, resolveModelSlug, type ProviderDriverKind } from "./lib/providers";
 import { messageDoc, providerKind } from "./lib/validators";
 
 export const list = authedQuery({
@@ -49,6 +56,9 @@ export const send = authedMutation({
     chatId: v.id("chats"),
     body: v.string(),
     runtimeId: v.optional(v.id("runtimes")),
+    /* the composer's provider / model pick; wins over the chat binding, loses to an explicit @mention */
+    driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
   },
   returns: v.object({
     messageId: v.id("messages"),
@@ -56,6 +66,7 @@ export const send = authedMutation({
     assistantMessageId: v.optional(v.id("messages")),
     jobId: v.optional(v.id("jobs")),
     driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
@@ -67,6 +78,7 @@ export const send = authedMutation({
     const body = args.body.trim();
     if (body.length < 1) throw new Error("Message is required");
     if (body.length > 20000) throw new Error("Message is too long");
+    const explicit = explicitTarget(args);
 
     const mentions = parseMentions(body);
     const messageId = await ctx.db.insert("messages", {
@@ -97,14 +109,23 @@ export const send = authedMutation({
       history: [...history].reverse(),
     });
 
+    // Fallback when nothing is @mentioned: composer pick > chat binding >
+    // whatever the runtime has installed (legacy DMs / `@agent`).
+    const bound: AgentTarget | undefined =
+      explicit ?? (chat.driverKind ? { driverKind: chat.driverKind, model: chat.model } : undefined);
+    const wantedKind = preferredProvider(mentions, bound?.driverKind ?? "codex");
     const runtime = await pickRuntime(ctx, {
       orgId: chat.orgId,
       userId: ctx.user._id,
       role: membership.role,
       hint: args.runtimeId,
-      fallbackDriver: preferredProvider(mentions, "codex"),
+      wantedKind,
     });
-    const driverKind = preferredProvider(mentions, runtime?.defaultDriver ?? "codex");
+    const target = preferredTarget(
+      mentions,
+      bound ?? { driverKind: runtime?.installedDriver ?? "codex" },
+    );
+    const { driverKind, model } = target;
 
     if (!runtime) {
       const assistantMessageId = await ctx.db.insert("messages", {
@@ -114,8 +135,9 @@ export const send = authedMutation({
         mentions: [],
         status: "done",
         driverKind,
+        model,
       });
-      return { messageId, dispatched: true, assistantMessageId, driverKind };
+      return { messageId, dispatched: true, assistantMessageId, driverKind, model };
     }
 
     const assistantMessageId = await ctx.db.insert("messages", {
@@ -126,6 +148,7 @@ export const send = authedMutation({
       mentions: [],
       status: "streaming",
       driverKind,
+      model,
     });
     const jobId = await ctx.db.insert("jobs", {
       orgId: chat.orgId,
@@ -135,25 +158,42 @@ export const send = authedMutation({
       assistantMessageId,
       runtimeId: runtime.doc._id,
       driverKind,
+      model,
       status: "queued",
       prompt: body,
       contextJson: JSON.stringify(context),
     });
     await ctx.db.patch("messages", assistantMessageId, { jobId });
-    return { messageId, dispatched: true, assistantMessageId, jobId, driverKind };
+    return { messageId, dispatched: true, assistantMessageId, jobId, driverKind, model };
   },
 });
+
+function explicitTarget(args: { driverKind?: ProviderDriverKind; model?: string }): AgentTarget | undefined {
+  if (!args.driverKind) return undefined;
+  const trimmed = args.model?.trim();
+  if (trimmed && !isValidModelSlug(trimmed)) {
+    throw new Error("Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes");
+  }
+  return { driverKind: args.driverKind, model: resolveModelSlug(args.driverKind, trimmed) };
+}
 
 type RuntimePick = {
   doc: {
     _id: Id<"runtimes">;
     ownerUserId: Id<"users">;
   };
-  defaultDriver: "codex" | "claudeAgent" | "cursor" | "grok" | "opencode" | "antigravity";
+  /** the wanted provider when this machine reports it, else its first installed CLI */
+  installedDriver: ProviderDriverKind | undefined;
 } | null;
 
 type CtxWithUser = MutationCtx & { user: Doc<"users"> };
 
+/**
+ * Pick the runtime a job goes to: the composer's explicit machine first, then
+ * any usable online machine that actually has the wanted provider installed,
+ * then any usable online machine (the runtime reports a clear "not installed"
+ * error instead of silently running another provider).
+ */
 async function pickRuntime(
   ctx: CtxWithUser,
   input: {
@@ -161,7 +201,7 @@ async function pickRuntime(
     userId: Id<"users">;
     role: "owner" | "admin" | "member";
     hint?: Id<"runtimes">;
-    fallbackDriver: NonNullable<RuntimePick>["defaultDriver"];
+    wantedKind: ProviderDriverKind;
   },
 ): Promise<RuntimePick> {
   const candidates = await ctx.db
@@ -178,15 +218,8 @@ async function pickRuntime(
       runtime.lastSeenAt !== undefined &&
       runtime.lastSeenAt > staleBefore,
   );
-  const ordered = [
-    ...online.filter((runtime) =>
-      input.hint ? String(runtime._id) === String(input.hint) : false,
-    ),
-    ...online.filter((runtime) =>
-      input.hint ? String(runtime._id) !== String(input.hint) : true,
-    ),
-  ];
-  for (const runtime of ordered) {
+  const usable: { doc: (typeof online)[number]; hasWanted: boolean; installed: ProviderDriverKind | undefined }[] = [];
+  for (const runtime of online) {
     try {
       await assertCanUseRuntime(ctx, runtime, input.userId, input.role);
     } catch {
@@ -196,11 +229,18 @@ async function pickRuntime(
       .query("runtimeProviders")
       .withIndex("by_runtime", (q) => q.eq("runtimeId", runtime._id))
       .take(10);
-    const available = providers.find((provider) => provider.available);
-    return {
+    const available = providers.filter((provider) => provider.available);
+    usable.push({
       doc: runtime,
-      defaultDriver: available?.driverKind ?? input.fallbackDriver,
-    };
+      hasWanted: available.some((provider) => provider.driverKind === input.wantedKind),
+      installed: available[0]?.driverKind,
+    });
   }
-  return null;
+  const hinted = input.hint ? usable.find((item) => String(item.doc._id) === String(input.hint)) : undefined;
+  const pick = hinted ?? usable.find((item) => item.hasWanted) ?? usable[0];
+  if (!pick) return null;
+  return {
+    doc: pick.doc,
+    installedDriver: pick.hasWanted ? input.wantedKind : pick.installed,
+  };
 }

@@ -6,14 +6,14 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
 import LoadingState from "@/components/primitives/LoadingState";
-import { Composer, useSendMessage } from "@/harness/Composer";
+import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
 import { EmptyHero, type Suggestion } from "@/harness/EmptyHero";
 import { useOrg, type Chat } from "@/harness/OrgContext";
 import { Thread, type ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
 import { displayName } from "@/lib/format";
 import { hasPlaceholder, isFresh, isPlaceholderId, markLoaded, placeholderOf } from "@/lib/optimistic";
-import { PROVIDERS } from "@/lib/providers";
+import { agentLabel, agentMention, modelMentionExample } from "@/lib/providers";
 import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ export default function ChatPage() {
   const chat = fetched !== undefined ? fetched : placeholder && !hasPlaceholder(chatId) ? null : listed;
   const messages = placeholder || (fetchedMessages === undefined && isFresh(chatId)) ? [] : fetchedMessages;
   const { send } = useSendMessage(chat ?? null);
+  const { agent } = useChatAgent(chat ?? null);
   useDocumentTitle(chat ? (chat.kind === "dm" ? "Personal DM" : chat.title) : undefined, org.org.name);
 
   useEffect(() => {
@@ -75,12 +76,13 @@ export default function ChatPage() {
   const project = chat.projectId ? org.projects?.find((item) => item._id === chat.projectId) : undefined;
 
   if ((messages ?? []).length === 0) {
-    const tag = (handle: string) => (chat.kind === "project" ? `@${handle} ` : "");
+    /* the chat's bound agent leads every suggestion, so the first message runs on it */
+    const tag = chat.kind === "project" ? `${agentMention(agent.driverKind, agent.model)} ` : "";
     const ask = (text: string) => void send(text);
     const suggestions: Suggestion[] = [
-      { key: "explain", icon: <FileSearch size={15} />, label: `${tag(PROVIDERS.codex.handle)}このプロジェクトの構成を調べて要約して`, onClick: () => ask(`${tag(PROVIDERS.codex.handle)}このプロジェクトの構成を調べて要約して`) },
-      { key: "plan", icon: <ListChecks size={15} />, label: `${tag(PROVIDERS.claudeAgent.handle)}次にやるべき作業を 3 つ提案して`, onClick: () => ask(`${tag(PROVIDERS.claudeAgent.handle)}次にやるべき作業を 3 つ提案して`) },
-      { key: "review", icon: <Code2 size={15} />, label: `${tag(PROVIDERS.cursor.handle)}直近の変更をレビューして気になる点を挙げて`, onClick: () => ask(`${tag(PROVIDERS.cursor.handle)}直近の変更をレビューして気になる点を挙げて`) },
+      { key: "explain", icon: <FileSearch size={15} />, label: `${tag}このプロジェクトの構成を調べて要約して`, onClick: () => ask(`${tag}このプロジェクトの構成を調べて要約して`) },
+      { key: "plan", icon: <ListChecks size={15} />, label: `${tag}次にやるべき作業を 3 つ提案して`, onClick: () => ask(`${tag}次にやるべき作業を 3 つ提案して`) },
+      { key: "review", icon: <Code2 size={15} />, label: `${tag}直近の変更をレビューして気になる点を挙げて`, onClick: () => ask(`${tag}直近の変更をレビューして気になる点を挙げて`) },
     ];
     return (
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -92,12 +94,15 @@ export default function ChatPage() {
           composer={<Composer chat={chat} tall autoFocus />}
           suggestions={suggestions}
           link={{
-            label: chat.kind === "dm" ? "DM では常時応答します。メンションは不要です" : "プロジェクトチャットでは @codex / @claude などのメンションで応答します",
+            label:
+              chat.kind === "dm"
+                ? `DM では常時応答します（${agentLabel(agent.driverKind, agent.model)}）。メンションは不要です`
+                : `このチャットは ${agentMention(agent.driverKind, agent.model)} が応答します。${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます`,
             onClick: () => undefined,
           }}
         />
         <div className="pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] text-ink-3 xl:flex">
-          <MessageSquare size={11} /> {chat.kind === "dm" ? "Personal DM · 常時応答" : `${project?.name ?? "project"} · @mention で応答`}
+          <MessageSquare size={11} /> {chat.kind === "dm" ? `Personal DM · 常時応答 · ${agentLabel(agent.driverKind, agent.model)}` : `${project?.name ?? "project"} · ${agentMention(agent.driverKind, agent.model)} で応答`}
         </div>
       </div>
     );

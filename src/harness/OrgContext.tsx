@@ -30,6 +30,9 @@ export type Chat = {
   title: string;
   visibility: "inherit" | "private";
   ownerId?: Id<"users">;
+  /** default agent bound to the chat (provider + optional model slug) */
+  driverKind?: ProviderDriverKind;
+  model?: string;
 };
 export type Runtime = {
   _id: Id<"runtimes">;
@@ -79,8 +82,10 @@ type OrgContextValue = {
   members: Member[] | undefined;
   dmId: Id<"chats"> | null;
   now: number;
+  /** last-used agent in this org — the default for chats that have no binding yet */
   provider: ProviderDriverKind;
-  setProvider: (kind: ProviderDriverKind) => void;
+  model: string | null;
+  setAgent: (kind: ProviderDriverKind, model?: string | null) => void;
   runtimeId: Id<"runtimes"> | null;
   setRuntimeId: (id: Id<"runtimes"> | null) => void;
   tabs: Id<"chats">[];
@@ -155,6 +160,15 @@ export function OrgProvider({
 
   const [storedProvider, setStoredProvider] = useStoredState<string>(`th:${orgId}:provider`, "codex");
   const provider: ProviderDriverKind = isProviderKind(storedProvider) ? storedProvider : "codex";
+  const [storedModel, setStoredModel] = useStoredState<string | null>(`th:${orgId}:model`, null);
+  const model = typeof storedModel === "string" && storedModel.length > 0 ? storedModel : null;
+  const setAgent = useCallback(
+    (kind: ProviderDriverKind, nextModel?: string | null) => {
+      setStoredProvider(kind);
+      setStoredModel(nextModel ?? null);
+    },
+    [setStoredProvider, setStoredModel],
+  );
   const [storedRuntime, setStoredRuntime] = useStoredState<string | null>(`th:${orgId}:runtime`, null);
   const runtimeId = (storedRuntime as Id<"runtimes"> | null) ?? null;
 
@@ -225,7 +239,8 @@ export function OrgProvider({
       dmId,
       now,
       provider,
-      setProvider: (kind) => setStoredProvider(kind),
+      model,
+      setAgent,
       runtimeId,
       setRuntimeId: (id) => setStoredRuntime(id ? String(id) : null),
       tabs,
@@ -260,6 +275,8 @@ export function OrgProvider({
       dmId,
       now,
       provider,
+      model,
+      setAgent,
       runtimeId,
       tabs,
       openTab,
@@ -268,7 +285,6 @@ export function OrgProvider({
       dialog,
       navigate,
       signOut,
-      setStoredProvider,
       setStoredRuntime,
     ],
   );

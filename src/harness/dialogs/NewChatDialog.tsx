@@ -4,14 +4,19 @@ import { toast } from "sonner";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
-import { useCreateProjectChat } from "@/harness/optimisticMutations";
+import { useCreateProjectChat, useSetChatAgent } from "@/harness/optimisticMutations";
+import { AgentPicker } from "@/harness/ui/AgentPicker";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
 import { errorSummary } from "@/lib/format";
+import { agentMention, type ProviderDriverKind } from "@/lib/providers";
 
 /* ─────────────────────────────────────────────────────────
  * NEW CHAT — pick a project (or the personal DM), name it,
- * choose whether it inherits the project's visibility.
+ * choose whether it inherits the project's visibility, and bind
+ * the agent (provider + model) the chat runs on. The binding is
+ * stored on the chat, so its first message and every auto-mention
+ * use `@provider/model` — not whatever this browser last picked.
  * Submitting opens the chat at once (optimistic placeholder);
  * a failed create backs out and reports through a toast.
  * ───────────────────────────────────────────────────────── */
@@ -27,18 +32,25 @@ export function NewChatDialog({
   onOpenChange: (open: boolean) => void;
   initialProjectId?: Id<"projects">;
 }) {
-  const { projects, dmId, goChat, goPendingChat, openDialog } = useOrg();
+  const org = useOrg();
+  const { projects, dmId, goChat, goPendingChat, openDialog } = org;
   const createChat = useCreateProjectChat();
+  const bindChat = useSetChatAgent();
   const [target, setTarget] = useState<Target | null>(initialProjectId ?? null);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"inherit" | "private">("inherit");
+  const [driverKind, setDriverKind] = useState<ProviderDriverKind>(org.provider);
+  const [model, setModel] = useState<string | null>(org.model);
 
   useEffect(() => {
     if (open) {
       setTarget(initialProjectId ?? (projects && projects.length > 0 ? (projects[0]?._id ?? null) : null));
       setTitle("");
       setVisibility("inherit");
+      setDriverKind(org.provider);
+      setModel(org.model);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialProjectId, projects]);
 
   const projectOptions = (projects ?? []).map((project) => ({
@@ -49,18 +61,21 @@ export function NewChatDialog({
   }));
 
   const isDm = target === "dm";
+  const mention = agentMention(driverKind, model);
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title="新しいチャット"
-      description="プロジェクトチャットでは @codex や @claude のメンションでエージェントが応答します。Personal DM は常時応答です。"
-      width={480}
+      description="チャットにはエージェント（プロバイダとモデル）を結びつけます。プロジェクトチャットでは @cursor/muse-spark-1.3 のようなメンションで応答し、Personal DM は常時応答です。"
+      width={520}
       footer={
         <>
-          <span className="text-[12px] text-ink-3">{isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"}</span>
-          <div className="flex items-center gap-1.5">
+          <span className="min-w-0 truncate text-[12px] text-ink-3" title={`送信時のメンション: ${mention}`}>
+            {isDm ? "DM は 1 人 1 つ、常に利用できます" : "参加者は自動的にあなたです"}
+          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               キャンセル
             </Button>
@@ -77,13 +92,19 @@ export function NewChatDialog({
         onSubmit={(event) => {
           event.preventDefault();
           if (!target) return;
+          org.setAgent(driverKind, model);
           if (target === "dm") {
-            if (dmId) goChat(dmId);
+            if (dmId) {
+              goChat(dmId);
+              bindChat({ chatId: dmId, driverKind, model: model ?? undefined }).catch((e: unknown) => {
+                toast.error("DM のエージェントを設定できませんでした", { description: errorSummary(e) });
+              });
+            }
             onOpenChange(false);
             return;
           }
           const chatTitle = title.trim() || "新しいチャット";
-          const { placeholder, created } = createChat({ projectId: target, title: chatTitle, visibility });
+          const { placeholder, created } = createChat({ projectId: target, title: chatTitle, visibility, driverKind, model: model ?? undefined });
           onOpenChange(false);
           goPendingChat(placeholder, created);
           created.catch((e: unknown) => {
@@ -139,6 +160,20 @@ export function NewChatDialog({
               />
             </div>
           </>
+        )}
+
+        {target && (
+          <div>
+            <Label hint="あとからコンポーザのピッカーでも変更できます">エージェント</Label>
+            <AgentPicker
+              driverKind={driverKind}
+              model={model}
+              onChange={(kind, next) => {
+                setDriverKind(kind);
+                setModel(next);
+              }}
+            />
+          </div>
         )}
       </form>
     </Dialog>

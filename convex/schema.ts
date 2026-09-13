@@ -84,6 +84,9 @@ export default defineSchema({
     visibility: chatVisibility,
     ownerId: v.optional(v.id("users")),
     createdBy: v.id("users"),
+    /* default agent for this chat: what auto-mentions and bare messages run on */
+    driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_project", ["projectId"])
@@ -104,6 +107,7 @@ export default defineSchema({
     jobId: v.optional(v.id("jobs")),
     runtimeId: v.optional(v.id("runtimes")),
     driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
     body: v.string(),
     mentions: v.array(v.string()),
     status: v.optional(
@@ -169,6 +173,7 @@ export default defineSchema({
     assistantMessageId: v.id("messages"),
     runtimeId: v.id("runtimes"),
     driverKind: providerKind,
+    model: v.optional(v.string()),
     status: jobStatus,
     prompt: v.string(),
     contextJson: v.string(),

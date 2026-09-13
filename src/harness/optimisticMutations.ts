@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useOrg } from "@/harness/OrgContext";
 import { placeholderId } from "@/lib/optimistic";
+import type { ProviderDriverKind } from "@/lib/providers";
 
 /* ─────────────────────────────────────────────────────────
  * OPTIMISTIC MUTATIONS — the create flows that navigate. Each
@@ -47,7 +48,8 @@ const projectSlug = (name: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 40) || "item";
 
-export type CreateChatArgs = { projectId: Id<"projects">; title: string; visibility: "inherit" | "private" };
+export type ChatAgentArgs = { driverKind?: ProviderDriverKind; model?: string };
+export type CreateChatArgs = { projectId: Id<"projects">; title: string; visibility: "inherit" | "private" } & ChatAgentArgs;
 
 /** Create a project chat; the placeholder shows up in the sidebar immediately. */
 export function useCreateProjectChat() {
@@ -64,6 +66,8 @@ export function useCreateProjectChat() {
           title: chatTitle(input.title),
           visibility: input.visibility,
           ownerId: undefined,
+          driverKind: input.driverKind,
+          model: input.driverKind ? input.model : undefined,
         }),
       );
       return { placeholder, created: optimistic(args) };
@@ -102,6 +106,8 @@ export function useCreateProjectWithChat() {
           title: chatTitle(firstChatTitle),
           visibility: "inherit",
           ownerId: undefined,
+          driverKind: undefined,
+          model: undefined,
         });
       });
       const projectCreated = optimistic({ orgId: org._id, ...args });
@@ -114,4 +120,17 @@ export function useCreateProjectWithChat() {
     },
     [mutate, createChat, org._id],
   );
+}
+
+/** Bind a chat to a provider + model; the composer's picker and the sidebar row reflect it at once. */
+export function useSetChatAgent() {
+  return useMutation(api.chats.setAgent).withOptimisticUpdate((store, args) => {
+    const patch = { driverKind: args.driverKind, model: args.model };
+    for (const { args: listArgs, value } of store.getAllQueries(api.chats.list)) {
+      if (value === undefined || !value.some((chat) => chat._id === args.chatId)) continue;
+      store.setQuery(api.chats.list, listArgs, value.map((chat) => (chat._id === args.chatId ? { ...chat, ...patch } : chat)));
+    }
+    const current = store.getQuery(api.chats.get, { chatId: args.chatId });
+    if (current) store.setQuery(api.chats.get, { chatId: args.chatId }, { ...current, ...patch });
+  });
 }

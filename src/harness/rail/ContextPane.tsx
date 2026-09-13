@@ -15,7 +15,7 @@ import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { colorFor, displayName, monogram, truncate } from "@/lib/format";
 import { isPlaceholderId } from "@/lib/optimistic";
-import { PROVIDERS, providerLabel } from "@/lib/providers";
+import { PROVIDERS, agentLabel, agentMention, providerLabel } from "@/lib/providers";
 
 /* What the agent receives on the next run: history + mentions +
  * project link (Phase 1: no Focus mode). Rendered with Beautiful
@@ -43,7 +43,7 @@ export function ContextPane({ chatId }: { chatId?: string }) {
         return {
           key: String(job._id),
           label: truncate(job.prompt.replace(/^@\S+\s*/, ""), 34),
-          amount: providerLabel(job.driverKind),
+          amount: job.model ? agentLabel(job.driverKind, job.model) : providerLabel(job.driverKind),
           status,
           step: 1,
           details: [
@@ -109,12 +109,18 @@ export function ContextPane({ chatId }: { chatId?: string }) {
     {
       title: "メンション",
       chars: `${lastMentions.length} 件`,
-      body: lastMentions.length > 0 ? `直近のあなたの投稿: ${lastMentions.join(" ")}` : chat.kind === "dm" ? "DM ではメンション不要です。" : "@codex や @claude を付けるとその provider で実行します。",
+      body:
+        lastMentions.length > 0
+          ? `直近のあなたの投稿: ${lastMentions.join(" ")}`
+          : chat.kind === "dm"
+            ? "DM ではメンション不要です。"
+            : "@codex や @cursor/muse-spark-1.3 を付けるとその provider / model で実行します。",
       source: "last user message",
       badge: "@",
       tone: "bg-orange",
     },
   ];
+  const boundAgent = chat.driverKind ? agentMention(chat.driverKind, chat.model) : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,17 +141,24 @@ export function ContextPane({ chatId }: { chatId?: string }) {
             meta="最大 30"
           />
           <TextRow
-            label={<span className="inline-flex items-center gap-1.5"><AtSign size={13} /> ハンドル</span>}
+            label={<span className="inline-flex items-center gap-1.5"><AtSign size={13} /> エージェント</span>}
             value={
               <span className="flex flex-wrap justify-end gap-1">
-                {Object.values(PROVIDERS)
-                  .slice(0, 2)
-                  .map((provider) => (
-                    <Chip key={provider.handle}>@{provider.handle}</Chip>
-                  ))}
-                <Chip tone="accent">@agent</Chip>
+                {boundAgent ? (
+                  <Chip tone="accent">{boundAgent}</Chip>
+                ) : (
+                  <>
+                    {Object.values(PROVIDERS)
+                      .slice(0, 2)
+                      .map((provider) => (
+                        <Chip key={provider.handle}>@{provider.handle}</Chip>
+                      ))}
+                    <Chip tone="accent">@agent</Chip>
+                  </>
+                )}
               </span>
             }
+            meta={boundAgent ? "このチャットの既定" : "未設定（コンポーザで選択）"}
           />
         </div>
       </div>
