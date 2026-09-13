@@ -1,8 +1,9 @@
 /**
  * Cursor CLI (`agent --model`) bakes reasoning effort into the model id.
  * Live `agent models` lists `cursor-grok-4.6-medium`, not the bare family
- * `cursor-grok-4.6`. Mentions, suggest, and headless argv share this
- * family ↔ effort mapping so the chip and the flag stay the same id.
+ * `cursor-grok-4.6`. Pickers and @-suggest show families; the effort SELECT
+ * (or an explicit `@cursor/family-high` mention) is composed into a CLI id
+ * at job dispatch.
  */
 
 export const CURSOR_DEFAULT_EFFORT = "medium";
@@ -57,6 +58,9 @@ export type CursorCatalogEntry = {
   aliases?: readonly string[];
   default?: boolean;
   legacy?: boolean;
+  /** CLI ids behind a collapsed family row. */
+  variantSlugs?: readonly string[];
+  supportedReasoningLevels?: readonly string[];
 };
 
 export type CursorEffortVariant = {
@@ -65,6 +69,18 @@ export type CursorEffortVariant = {
   fast: boolean;
   name?: string;
   default?: boolean;
+  legacy?: boolean;
+};
+
+export type CursorFamilyRow = {
+  slug: string;
+  name: string;
+  aliases?: string[];
+  default?: boolean;
+  legacy?: boolean;
+  supportedReasoningLevels?: string[];
+  defaultReasoningLevel?: string;
+  variantSlugs?: string[];
 };
 
 export type CursorModelFamily = {
@@ -135,16 +151,38 @@ function liveMatchesFamily(
   );
 }
 
+export function cursorEffortChoiceId(
+  parts: CursorModelParts
+): string | undefined {
+  if (!parts.effort) {
+    return undefined;
+  }
+  return parts.fast ? `${parts.effort}-fast` : parts.effort;
+}
+
+/** `reasoning` option from the composer SELECT, when present. */
+export function cursorEffortFromOptions(
+  options?: readonly { id: string; value: string | boolean }[] | null
+): string | undefined {
+  const picked = options?.find((item) => item.id === "reasoning");
+  return typeof picked?.value === "string" && picked.value.length > 0
+    ? picked.value
+    : undefined;
+}
+
 function pickLiveFamilySlug(
   family: string,
   candidates: readonly string[],
   preferredEffort?: string
 ): string | undefined {
   const want =
-    preferredEffort && isCursorEffort(preferredEffort)
+    preferredEffort && preferredEffort.length > 0
       ? preferredEffort
       : CURSOR_DEFAULT_EFFORT;
-  const preferred = [`${family}-${want}`, `${family}-${CURSOR_DEFAULT_EFFORT}`];
+  const preferred = unique([
+    `${family}-${want}`,
+    `${family}-${CURSOR_DEFAULT_EFFORT}`,
+  ]);
   for (const id of preferred) {
     if (candidates.includes(id)) {
       return id;
@@ -156,8 +194,9 @@ function pickLiveFamilySlug(
 
 /**
  * Resolve a UI / mention slug to an id `agent --model` will accept.
- * Prefer an exact live match, then `{family}-medium`, then the first live
- * prefix; without a live list, known families fall back to `-medium`.
+ * `preferredEffort` (SELECT) wins over a suffix on the slug, then
+ * `{family}-medium`, then the first live prefix. Without a live list,
+ * known families fall back to `-medium`.
  */
 export function resolveCursorCliModel(
   requested: string,
@@ -171,30 +210,35 @@ export function resolveCursorCliModel(
   const parsed = parseCursorModel(trimmed);
   const live = liveSlugs?.filter((slug) => slug.length > 0) ?? [];
   const preferred =
-    preferredEffort && isCursorEffort(preferredEffort)
-      ? preferredEffort
-      : undefined;
+    preferredEffort && preferredEffort.length > 0 ? preferredEffort : undefined;
+  const effort = preferred ?? cursorEffortChoiceId(parsed);
 
   if (live.length > 0) {
-    if (live.includes(trimmed)) {
+    const wantSlug = effort ? `${parsed.family}-${effort}` : trimmed;
+    if (live.includes(wantSlug)) {
+      return wantSlug;
+    }
+    if (!effort && live.includes(trimmed)) {
       return trimmed;
     }
     const candidates = liveMatchesFamily(live, parsed.family);
-    const picked = pickLiveFamilySlug(
-      parsed.family,
-      candidates,
-      parsed.effort ?? preferred
-    );
+    const picked = pickLiveFamilySlug(parsed.family, candidates, effort);
     if (picked) {
       return picked;
     }
   }
 
+  const canCompose =
+    parsed.effort !== undefined ||
+    cursorFamilyNeedsEffortFallback(parsed.family);
+  if (effort && canCompose) {
+    return `${parsed.family}-${effort}`;
+  }
   if (parsed.effort) {
     return trimmed;
   }
   if (cursorFamilyNeedsEffortFallback(parsed.family)) {
-    return `${parsed.family}-${preferred ?? CURSOR_DEFAULT_EFFORT}`;
+    return `${parsed.family}-${CURSOR_DEFAULT_EFFORT}`;
   }
   return trimmed;
 }
@@ -268,11 +312,30 @@ export function groupCursorCatalog(
       default: model.default,
       effort: parsed.effort,
       fast: parsed.fast,
+      legacy: model.legacy,
       name: model.name,
       slug: model.slug,
     });
+    if (model.variantSlugs) {
+      for (const slug of model.variantSlugs) {
+        const nested = parseCursorModel(slug);
+        family.variants.push({
+          effort: nested.effort,
+          fast: nested.fast,
+          slug,
+        });
+      }
+    }
   }
   for (const family of byId.values()) {
+    const seen = new Set<string>();
+    family.variants = family.variants.filter((variant) => {
+      if (seen.has(variant.slug)) {
+        return false;
+      }
+      seen.add(variant.slug);
+      return true;
+    });
     const hasEffort = family.variants.some((variant) => variant.effort);
     if (!hasEffort && cursorFamilyNeedsEffortFallback(family.id)) {
       family.synthesized = true;
@@ -325,19 +388,29 @@ function familyItem(
   handle: string,
   family: CursorModelFamily
 ): CursorMentionSuggestItem {
-  const hasEfforts = familyHasEffortChoices(family);
   return {
-    desc: hasEfforts
-      ? `${family.name} · 推論レベルを選択`
-      : (family.name ?? family.id),
-    insert: hasEfforts ? `@${handle}/${family.id}` : `@${handle}/${family.id} `,
+    desc: family.name ?? family.id,
+    insert: `@${handle}/${family.id} `,
     key: `family-${family.id}`,
     kind: "family",
     name: `@${handle}/${family.id}`,
     search: familySearch(family),
     slug: family.id,
-    trailing: hasEfforts ? "推論レベル" : undefined,
   };
+}
+
+function queryGoesPastFamily(
+  query: string,
+  family: CursorModelFamily
+): boolean {
+  const needle = query.trim().toLowerCase();
+  const id = family.id.toLowerCase();
+  if (needle.startsWith(`${id}-`)) {
+    return true;
+  }
+  return family.aliases.some((alias) =>
+    needle.startsWith(`${alias.toLowerCase()}-`)
+  );
 }
 
 function effortItem(
@@ -366,8 +439,9 @@ function effortItem(
 }
 
 /**
- * `@cursor/` rows: model families first; once the query is a complete
- * family (`cursor-grok-4.6` or `cursor-grok-4.6-…`), effort variants.
+ * `@cursor/` rows are families. Effort variants appear only after the
+ * query goes past the family (`cursor-grok-4.6-` / `grok-`); the composer
+ * SELECT is the primary effort control.
  */
 export function cursorMentionSuggestItems(
   handle: string,
@@ -376,10 +450,77 @@ export function cursorMentionSuggestItems(
 ): CursorMentionSuggestItem[] {
   const families = groupCursorCatalog(models);
   const family = matchingFamily(modelQuery, families);
-  if (family && familyHasEffortChoices(family)) {
+  if (
+    family &&
+    familyHasEffortChoices(family) &&
+    queryGoesPastFamily(modelQuery, family)
+  ) {
     return family.variants
       .filter((variant) => variant.effort !== undefined)
       .map((variant) => effortItem(handle, family, variant));
   }
   return families.map((item) => familyItem(handle, item));
+}
+
+const EFFORT_NAME_TAIL_RE =
+  /\s*(?:\(|·|-)?\s*(?:Low|Medium|High|Extra High|Max|Minimal)(?:\s+Fast)?\)?\s*$/i;
+
+function stripEffortDisplayName(name: string): string {
+  if (hasCursorEffortSuffix(name)) {
+    return cursorModelFamily(name);
+  }
+  return name.replace(EFFORT_NAME_TAIL_RE, "").trim();
+}
+
+function displayNameForFamily(family: CursorModelFamily): string {
+  const stripped = stripEffortDisplayName(family.name);
+  if (stripped.length > 0 && !hasCursorEffortSuffix(stripped)) {
+    return stripped;
+  }
+  return family.id;
+}
+
+function variantEffortId(variant: CursorEffortVariant): string | undefined {
+  if (!variant.effort) {
+    return undefined;
+  }
+  return variant.fast ? `${variant.effort}-fast` : variant.effort;
+}
+
+/**
+ * One picker row per family. Live `cursor-grok-4.6-low|medium|high` becomes
+ * a single `cursor-grok-4.6` with `supportedReasoningLevels`.
+ */
+export function collapseCursorCatalog(
+  models: readonly CursorCatalogEntry[]
+): CursorFamilyRow[] {
+  return groupCursorCatalog(models).map((family) => {
+    const effortVariants = family.variants.filter((variant) => variant.effort);
+    const efforts = unique(
+      effortVariants
+        .map((variant) => variantEffortId(variant))
+        .filter((id): id is string => Boolean(id))
+    );
+    const row: CursorFamilyRow = {
+      name: displayNameForFamily(family),
+      slug: family.id,
+    };
+    if (family.aliases.length > 0) {
+      row.aliases = family.aliases;
+    }
+    if (family.variants.some((variant) => variant.default)) {
+      row.default = true;
+    }
+    if (family.variants.some((variant) => variant.legacy)) {
+      row.legacy = true;
+    }
+    if (efforts.length > 0) {
+      row.defaultReasoningLevel = efforts.includes(CURSOR_DEFAULT_EFFORT)
+        ? CURSOR_DEFAULT_EFFORT
+        : efforts[0];
+      row.supportedReasoningLevels = efforts;
+      row.variantSlugs = unique(effortVariants.map((variant) => variant.slug));
+    }
+    return row;
+  });
 }

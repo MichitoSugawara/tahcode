@@ -141,6 +141,20 @@ describe(optionDescriptorsFor, () => {
     ).toStrictEqual(["low", "medium", "high"]);
     expect(live?.type === "select" ? live.currentValue : null).toBe("low");
   });
+
+  it("sizes the Cursor effort SELECT from the family's live suffixes", () => {
+    const cursorLive = primaryOptionDescriptor(
+      optionDescriptorsFor("cursor", "cursor-grok-4.6", {
+        defaultReasoningLevel: "medium",
+        supportedReasoningLevels: ["low", "medium", "high"],
+      })
+    );
+    expect(
+      cursorLive && cursorLive.type === "select"
+        ? cursorLive.options.map((option) => option.id)
+        : []
+    ).toStrictEqual(["low", "medium", "high"]);
+  });
 });
 
 describe("selections + labels", () => {

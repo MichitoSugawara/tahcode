@@ -104,7 +104,7 @@ t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存�
 | Codex | `reasoningEffort`（None…Ultra、`xhigh` = Extra High） | `medium`（`gpt-6-astra` も medium。ライブ `codex debug models` に `supported_reasoning_levels` があればそれを使う） | `codex exec --config model_reasoning_effort=high`（未選択ならフラグなし = CLI の設定） |
 | Claude | `effort`（Low…Max / Ultracode / Ultrathink）。Haiku は `thinking` On/Off | Fable `medium`、Opus/Sonnet `high`、Opus 4.7 `xhigh` | `claude -p --effort …`。Ultrathink はプロンプト先頭 `Ultrathink:\n`（`--effort` なし）。Ultracode は `--effort xhigh` + `--settings {"ultracode":true}`。モデルごとの `effortMap`（Opus 4.7 の `xhigh`→`max`、Sonnet 4.6 の `max`→`high`）も t3code と同じ |
 | OpenCode | `variant`（low / medium / high / xhigh） | Anthropic/Google `high`、OpenAI `medium` | `opencode run --variant high` |
-| Cursor | `reasoning`（low…max） | `medium` | **保存のみ。** `agent -p` に effort フラグがなく、t3code は ACP `setConfigOption` で渡す |
+| Cursor | `reasoning`（ライブカタログの suffix。未取得時は low…xhigh） | `medium` | `agent --model {family}-{effort}`（例 `cursor-grok-4.6-medium`）。モデル一覧は家族のみ。`@cursor` だけなら `--model` なし |
 | Grok | `reasoningEffort` | `high` | **保存のみ。** headless `grok --prompt` のフラグは未確定（t3code は ACP） |
 | Antigravity | （なし） | — | モデル slug で切り替え |
 
@@ -112,7 +112,7 @@ t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存�
 
 - Composer は primary select（+ Haiku の Thinking）だけ。`fastMode` / `serviceTier` / `contextWindow` / OpenCode `agent` は未配線。
 - Ultrathink はチャットの `options` に保存する（t3code Web はプロンプト注入だけで option には残さない）。本文に `ultrathink` があれば二重付与しない。スラッシュコマンドは注入しない。
-- Cursor / Grok の選択はチャットに残るが headless 実行には乗らない（上記）。
+- Grok の選択はチャットに残るが headless 実行には乗らない（上記）。Cursor は family + effort を `--model` に合成する。
 - モバイル専用の `selectableChoices`（ultrathink / ultracode を隠す）は Web のみの tahcode には無い。
 
 選択は `chats.options` / `jobs.options` の `{ id, value }[]`（t3code の `ModelSelection.options`）。未選択の既存チャットは従来どおり CLI 側の effort 設定に従う。
@@ -124,7 +124,7 @@ Multica の型（daemon がランタイムごとに CLI を検出してバージ
 ![Machine provider settings: live models per CLI, versions, allowlisted update](docs/ui-screenshots/provider-settings/04-cursor-live-models.png)
 
 - **見えるもの** — 6 プロバイダごとに: 検出状態・バージョン・インストール方法（npm / Homebrew / 公式インストーラ）・バイナリのパス、**使えるモデル一覧**（ライブか静的かのバッジ、取得時刻、失敗理由）、ブリッジが実行する更新コマンドのプレビュー（`$ agent update`）。チャットを作らなくても常に一覧が見える。
-- **モデル一覧のライブ取得** — ブリッジ（`tahcode start`）が起動時と 30 分ごと、更新後・再取得指示後に各 CLI の一覧コマンドを叩き、ハートビートで報告する。コンポーザのモデルピッカー・`@cursor/` のメンション候補・「新しいチャット」のモデル選択も、接続中のマシンがライブ一覧を報告していればそれに差し替わる（フッターに `live: agent models の結果（office-mac）`）。マシンが 1 台もなければ静的カタログ。
+- **モデル一覧のライブ取得** — ブリッジ（`tahcode start`）が起動時と 30 分ごと、更新後・再取得指示後に各 CLI の一覧コマンドを叩き、ハートビートで報告する。コンポーザのモデルピッカー・`@cursor/` のメンション候補・「新しいチャット」のモデル選択も、接続中のマシンがライブ一覧を報告していればそれに差し替わる（フッターに `live: agent models の結果（office-mac）`）。Cursor のライブ ID（`cursor-grok-4.6-medium` など）は家族（`cursor-grok-4.6`）に畳み、エフォートは Reasoning セレクトで選ぶ。マシンが 1 台もなければ静的カタログ。
 
 | プロバイダ | モデル一覧 | 更新コマンド（ブリッジの許可リスト） |
 | --- | --- | --- |

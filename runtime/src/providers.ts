@@ -15,7 +15,10 @@ import { spawn } from "node:child_process";
 import { agentToolsMcpFlags } from "../../shared/agentTools.ts";
 import type { StreamArtifact } from "../../shared/artifacts.ts";
 import { extractStreamArtifacts } from "../../shared/artifacts.ts";
-import { resolveCursorCliModel } from "../../shared/cursorModels.ts";
+import {
+  cursorEffortFromOptions,
+  resolveCursorCliModel,
+} from "../../shared/cursorModels.ts";
 import {
   rewriteImagegenPrompt,
   usesCodexImagegen,
@@ -243,7 +246,11 @@ export function headlessArgs(
   const effort = planHeadlessEffort(kind, prompt, model, options);
   const cliModel =
     kind === "cursor" && model
-      ? resolveCursorCliModel(model, liveModelSlugs)
+      ? resolveCursorCliModel(
+          model,
+          liveModelSlugs,
+          cursorEffortFromOptions(options)
+        )
       : model;
   const modelFlag = cliModel ? ["--model", cliModel] : [];
   const toolFlags = agentToolsMcpFlags(kind, mcpConfigPath);

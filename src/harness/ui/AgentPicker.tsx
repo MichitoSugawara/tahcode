@@ -9,12 +9,14 @@ import { relativeTime } from "@/lib/format";
 import {
   PROVIDERS,
   agentMention,
+  catalogModelHint,
   effortFooterFor,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
   modelCatalogFor,
   modelDisplayName,
   optionDescriptorsFor,
+  pickerModelSlug,
   primaryOptionDescriptor,
   retainValidOptions,
   supportsModelPick,
@@ -180,7 +182,7 @@ export function AgentPicker({
                 },
                 ...models,
               ].map((option) => {
-                const on = (model ?? "") === option.slug;
+                const on = pickerModelSlug(driverKind, model) === option.slug;
                 return (
                   <button
                     key={option.slug || "default"}
@@ -188,14 +190,13 @@ export function AgentPicker({
                     data-menu-row
                     onClick={() => {
                       setOpen(false);
+                      const nextModel = option.slug
+                        ? pickerModelSlug(driverKind, option.slug)
+                        : null;
                       onChange(
                         driverKind,
-                        option.slug || null,
-                        retainValidOptions(
-                          driverKind,
-                          option.slug || null,
-                          options
-                        )
+                        nextModel,
+                        retainValidOptions(driverKind, nextModel, options)
                       );
                     }}
                     className="relative z-10 flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left"
@@ -290,7 +291,7 @@ function EffortPicker({
     () => modelCatalogFor(driverKind, org.runtimes),
     [driverKind, org.runtimes]
   );
-  const hint = catalog.models.find((item) => item.slug === model);
+  const hint = catalogModelHint(driverKind, model, catalog.models);
   const primary = primaryOptionDescriptor(
     optionDescriptorsFor(driverKind, model, hint)
   );
@@ -360,7 +361,7 @@ function EffortPicker({
                         : option.id;
                     onChange(
                       driverKind,
-                      model,
+                      pickerModelSlug(driverKind, model) || null,
                       upsertOptionSelection(options, primary.id, value)
                     );
                   }}

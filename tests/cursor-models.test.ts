@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { headlessArgs } from "../runtime/src/providers.ts";
 import {
+  collapseCursorCatalog,
   cursorMentionSuggestItems,
   groupCursorCatalog,
   resolveCursorCliModel,
@@ -11,6 +12,11 @@ import {
   parseMentions,
   preferredTarget,
 } from "../shared/mentions.ts";
+import {
+  optionDescriptorsFor,
+  primaryOptionDescriptor,
+} from "../shared/modelOptions.ts";
+import { mergeModelCatalog } from "../shared/providerMaintenance.ts";
 import { resolveModelSlug } from "../shared/providers.ts";
 
 describe(resolveCursorCliModel, () => {
@@ -28,6 +34,15 @@ describe(resolveCursorCliModel, () => {
     expect(resolveCursorCliModel("muse-spark-1.3")).toBe("muse-spark-1.3");
   });
 
+  it("lets the SELECT effort win over a suffix on the slug", () => {
+    expect(
+      resolveCursorCliModel("cursor-grok-4.6-medium", undefined, "high")
+    ).toBe("cursor-grok-4.6-high");
+    expect(resolveCursorCliModel("cursor-grok-4.6", undefined, "low")).toBe(
+      "cursor-grok-4.6-low"
+    );
+  });
+
   it("prefers medium from a live catalog, else the first matching prefix", () => {
     expect(
       resolveCursorCliModel("cursor-grok-4.6", [
@@ -42,6 +57,17 @@ describe(resolveCursorCliModel, () => {
         "cursor-grok-4.6-high",
         "cursor-grok-4.6-low",
       ])
+    ).toBe("cursor-grok-4.6-high");
+    expect(
+      resolveCursorCliModel(
+        "cursor-grok-4.6",
+        [
+          "cursor-grok-4.6-low",
+          "cursor-grok-4.6-medium",
+          "cursor-grok-4.6-high",
+        ],
+        "high"
+      )
     ).toBe("cursor-grok-4.6-high");
     expect(
       resolveCursorCliModel("muse-spark-1.3", [
@@ -63,16 +89,14 @@ describe(resolveCursorCliModel, () => {
 });
 
 describe("mention + catalog resolution", () => {
-  it("resolves @cursor/grok and the bare family to a CLI-valid id", () => {
-    expect(resolveModelSlug("cursor", "grok")).toBe("cursor-grok-4.6-medium");
+  it("resolves @cursor/grok and the bare family to the family id", () => {
+    expect(resolveModelSlug("cursor", "grok")).toBe("cursor-grok-4.6");
     expect(resolveModelSlug("cursor", "cursor-grok-4.6")).toBe(
-      "cursor-grok-4.6-medium"
+      "cursor-grok-4.6"
     );
-    expect(parseMentions("@cursor/grok")[0]?.model).toBe(
-      "cursor-grok-4.6-medium"
-    );
+    expect(parseMentions("@cursor/grok")[0]?.model).toBe("cursor-grok-4.6");
     expect(parseMentions("@cursor/cursor-grok-4.6")[0]?.model).toBe(
-      "cursor-grok-4.6-medium"
+      "cursor-grok-4.6"
     );
     expect(parseMentions("@cursor/cursor-grok-4.6-high")[0]?.model).toBe(
       "cursor-grok-4.6-high"
@@ -91,12 +115,26 @@ describe("mention + catalog resolution", () => {
     ).toStrictEqual({ driverKind: "cursor", model: undefined });
   });
 
-  it("rewrites the mention chip to the resolved id on send", () => {
+  it("lifts a mention effort suffix onto the SELECT option", () => {
+    expect(
+      preferredTarget(parseMentions("@cursor/cursor-grok-4.6-high やって"), {
+        driverKind: "cursor",
+        model: "cursor-grok-4.6",
+        options: [{ id: "reasoning", value: "medium" }],
+      })
+    ).toStrictEqual({
+      driverKind: "cursor",
+      model: "cursor-grok-4.6",
+      options: [{ id: "reasoning", value: "high" }],
+    });
+  });
+
+  it("rewrites aliases to the family and leaves effort off the chip", () => {
     expect(expandResolvedMentions("@cursor/cursor-grok-4.6 こんにちは")).toBe(
-      "@cursor/cursor-grok-4.6-medium こんにちは"
+      "@cursor/cursor-grok-4.6 こんにちは"
     );
     expect(expandResolvedMentions("@cursor/grok please")).toBe(
-      "@cursor/cursor-grok-4.6-medium please"
+      "@cursor/cursor-grok-4.6 please"
     );
     expect(expandResolvedMentions("@cursor こんにちは")).toBe(
       "@cursor こんにちは"
@@ -104,12 +142,28 @@ describe("mention + catalog resolution", () => {
     expect(expandResolvedMentions("@cursor/cursor-grok-4.6-high hi")).toBe(
       "@cursor/cursor-grok-4.6-high hi"
     );
-    expect(
-      expandResolvedMentions("@cursor/cursor-grok-4.6 hi", [
-        "cursor-grok-4.6-high",
-        "cursor-grok-4.6-xhigh",
-      ])
-    ).toBe("@cursor/cursor-grok-4.6-high hi");
+  });
+});
+
+describe(collapseCursorCatalog, () => {
+  it("collapses live effort-suffixed ids into one family row", () => {
+    const collapsed = collapseCursorCatalog([
+      { name: "Grok 4.6 (Cursor)", slug: "cursor-grok-4.6-low" },
+      { name: "Grok 4.6 (Cursor)", slug: "cursor-grok-4.6-medium" },
+      { name: "Grok 4.6 (Cursor)", slug: "cursor-grok-4.6-high" },
+      { name: "Grok 4.6 (Cursor)", slug: "cursor-grok-4.6-medium-fast" },
+      { name: "Auto", slug: "auto" },
+    ]);
+    expect(collapsed.map((row) => row.slug)).toStrictEqual([
+      "cursor-grok-4.6",
+      "auto",
+    ]);
+    expect(collapsed[0]).toMatchObject({
+      defaultReasoningLevel: "medium",
+      name: "Grok 4.6 (Cursor)",
+      slug: "cursor-grok-4.6",
+      supportedReasoningLevels: ["low", "medium", "medium-fast", "high"],
+    });
   });
 });
 
@@ -124,7 +178,7 @@ describe(cursorMentionSuggestItems, () => {
     { name: "Composer 2.5", slug: "composer-2.5" },
   ];
 
-  it("lists families at @cursor/ and effort variants at the family", () => {
+  it("lists families at @cursor/ and at an exact family", () => {
     const families = cursorMentionSuggestItems("cursor", "", staticCatalog);
     expect(families.map((item) => item.slug)).toStrictEqual([
       "cursor-grok-4.6",
@@ -132,14 +186,27 @@ describe(cursorMentionSuggestItems, () => {
       "composer-2.5",
     ]);
     expect(families[0]).toMatchObject({
-      insert: "@cursor/cursor-grok-4.6",
+      insert: "@cursor/cursor-grok-4.6 ",
       kind: "family",
       name: "@cursor/cursor-grok-4.6",
     });
 
-    const efforts = cursorMentionSuggestItems(
+    const atFamily = cursorMentionSuggestItems(
       "cursor",
       "cursor-grok-4.6",
+      staticCatalog
+    );
+    expect(atFamily.every((item) => item.kind === "family")).toBeTruthy();
+    expect(atFamily.map((item) => item.slug)).toContain("cursor-grok-4.6");
+  });
+
+  it("suggests effort variants only after the family hyphen", () => {
+    const viaAlias = cursorMentionSuggestItems("cursor", "grok", staticCatalog);
+    expect(viaAlias.every((item) => item.kind === "family")).toBeTruthy();
+
+    const efforts = cursorMentionSuggestItems(
+      "cursor",
+      "cursor-grok-4.6-",
       staticCatalog
     );
     expect(efforts.every((item) => item.kind === "effort")).toBeTruthy();
@@ -152,17 +219,6 @@ describe(cursorMentionSuggestItems, () => {
     expect(
       efforts.find((item) => item.slug.endsWith("-medium"))?.trailing
     ).toBe("既定");
-  });
-
-  it("suggests effort variants after an alias such as grok", () => {
-    const viaAlias = cursorMentionSuggestItems("cursor", "grok", staticCatalog);
-    expect(viaAlias.every((item) => item.kind === "effort")).toBeTruthy();
-    expect(viaAlias.map((item) => item.slug)).toStrictEqual([
-      "cursor-grok-4.6-low",
-      "cursor-grok-4.6-medium",
-      "cursor-grok-4.6-high",
-      "cursor-grok-4.6-xhigh",
-    ]);
   });
 
   it("keeps live effort variants including fast when the catalog has them", () => {
@@ -195,6 +251,27 @@ describe(cursorMentionSuggestItems, () => {
   });
 });
 
+describe("picker descriptors from a collapsed family", () => {
+  it("uses live family suffixes for the effort SELECT", () => {
+    const merged = mergeModelCatalog("cursor", [
+      { slug: "cursor-grok-4.6-low" },
+      { slug: "cursor-grok-4.6-medium" },
+      { slug: "cursor-grok-4.6-high" },
+    ]);
+    expect(merged.models.map((model) => model.slug)).toStrictEqual([
+      "cursor-grok-4.6",
+    ]);
+    const descriptor = primaryOptionDescriptor(
+      optionDescriptorsFor("cursor", "cursor-grok-4.6", merged.models[0])
+    );
+    expect(
+      descriptor && descriptor.type === "select"
+        ? descriptor.options.map((option) => option.id)
+        : []
+    ).toStrictEqual(["low", "medium", "high"]);
+  });
+});
+
 describe("headless agent --model", () => {
   it("never passes a bare cursor-grok-4.6 id to agent", () => {
     expect(
@@ -208,6 +285,11 @@ describe("headless agent --model", () => {
       "stream-json",
       "こんにちは",
     ]);
+    expect(
+      headlessArgs("cursor", "hi", "cursor-grok-4.6", [
+        { id: "reasoning", value: "high" },
+      ])
+    ).toContain("cursor-grok-4.6-high");
     expect(
       headlessArgs("cursor", "hi", "cursor-grok-4.6", undefined, undefined, [
         "cursor-grok-4.6-high",

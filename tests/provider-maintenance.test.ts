@@ -250,14 +250,18 @@ describe(mergeModelCatalog, () => {
     });
   });
 
-  it("attaches family aliases onto a live effort-suffixed slug", () => {
+  it("collapses live effort-suffixed slugs into the family row", () => {
     const merged = mergeModelCatalog("cursor", [
+      { slug: "cursor-grok-4.6-low" },
       { slug: "cursor-grok-4.6-medium" },
+      { slug: "cursor-grok-4.6-high" },
     ]);
+    expect(merged.models).toHaveLength(1);
     expect(merged.models[0]).toMatchObject({
       aliases: ["grok", "grok-4.6"],
       name: "Grok 4.6 (Cursor)",
-      slug: "cursor-grok-4.6-medium",
+      slug: "cursor-grok-4.6",
+      supportedReasoningLevels: ["low", "medium", "high"],
     });
   });
 
