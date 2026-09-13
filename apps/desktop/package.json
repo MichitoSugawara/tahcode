@@ -1,0 +1,46 @@
+{
+  "name": "@tahcode/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "tahcode Desktop — Electron shell around the tahcode web app with system-browser OAuth.",
+  "homepage": "https://tahcode.gawara.workers.dev",
+  "license": "MIT",
+  "author": "tahcode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MichitoSugawara/tahcode.git",
+    "directory": "apps/desktop"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "build": "electron-vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "electron .",
+    "dev": "electron-vite dev",
+    "dev:local": "cross-env TAHCODE_DESKTOP_ENV=local electron-vite dev",
+    "dev:staging": "cross-env TAHCODE_DESKTOP_ENV=staging electron-vite dev",
+    "preview": "electron-vite preview",
+    "pack": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder --mac --arm64 dmg zip",
+    "dist:mac": "electron-vite build && electron-builder --mac --arm64 dmg zip",
+    "dist:mac:universal": "electron-vite build && electron-builder --mac --universal dmg zip",
+    "dist:mac:intel": "electron-vite build && electron-builder --mac --x64 dmg zip",
+    "dist:linux": "electron-vite build && electron-builder --linux dir",
+    "smoke": "electron-vite build && node scripts/smoke.mjs",
+    "icon": "node scripts/make-icon.mjs"
+  },
+  "devDependencies": {
+    "@tahcode/core": "*",
+    "@types/node": "^24.13.3",
+    "cross-env": "^10.1.0",
+    "electron": "44.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "productName": "tahcode"
+}

@@ -51,3 +51,7 @@ convex/_generated/
 artifacts/
 packages/cli/dist/
 .env.local
+
+# Desktop shell (Electron) build output
+apps/desktop/out/
+apps/desktop/release/

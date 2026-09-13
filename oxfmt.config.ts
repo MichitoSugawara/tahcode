@@ -15,5 +15,7 @@ export default defineConfig({
     "**/.tahcode",
     "**/.agents/skills/**",
     "**/.claude/skills/**",
+    "**/apps/desktop/out/**",
+    "**/apps/desktop/release/**",
   ],
 });
