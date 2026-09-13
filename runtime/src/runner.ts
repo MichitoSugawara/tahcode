@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { BRIDGE_CAPABILITY_AGENT_TOOLS } from "../../shared/agentTools.ts";
+import type { StreamArtifact } from "../../shared/artifacts.ts";
+import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
@@ -20,6 +22,7 @@ import {
   writeAgentToolShim,
   writeAgentToolsMcpConfig,
 } from "./agentToolsHost.ts";
+import { composeFinalText, materializeJobArtifacts } from "./artifacts.ts";
 import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
@@ -431,7 +434,7 @@ async function executeJob(
   }
 
   const contextSummary = summarizeContext(job.contextJson);
-  const prompt = `${job.prompt}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}`;
+  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}`;
   const toolAuth = {
     jobId: job._id,
     leaseId: job.leaseId,
@@ -569,12 +572,17 @@ async function executeJob(
       });
       return;
     }
+    const streamArtifacts: StreamArtifact[] = [];
     const result = await runHeadless(
       probe.kind,
       probe.binary,
       prompt,
       options.cwd,
       {
+        onArtifact: async (artifact) => {
+          streamArtifacts.push(artifact);
+          await send("tool", `image_generation: ${artifact.name}`);
+        },
         onText: (chunk) => send("text", chunk),
         onThinking: (line) => send("thinking", line),
         onTool: (line) => send("tool", line),
@@ -593,18 +601,38 @@ async function executeJob(
       });
       return;
     }
+    const artifacts = await materializeJobArtifacts({
+      client,
+      cwd: options.cwd,
+      jobId: job._id,
+      leaseId: job.leaseId,
+      prompt,
+      runtimeId: options.runtimeId,
+      sinceMs: started,
+      stream: streamArtifacts,
+      text: result.output,
+      token: options.token,
+    });
+    if (artifacts.uploadedMarkdown) {
+      await send("text", `\n${artifacts.uploadedMarkdown}\n`);
+    }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-    if (result.exitCode === 0 && result.output) {
+    const finalText = composeFinalText({
+      artifactMarkdown: artifacts.uploadedMarkdown,
+      elapsed,
+      fallbackMarkdown: artifacts.fallbackMarkdown,
+      model,
+      output:
+        result.output ||
+        (result.exitCode === 0
+          ? `Done in ${elapsed}s, but the provider returned no text.`
+          : `${probe.displayName} failed (exit ${result.exitCode}).`),
+      probeBinary: probe.binary,
+      probeName: probe.displayName,
+    });
+    if (result.exitCode === 0) {
       await client.complete({
-        finalText: `${result.output}\n\n_${probe.displayName}${model ? ` · ${model}` : ""} · ${elapsed}s · ${probe.binary}_`,
-        jobId: job._id,
-        leaseId: job.leaseId,
-        runtimeId: options.runtimeId,
-        token: options.token,
-      });
-    } else if (result.exitCode === 0) {
-      await client.complete({
-        finalText: `Done in ${elapsed}s, but the provider returned no text.`,
+        finalText,
         jobId: job._id,
         leaseId: job.leaseId,
         runtimeId: options.runtimeId,
@@ -613,9 +641,7 @@ async function executeJob(
     } else {
       await client.complete({
         error: `${probe.displayName} exited with code ${result.exitCode}`,
-        finalText:
-          result.output ||
-          `${probe.displayName} failed (exit ${result.exitCode}).`,
+        finalText,
         jobId: job._id,
         leaseId: job.leaseId,
         runtimeId: options.runtimeId,

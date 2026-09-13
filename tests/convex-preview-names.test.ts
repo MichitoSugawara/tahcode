@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SHARED_PREVIEW_NAME,
   isDeploymentQuotaError,
+  isEnvChangedDuringPush,
   nextPreviewClaim,
   previewNameCandidates,
   slugPreviewName,
@@ -74,6 +75,17 @@ describe(isDeploymentQuotaError, () => {
       )
     ).toBeTruthy();
     expect(isDeploymentQuotaError("fetch failed")).toBeFalsy();
+  });
+});
+
+describe(isEnvChangedDuringPush, () => {
+  it("recognizes the reused-preview env race from CI", () => {
+    expect(
+      isEnvChangedDuringPush(
+        "Hit an error while pushing:\nEnvironment variables have changed during push"
+      )
+    ).toBeTruthy();
+    expect(isEnvChangedDuringPush("DeploymentQuotaReached")).toBeFalsy();
   });
 });
 

@@ -5,6 +5,7 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import CodeBlock from "@/components/primitives/CodeBlock";
+import { ArtifactImage } from "@/harness/thread/ArtifactImage";
 import { FileLink } from "@/harness/thread/FileLink";
 
 function textOf(children: ReactNode): string {
@@ -24,6 +25,7 @@ function textOf(children: ReactNode): string {
 
 const components: Components = {
   a: ({ href, children }) => <FileLink href={href}>{children}</FileLink>,
+  img: ({ alt, src }) => <ArtifactImage alt={alt} src={src} />,
   code: ({ className, children }) => {
     const raw = textOf(children);
     const lang = /language-([\w-]+)/.exec(className ?? "")?.[1];

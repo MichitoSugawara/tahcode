@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 
+import { convexSiteUrl } from "../../shared/convexUrls.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type {
   InstallMethod,
@@ -54,9 +55,11 @@ export interface ClaimedJob {
 
 export class RuntimeClient {
   private client: ConvexHttpClient;
+  private convexUrl: string;
 
   constructor(convexUrl: string) {
     this.client = new ConvexHttpClient(convexUrl);
+    this.convexUrl = convexUrl;
   }
 
   async heartbeat(input: {
@@ -156,6 +159,49 @@ export class RuntimeClient {
       "agentTools:invoke" as never,
       input as never
     );
+  }
+
+  async ingestArtifact(input: {
+    bytes: Uint8Array;
+    contentType: string;
+    jobId: string;
+    leaseId: string;
+    localPath?: string;
+    name: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<{ key: string; name: string }> {
+    const site = convexSiteUrl(this.convexUrl, {
+      siteUrl: process.env.TAHCODE_SITE_URL ?? process.env.CONVEX_SITE_URL,
+    });
+    const headers: Record<string, string> = {
+      "Content-Type": input.contentType,
+      "X-File-Name": encodeURIComponent(input.name),
+      "X-Job-Id": input.jobId,
+      "X-Lease-Id": input.leaseId,
+      "X-Runtime-Id": input.runtimeId,
+      "X-Runtime-Token": input.token,
+    };
+    if (input.localPath) {
+      headers["X-Local-Path"] = encodeURIComponent(input.localPath);
+    }
+    const response = await fetch(`${site}/artifacts/ingest`, {
+      body: input.bytes,
+      headers,
+      method: "POST",
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || `Artifact ingest failed (${response.status})`);
+    }
+    const payload = (await response.json()) as {
+      key?: unknown;
+      name?: unknown;
+    };
+    if (typeof payload.key !== "string" || typeof payload.name !== "string") {
+      throw new TypeError("Artifact ingest returned an invalid payload");
+    }
+    return { key: payload.key, name: payload.name };
   }
 
   async complete(input: {

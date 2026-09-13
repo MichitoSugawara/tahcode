@@ -1,20 +1,20 @@
-import { useMutation } from "convex/react";
+import { fileKeyFromHref } from "@shared/files.ts";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../../convex/_generated/api";
 
-function fileKeyFromHref(href: string): string | null {
-  if (!href.startsWith("/api/files/")) {
+function interceptKey(href?: string): string | null {
+  if (!href?.startsWith("/api/files/")) {
     return null;
   }
   const url = new URL(href, "https://tahcode.invalid");
   if (url.searchParams.get("ticket")) {
     return null;
   }
-  const key = decodeURIComponent(url.pathname.slice("/api/files/".length));
-  return key || null;
+  return fileKeyFromHref(href);
 }
 
 /** Attachment links minted before a ticket existed, or listed without one. */
@@ -29,7 +29,8 @@ export function FileLink({
 }) {
   const ticketForKey = useMutation(api.files.ticketForKey);
   const [busy, setBusy] = useState(false);
-  const key = href ? fileKeyFromHref(href) : null;
+  const key = interceptKey(href);
+  const file = useQuery(api.files.getByKey, key ? { key } : "skip");
 
   const onClick = async (event: MouseEvent<HTMLAnchorElement>) => {
     if (!key) {
@@ -41,7 +42,10 @@ export function FileLink({
     }
     setBusy(true);
     try {
-      const signed = await ticketForKey({ key });
+      const signed =
+        file?.kind === "storage" && file.url.startsWith("http")
+          ? file.url
+          : await ticketForKey({ key });
       window.open(signed, "_blank", "noopener");
     } catch (error) {
       toast.error(

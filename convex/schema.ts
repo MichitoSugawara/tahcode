@@ -75,10 +75,15 @@ export default defineSchema({
     contentType: v.string(),
     size: v.number(),
     uploadedBy: v.id("users"),
+    /* Convex _storage id when the runtime ingested a harness artifact */
+    storageId: v.optional(v.id("_storage")),
+    source: v.optional(v.union(v.literal("upload"), v.literal("artifact"))),
+    localPath: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_key", ["key"])
-    .index("by_chat", ["chatId"]),
+    .index("by_chat", ["chatId"])
+    .index("by_message", ["messageId"]),
 
   invites: defineTable({
     orgId: v.id("orgs"),

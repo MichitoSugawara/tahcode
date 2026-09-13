@@ -9,9 +9,12 @@ import { pathToFileURL } from "node:url";
 
 import {
   isDeploymentQuotaError,
+  isEnvChangedDuringPush,
   nextPreviewClaim,
   previewNameCandidates,
 } from "./convex-preview-names.mjs";
+
+const ENV_PUSH_RETRIES = 2;
 
 const DEFAULT_CMD =
   'echo "CONVEX_URL=$VITE_CONVEX_URL" >> "$GITHUB_ENV" && npm run cf:build';
@@ -69,6 +72,12 @@ function writeOutput(name, value) {
   appendFileSync(githubOutput, `${name}=${value}\n`);
 }
 
+function sleepMs(ms) {
+  spawnSync("sleep", [String(Math.max(1, Math.ceil(ms / 1000)))], {
+    stdio: "ignore",
+  });
+}
+
 function runConvexDeploy(dotenv, previewName, cmd) {
   const result = spawnSync(
     "npx",
@@ -112,6 +121,7 @@ function main() {
   }
 
   let name = candidates[0];
+  let envRetries = 0;
   while (name) {
     console.log(`::notice::Claiming Convex preview "${name}"`);
     const result = runConvexDeploy(args.dotenv, name, args.cmd);
@@ -120,6 +130,18 @@ function main() {
       console.log(`::notice::Convex preview ready: ${name}`);
       process.exit(0);
     }
+    if (
+      isEnvChangedDuringPush(result.output) &&
+      envRetries < ENV_PUSH_RETRIES
+    ) {
+      envRetries += 1;
+      console.log(
+        `::warning::Convex env changed during push for "${name}". Retrying (${envRetries}/${ENV_PUSH_RETRIES}).`
+      );
+      sleepMs(4000 * envRetries);
+      continue;
+    }
+    envRetries = 0;
     if (!isDeploymentQuotaError(result.output)) {
       console.error(
         `::error::convex deploy --preview-name ${name} failed (exit ${result.status}).`

@@ -13,6 +13,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { randomToken, sha256Hex } from "./lib/ids";
+import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 
 const fileView = v.object({
   _id: v.id("files"),
@@ -22,6 +23,41 @@ const fileView = v.object({
   size: v.number(),
   url: v.string(),
 });
+
+const artifactFileView = v.object({
+  _id: v.id("files"),
+  contentType: v.string(),
+  key: v.string(),
+  kind: v.union(v.literal("r2"), v.literal("storage")),
+  localPath: v.optional(v.string()),
+  name: v.string(),
+  size: v.number(),
+  url: v.string(),
+});
+
+async function toArtifactFileView(ctx: QueryCtx, file: Doc<"files">) {
+  const storageUrl = file.storageId
+    ? await ctx.storage.getUrl(file.storageId)
+    : null;
+  return {
+    _id: file._id,
+    contentType: file.contentType,
+    key: file.key,
+    kind: file.storageId ? ("storage" as const) : ("r2" as const),
+    localPath: file.localPath,
+    name: file.name,
+    size: file.size,
+    url: storageUrl ?? `/api/files/${encodeURIComponent(file.key)}`,
+  };
+}
+
+function sanitizeLocalPath(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const cleaned = value.replaceAll(/[\r\n\0]/g, "").slice(0, 400);
+  return cleaned.length > 0 ? cleaned : undefined;
+}
 
 async function requireVisibleChat(
   ctx: QueryCtx | MutationCtx,
@@ -176,6 +212,104 @@ export const record = authedMutation({
   returns: v.id("files"),
 });
 
+export const getByKey = authedQuery({
+  args: { key: v.string() },
+  handler: async (ctx, args) => {
+    const file = await ctx.db
+      .query("files")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .unique();
+    if (!file?.chatId) {
+      return null;
+    }
+    await requireVisibleChat(ctx, file.chatId, ctx.user._id);
+    return await toArtifactFileView(ctx, file);
+  },
+  returns: v.union(artifactFileView, v.null()),
+});
+
+export const listByMessage = authedQuery({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get("messages", args.messageId);
+    if (!message) {
+      return [];
+    }
+    await requireVisibleChat(ctx, message.chatId, ctx.user._id);
+    const rows = await ctx.db
+      .query("files")
+      .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
+      .take(20);
+    const views = [];
+    for (const row of rows) {
+      views.push(await toArtifactFileView(ctx, row));
+    }
+    return views;
+  },
+  returns: v.array(artifactFileView),
+});
+
+export const ingestFromRuntime = internalMutation({
+  args: {
+    contentType: v.string(),
+    jobId: v.id("jobs"),
+    leaseId: v.string(),
+    localPath: v.optional(v.string()),
+    name: v.string(),
+    runtimeId: v.id("runtimes"),
+    size: v.number(),
+    storageId: v.id("_storage"),
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const job = await requireJobLease(ctx, {
+      jobId: args.jobId,
+      leaseId: args.leaseId,
+      runtimeId: args.runtimeId,
+    });
+    if (args.size <= 0 || args.size > MAX_FILE_BYTES) {
+      throw new Error("File must be between 1 byte and 20MB");
+    }
+    const runtime = await ctx.db.get("runtimes", args.runtimeId);
+    if (!runtime) {
+      throw new Error("Runtime not found");
+    }
+    const name = sanitizeFileName(args.name);
+    const contentType = normalizeContentType(args.contentType);
+    const localPath = sanitizeLocalPath(args.localPath);
+    const existing = await ctx.db
+      .query("files")
+      .withIndex("by_message", (q) => q.eq("messageId", job.assistantMessageId))
+      .take(20);
+    const duplicate = existing.find(
+      (row) =>
+        row.source === "artifact" &&
+        ((localPath && row.localPath === localPath) ||
+          (!localPath && row.name === name && row.size === args.size))
+    );
+    if (duplicate) {
+      return { key: duplicate.key, name: duplicate.name };
+    }
+    const key = `${job.orgId}/${job.chatId}/artifact/${randomToken(16)}/${name}`;
+    await ctx.db.insert("files", {
+      chatId: job.chatId,
+      contentType,
+      key: key.slice(0, 300),
+      localPath,
+      messageId: job.assistantMessageId,
+      name,
+      orgId: job.orgId,
+      size: args.size,
+      source: "artifact",
+      storageId: args.storageId,
+      uploadedBy: job.requestedBy ?? runtime.ownerUserId,
+    });
+    return { key, name };
+  },
+  returns: v.object({ key: v.string(), name: v.string() }),
+});
+
 export const listByChat = authedQuery({
   args: { chatId: v.id("chats") },
   handler: async (ctx, args) => {
@@ -209,6 +343,12 @@ export const ticketForKey = authedMutation({
       throw new Error("File not found");
     }
     await requireVisibleChat(ctx, file.chatId, ctx.user._id);
+    if (file.storageId) {
+      const stored = await ctx.storage.getUrl(file.storageId);
+      if (stored) {
+        return stored;
+      }
+    }
     return await issueDownloadUrl(ctx, file, ctx.user._id);
   },
   returns: v.string(),

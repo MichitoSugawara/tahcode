@@ -24,7 +24,7 @@ import type { SuggestMenuPlacement } from "@/lib/suggestMenu";
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
  * A composer with real controls: attach, @ mentions, / commands,
  * pill pickers (provider · model · effort · runtime), and send.
- * Type @ or / to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
+ * Type @, /, or $ to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
  * Enter sends (IME-safe), Shift+Enter breaks a line.
  *
  * Changes from the registry copy: menus, pickers, and attachments
@@ -70,7 +70,7 @@ export interface PromptAttachment {
 }
 
 interface Token {
-  kind: "at" | "slash";
+  kind: "at" | "slash" | "dollar";
   query: string;
   start: number;
 }
@@ -79,15 +79,18 @@ interface Token {
  * works mid-sentence in Japanese); a / command only at a word start */
 const AT_TOKEN = new RegExp(`${MENTION_BOUNDARY}(@)(${MENTION_HANDLE}*)$`);
 const SLASH_TOKEN = /(^|\s)(\/)([\w./-]*)$/;
+const DOLLAR_TOKEN = /(^|\s)(\$)([\w-]*)$/;
 
-/* the last @word or /word being typed, if any */
+/* the last @word, $skill, or /word being typed, if any */
 function parseToken(draft: string): Token | null {
-  const match = AT_TOKEN.exec(draft) ?? SLASH_TOKEN.exec(draft);
+  const match =
+    AT_TOKEN.exec(draft) ?? DOLLAR_TOKEN.exec(draft) ?? SLASH_TOKEN.exec(draft);
   if (!match) {
     return null;
   }
+  const marker = match[2] ?? "";
   return {
-    kind: match[2] === "@" ? "at" : "slash",
+    kind: marker === "@" ? "at" : marker === "$" ? "dollar" : "slash",
     query: (match[3] ?? "").toLowerCase(),
     start: match.index + (match[1]?.length ?? 0),
   };
@@ -117,6 +120,7 @@ export default function PromptBar({
   busy = false,
   mentions,
   commands = [],
+  harnessCommands = [],
   plusItems = [],
   pickers = [],
   attachments = [],
@@ -140,6 +144,8 @@ export default function PromptBar({
   mentions: PromptMenuItem[];
   /** rows in the / menu */
   commands?: PromptMenuItem[];
+  /** rows in the $ menu (harness-native skills such as Codex $imagegen) */
+  harnessCommands?: PromptMenuItem[];
   /** rows pinned to the top of the + menu (attach files, …) */
   plusItems?: PromptMenuItem[];
   /** pill pickers rendered left of the send button (provider, runtime) */
@@ -154,7 +160,7 @@ export default function PromptBar({
   hint?: ReactNode;
   autoFocus?: boolean;
   /** footer copy under the @ menu */
-  menuFooter?: { at?: string; slash?: string };
+  menuFooter?: { at?: string; slash?: string; dollar?: string };
   /** a chat job is queued or running — Send becomes Stop */
   jobRunning?: boolean;
   canStop?: boolean;
@@ -203,7 +209,9 @@ export default function PromptBar({
   const pickerRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const token = dismissed ? null : parseToken(draft);
-  const menu: "at" | "slash" | null = plusOpen ? "at" : (token?.kind ?? null);
+  const menu: "at" | "slash" | "dollar" | null = plusOpen
+    ? "at"
+    : (token?.kind ?? null);
   const query = plusOpen ? "" : (token?.query ?? "");
 
   const rows: PromptMenuItem[] =
@@ -211,7 +219,9 @@ export default function PromptBar({
       ? [...(plusOpen ? plusItems : []), ...filterSuggestItems(mentions, query)]
       : menu === "slash"
         ? filterSuggestItems(commands, query)
-        : [];
+        : menu === "dollar"
+          ? filterSuggestItems(harnessCommands, query)
+          : [];
 
   useEffect(() => {
     setActive(0);
@@ -381,7 +391,8 @@ export default function PromptBar({
       row.action();
     } else if (row.insert !== undefined) {
       const base = token ? draft.slice(0, token.start) : draft;
-      update(`${base}${row.insert}`);
+      const needsGap = !token && base.length > 0 && !/\s$/.test(base);
+      update(`${base}${needsGap ? " " : ""}${row.insert}`);
     }
     setPlusOpen(false);
     setDismissed(false);
@@ -417,6 +428,10 @@ export default function PromptBar({
 
   const footerAt = menuFooter?.at ?? "エージェントかメンバーを選択";
   const footerSlash = menuFooter?.slash ?? "コマンドを選択";
+  const footerDollar =
+    menuFooter?.dollar ?? "ハーネス固有の機能（Codex $imagegen など）";
+  const footerCopy =
+    menu === "at" ? footerAt : menu === "dollar" ? footerDollar : footerSlash;
 
   return (
     <div data-promptbar className="w-full">
@@ -490,7 +505,7 @@ export default function PromptBar({
               </div>
             )}
             <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px]">
-              {menu === "at" ? footerAt : footerSlash}
+              {footerCopy}
             </div>
           </div>
         )}

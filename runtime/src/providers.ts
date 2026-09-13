@@ -13,6 +13,12 @@ import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 
 import { agentToolsMcpFlags } from "../../shared/agentTools.ts";
+import type { StreamArtifact } from "../../shared/artifacts.ts";
+import { extractStreamArtifacts } from "../../shared/artifacts.ts";
+import {
+  rewriteImagegenPrompt,
+  usesCodexImagegen,
+} from "../../shared/harnessFeatures.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import { planHeadlessEffort } from "../../shared/modelOptions.ts";
 import type { InstallMethod } from "../../shared/providerMaintenance.ts";
@@ -77,6 +83,7 @@ export interface ProviderProbe {
 }
 
 export interface RunEvents {
+  onArtifact?: (artifact: StreamArtifact) => void | Promise<void>;
   onText: (chunk: string) => void | Promise<void>;
   onTool: (line: string) => void | Promise<void>;
   onThinking: (line: string) => void | Promise<void>;
@@ -236,7 +243,18 @@ export function headlessArgs(
   const toolFlags = agentToolsMcpFlags(kind, mcpConfigPath);
   switch (kind) {
     case "codex": {
-      return ["exec", ...modelFlag, ...effort.flags, "--json", effort.prompt];
+      const codexPrompt = rewriteImagegenPrompt(effort.prompt);
+      const imagegenFlags = usesCodexImagegen(codexPrompt)
+        ? ["-s", "workspace-write", "--skip-git-repo-check"]
+        : [];
+      return [
+        "exec",
+        ...modelFlag,
+        ...effort.flags,
+        ...imagegenFlags,
+        "--json",
+        codexPrompt,
+      ];
     }
     case "claudeAgent": {
       // `--verbose` is required by the Claude CLI when combining
@@ -316,6 +334,11 @@ export async function runHeadless(
       const parsed = tryParseJson(trimmed);
       if (parsed !== null) {
         const classified = classifyStreamEvent(parsed, emittedText);
+        if (events.onArtifact) {
+          for (const artifact of extractStreamArtifacts(parsed)) {
+            await events.onArtifact(artifact);
+          }
+        }
         if (classified.kind === "text" && classified.text) {
           emittedText = true;
           output += `${classified.text}\n`;
@@ -451,7 +474,7 @@ export function classifyStreamEvent(
     ) {
       return { kind: "text", text: item.text };
     }
-    if (/command|tool|file|patch|mcp/.test(itemType)) {
+    if (/command|tool|file|patch|mcp|image_gen/.test(itemType)) {
       const label =
         (typeof item.command === "string" && item.command) ||
         (typeof item.text === "string" && item.text) ||

@@ -26,6 +26,7 @@ import { providerColor, providerLabel } from "@/lib/providers";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { ArtifactGallery, keysInMarkdown } from "./ArtifactImage";
 import { Markdown } from "./Markdown";
 
 /* ─────────────────────────────────────────────────────────
@@ -224,6 +225,9 @@ export function AgentReply({
     api.jobs.get,
     wantJob && message.jobId ? { jobId: message.jobId } : "skip"
   );
+  const artifacts = useQuery(api.files.listByMessage, {
+    messageId: message._id,
+  });
   useEffect(() => {
     if (job && streaming) {
       setSeen(true);
@@ -292,6 +296,9 @@ export function AgentReply({
   }
 
   const { text: finalText, footer } = splitFooter(message.body);
+  const galleryKeys = keysInMarkdown(
+    streaming ? (streamedText ?? "") : finalText
+  );
   const liveText = streaming
     ? (streamedText ?? message.body.replace(/^Running [^\n]*\n?/, ""))
     : "";
@@ -405,6 +412,10 @@ export function AgentReply({
             <Markdown>{finalText}</Markdown>
           </div>
         )}
+
+      {artifacts && artifacts.length > 0 && (
+        <ArtifactGallery files={artifacts} hideKeys={galleryKeys} />
+      )}
 
       {cancelled && (
         <Notice tone="warn" title="中断しました">

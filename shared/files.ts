@@ -43,6 +43,33 @@ export function isInlineContentType(contentType: string): boolean {
   return INLINE_CONTENT_TYPES.has(contentType);
 }
 
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+export function contentTypeFromFileName(name: string): string | undefined {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS[ext];
+}
+
+export function isImageContentType(contentType: string): boolean {
+  return contentType.startsWith("image/") && contentType !== "image/svg+xml";
+}
+
+/** `/api/files/<key>` with an optional ticket query. */
+export function fileKeyFromHref(href: string): string | null {
+  if (!href.startsWith("/api/files/")) {
+    return null;
+  }
+  const url = new URL(href, "https://tahcode.invalid");
+  const key = decodeURIComponent(url.pathname.slice("/api/files/".length));
+  return key || null;
+}
+
 export function contentDisposition(
   contentType: string,
   fileName: string
