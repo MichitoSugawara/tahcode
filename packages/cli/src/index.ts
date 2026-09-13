@@ -2,9 +2,21 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  mergeModelCatalog,
+  PROVIDER_MAINTENANCE,
+  supportsLiveModels,
+  updateCommandLabel,
+} from "../../../shared/providerMaintenance.ts";
+import type { ProviderDriverKind } from "../../../shared/providers.ts";
+import {
+  isProviderDriverKind,
+  PROVIDER_CATALOG,
+} from "../../../shared/providers.ts";
 import { RuntimeClient } from "../../../runtime/src/convexClient.ts";
-import { probeProviders } from "../../../runtime/src/providers.ts";
-import { runLoop } from "../../../runtime/src/runner.ts";
+import { discoverModels, plannedUpdate, runUpdate } from "../../../runtime/src/maintenance.ts";
+import { probeProviders, probeVersion, type ProviderProbe } from "../../../runtime/src/providers.ts";
+import { BRIDGE_CAPABILITIES, reportFor, runLoop } from "../../../runtime/src/runner.ts";
 import {
   BRIDGE_LOG_PATH,
   LAUNCHD_LABEL,
@@ -128,6 +140,8 @@ ${bold("使い方")}
   ${code("tahcode service install|uninstall|status")}   macOS: launchd ユーザーエージェントとして登録（ログイン時に自動起動）
   ${code("tahcode doctor")}     Node / Multica / エージェント CLI / tahcode 接続の診断
   ${code("tahcode providers")}  検出済みのエージェント CLI（Multica の検出 + t3code セット）
+  ${code("tahcode models [provider]")}   各 CLI が使えるモデル（agent models / opencode models / grok models をその場で実行。ない CLI は静的カタログ）
+  ${code("tahcode update <provider|all> [--yes]")}   エージェント CLI を更新（Web UI の「CLI を更新」と同じ許可リストのコマンドだけ実行）
   ${code("tahcode install-multica [--yes]")}   Multica CLI のインストールコマンドを表示（--yes で実行）
   ${code("tahcode multica <args…>")}          multica CLI にそのまま渡す（例: tahcode multica login）
   ${code("tahcode unlink")}     このマシンのリンクを削除
@@ -348,6 +362,7 @@ async function cmdStart(flags: Flags): Promise<void> {
       typeof runLoop
     >[0]["preferredKind"];
     await runLoop({
+      bridgeVersion: VERSION,
       convexUrl: link.url,
       cwd: options.cwd,
       preferredKind: preferred,
@@ -483,7 +498,7 @@ async function cmdDoctor(): Promise<void> {
   const probes = await probeProviders();
   for (const probe of probes) {
     (probe.available ? ok : info)(
-      `${probe.displayName}: ${probe.available ? `${probe.binary} ${probe.version ?? ""}`.trim() : "未検出"}`
+      `${probe.displayName}: ${probe.available ? `${probe.binary} ${probe.version ?? ""}`.trim() : "未検出"}${probe.available ? dim(` · 更新: ${probe.updateCommand ?? PROVIDER_MAINTENANCE[probe.kind].manualHint}`) : ""}`
     );
   }
   if (!probes.some((probe) => probe.available)) {
@@ -500,13 +515,10 @@ async function cmdDoctor(): Promise<void> {
   }
   try {
     await new RuntimeClient(link.url).heartbeat({
+      bridgeVersion: VERSION,
+      capabilities: BRIDGE_CAPABILITIES,
       hostname: os.hostname(),
-      providers: probes.map((probe) => ({
-        driverKind: probe.kind,
-        available: probe.available,
-        version: probe.version ?? undefined,
-        binaryPath: probe.binary ?? undefined,
-      })),
+      providers: probes.map((probe) => reportFor(probe, undefined)),
       runtimeId: link.runtimeId,
       token: link.token,
     });
@@ -543,6 +555,94 @@ async function cmdProviders(): Promise<void> {
       `${probe.displayName} (${probe.kind}): ${probe.available ? `${probe.binary} ${probe.version ?? ""}`.trim() : "未検出"} — ${probe.headlessSummary}`
     );
   }
+  info(`モデル一覧: ${code("tahcode models")} · CLI の更新: ${code("tahcode update <provider>")}`);
+}
+
+/** Resolve a `codex` / `claude` / `cursor` / `agent` … argument to a provider kind. */
+function providerArg(raw: string | undefined): ProviderDriverKind | null {
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (isProviderDriverKind(raw)) return raw;
+  const entry = PROVIDER_CATALOG.find(
+    (item) => item.kind.toLowerCase() === lower || item.displayName.toLowerCase() === lower || item.mentionHandles.includes(lower) || item.binaryNames.includes(lower),
+  );
+  return entry?.kind ?? null;
+}
+
+async function cmdModels(positional: string[]): Promise<void> {
+  const only = positional[0] ? providerArg(positional[0]) : null;
+  if (positional[0] && !only) {
+    fail(`不明なプロバイダ: ${positional[0]}（codex / claude / cursor / grok / opencode / antigravity）`);
+    process.exit(2);
+  }
+  const probes = (await probeProviders()).filter((probe) => !only || probe.kind === only);
+  for (const probe of probes) {
+    heading(`${probe.displayName}${probe.available ? dim(` · ${probe.binary} ${probe.version ?? ""}`.trimEnd()) : dim(" · 未検出")}`);
+    if (probe.available && supportsLiveModels(probe.kind)) {
+      const discovery = await discoverModels(probe.kind, probe.binary);
+      const merged = mergeModelCatalog(probe.kind, discovery.models);
+      (merged.source === "live" ? ok : warn)(
+        merged.source === "live" ? `${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件` : `ライブ取得に失敗（${discovery.error ?? "不明"}）→ 静的カタログ ${merged.models.length} 件`,
+      );
+      for (const model of merged.models) info(`${model.slug}${model.name && model.name !== model.slug ? dim(`  ${model.name}`) : ""}${model.default ? dim("  (default)") : ""}`);
+    } else {
+      const merged = mergeModelCatalog(probe.kind, null);
+      info(`${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件${probe.available ? "" : "（CLI 未検出のため参考値）"}`);
+      for (const model of merged.models) info(`${model.slug}${model.name !== model.slug ? dim(`  ${model.name}`) : ""}${model.legacy ? dim("  legacy") : ""}`);
+    }
+  }
+}
+
+async function cmdUpdate(flags: Flags, positional: string[]): Promise<void> {
+  const target = positional[0];
+  if (!target) {
+    fail("更新するプロバイダを指定してください: tahcode update <codex|claude|cursor|grok|opencode|all>");
+    process.exit(2);
+  }
+  const probes = await probeProviders();
+  const wanted: ProviderProbe[] = [];
+  if (target === "all") {
+    wanted.push(...probes.filter((probe) => probe.available));
+  } else {
+    const kind = providerArg(target);
+    if (!kind) {
+      fail(`不明なプロバイダ: ${target}`);
+      process.exit(2);
+    }
+    const probe = probes.find((item) => item.kind === kind);
+    if (!probe?.available) {
+      fail(`${kind} の CLI はこのマシンで検出されていません。`);
+      process.exit(1);
+    }
+    wanted.push(probe);
+  }
+  if (wanted.length === 0) {
+    info("更新対象の CLI がありません。");
+    return;
+  }
+  let exit = 0;
+  for (const probe of wanted) {
+    heading(`${probe.displayName} ${dim(probe.version ?? "")}`.trimEnd());
+    const plan = plannedUpdate(probe.kind, probe.binary);
+    if (!plan) {
+      warn(`このインストール方法（${probe.installMethod}）向けの自動更新はありません → 手動: ${code(PROVIDER_MAINTENANCE[probe.kind].manualHint)}`);
+      continue;
+    }
+    info(`実行するコマンド: ${code(updateCommandLabel(plan) ?? "")}${dim(` （${plan.via} · ${probe.binary}）`)}`);
+    if (!flags.yes) {
+      info(`実行するには ${code(`tahcode update ${target} --yes`)}`);
+      continue;
+    }
+    const outcome = await runUpdate(probe.kind, probe.binary, (line) => console.log(`    ${dim(line)}`));
+    if (!outcome.ok) {
+      fail(outcome.error ?? `更新に失敗しました（exit ${outcome.exitCode}）`);
+      exit = 1;
+      continue;
+    }
+    const after = await probeVersion(probe.kind);
+    ok(after.version && after.version !== probe.version ? `更新しました: ${probe.version ?? "?"} → ${after.version}` : `最新です: ${after.version ?? probe.version ?? ""}`.trim());
+  }
+  process.exit(exit);
 }
 
 async function cmdInstallMultica(flags: Flags): Promise<void> {
@@ -870,6 +970,15 @@ async function main(): Promise<void> {
     }
     case "providers": {
       await cmdProviders();
+      return;
+    }
+    case "models": {
+      await cmdModels(positional);
+      return;
+    }
+    case "update":
+    case "upgrade": {
+      await cmdUpdate(flags, positional);
       return;
     }
     case "stop": {
