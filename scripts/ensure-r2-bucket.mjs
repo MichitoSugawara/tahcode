@@ -71,7 +71,7 @@ function runWrangler(dotenv, wranglerArgs) {
       ]
     : ["npx", ["wrangler", ...wranglerArgs]];
   const result = spawnSync(command[0], command[1], {
-    encoding: "utf8",
+    encoding: "utf-8",
     env: process.env,
     maxBuffer: 16 * 1024 * 1024,
   });
@@ -83,7 +83,7 @@ function runWrangler(dotenv, wranglerArgs) {
 function credentialPresence(dotenv) {
   const keys = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"];
   if (dotenv && existsSync(dotenv)) {
-    return readEnvPresence(readFileSync(dotenv, "utf8"), keys);
+    return readEnvPresence(readFileSync(dotenv, "utf-8"), keys);
   }
   return readEnvPresence("", keys);
 }
@@ -131,7 +131,9 @@ function main() {
     });
 
     if (decision.action === "skip") {
-      console.log(`::warning::Skipping preview R2 preflight: ${decision.reason}`);
+      console.log(
+        `::warning::Skipping preview R2 preflight: ${decision.reason}`
+      );
       process.exit(0);
     }
     if (decision.action === "exists") {

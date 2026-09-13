@@ -3,7 +3,12 @@
 // preview R2 bucket. Staging/production keep a single attempt plus the
 // existing Worker-missing bootstrap; they never auto-create R2.
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -103,7 +108,7 @@ function runWrangler(dotenv, wranglerArgs) {
       ]
     : ["npx", ["wrangler", ...wranglerArgs]];
   const result = spawnSync(command[0], command[1], {
-    encoding: "utf8",
+    encoding: "utf-8",
     env: process.env,
     maxBuffer: 32 * 1024 * 1024,
   });
@@ -121,7 +126,7 @@ function persist(outputPath, output) {
 function credentialPresence(dotenv) {
   const keys = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"];
   if (dotenv && existsSync(dotenv)) {
-    return readEnvPresence(readFileSync(dotenv, "utf8"), keys);
+    return readEnvPresence(readFileSync(dotenv, "utf-8"), keys);
   }
   return readEnvPresence("", keys);
 }
@@ -136,7 +141,7 @@ function runEnsureR2(dotenv) {
       ...(dotenv ? ["--dotenv", dotenv] : []),
     ],
     {
-      encoding: "utf8",
+      encoding: "utf-8",
       env: process.env,
       maxBuffer: 16 * 1024 * 1024,
     }
@@ -156,7 +161,9 @@ function failFinal(name, kind, status) {
 function succeed(output) {
   const url = parseCloudflareUrl(output);
   if (!url) {
-    console.error("::error::Could not parse a Cloudflare URL from wrangler output.");
+    console.error(
+      "::error::Could not parse a Cloudflare URL from wrangler output."
+    );
     process.exit(1);
   }
   writeOutputs({ cloudflare_url: url, skip_reason: "", skipped: "false" });
@@ -235,7 +242,8 @@ function main() {
     if (action.type === "bootstrap") {
       let boot = runBootstrap(args.name, args.dotenv, extra);
       persist(args.output, boot.output);
-      let bootKind = boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
+      let bootKind =
+        boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
       let bootTransient = 0;
       while (
         bootKind === "transient" &&
@@ -250,7 +258,8 @@ function main() {
         sleepSync(wait);
         boot = runBootstrap(args.name, args.dotenv, extra);
         persist(args.output, boot.output);
-        bootKind = boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
+        bootKind =
+          boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
       }
       if (bootKind === "r2_missing" && args.name === "preview" && !ensuredR2) {
         console.log(
@@ -262,7 +271,8 @@ function main() {
         ensuredR2 = true;
         boot = runBootstrap(args.name, args.dotenv, extra);
         persist(args.output, boot.output);
-        bootKind = boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
+        bootKind =
+          boot.status === 0 ? "ok" : classifyWranglerOutput(boot.output);
       }
       if (bootKind !== "ok") {
         failFinal(args.name, bootKind, boot.status);

@@ -28,7 +28,7 @@ const FETCH_FAILED = `
 ✘ [ERROR] fetch failed
 `;
 
-describe("classifyWranglerOutput", () => {
+describe(classifyWranglerOutput, () => {
   it("treats PR #12 connectivity output as transient", () => {
     expect(classifyWranglerOutput(FETCH_FAILED, 1)).toBe("transient");
   });
@@ -75,7 +75,7 @@ describe("classifyWranglerOutput", () => {
   });
 });
 
-describe("nextBackoffMs", () => {
+describe(nextBackoffMs, () => {
   it("uses 2s, 4s, 8s, 16s then caps", () => {
     expect(nextBackoffMs(1)).toBe(2000);
     expect(nextBackoffMs(2)).toBe(4000);
@@ -85,7 +85,7 @@ describe("nextBackoffMs", () => {
   });
 });
 
-describe("nextDeployAction", () => {
+describe(nextDeployAction, () => {
   const preview = {
     bootstrapped: false,
     ensuredR2: false,
@@ -97,13 +97,13 @@ describe("nextDeployAction", () => {
   it("retries transient preview failures until the cap", () => {
     expect(
       nextDeployAction({ ...preview, kind: "transient", transientAttempt: 1 })
-    ).toEqual({ backoffMs: 2000, type: "retry" });
+    ).toStrictEqual({ backoffMs: 2000, type: "retry" });
     expect(
       nextDeployAction({ ...preview, kind: "transient", transientAttempt: 4 })
-    ).toEqual({ backoffMs: 16_000, type: "retry" });
+    ).toStrictEqual({ backoffMs: 16_000, type: "retry" });
     expect(
       nextDeployAction({ ...preview, kind: "transient", transientAttempt: 5 })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
   });
 
   it("does not retry transient failures on staging or production", () => {
@@ -115,7 +115,7 @@ describe("nextDeployAction", () => {
         name: "staging",
         transientAttempt: 1,
       })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
     expect(
       nextDeployAction({
         ...preview,
@@ -124,24 +124,24 @@ describe("nextDeployAction", () => {
         name: "production",
         transientAttempt: 1,
       })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
   });
 
   it("bootstraps a missing Worker once", () => {
     expect(
       nextDeployAction({ ...preview, kind: "worker_missing" })
-    ).toEqual({ type: "bootstrap" });
+    ).toStrictEqual({ type: "bootstrap" });
     expect(
       nextDeployAction({
         ...preview,
         bootstrapped: true,
         kind: "worker_missing",
       })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
   });
 
   it("auto-creates preview R2 only", () => {
-    expect(nextDeployAction({ ...preview, kind: "r2_missing" })).toEqual({
+    expect(nextDeployAction({ ...preview, kind: "r2_missing" })).toStrictEqual({
       type: "ensure_r2",
     });
     expect(
@@ -150,18 +150,18 @@ describe("nextDeployAction", () => {
         kind: "r2_missing",
         name: "staging",
       })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
     expect(
       nextDeployAction({
         ...preview,
         kind: "r2_missing",
         name: "production",
       })
-    ).toEqual({ type: "fail" });
+    ).toStrictEqual({ type: "fail" });
   });
 });
 
-describe("previewSkipReason", () => {
+describe(previewSkipReason, () => {
   it("skips preview when Cloudflare credentials are missing", () => {
     expect(
       previewSkipReason({ accountId: false, name: "preview", token: false })
@@ -182,7 +182,7 @@ describe("previewSkipReason", () => {
   });
 });
 
-describe("decideEnsureAction", () => {
+describe(decideEnsureAction, () => {
   const base = {
     accountPresent: true,
     bucketListed: false,
@@ -194,11 +194,11 @@ describe("decideEnsureAction", () => {
   };
 
   it("creates when the preview bucket is absent", () => {
-    expect(decideEnsureAction(base)).toEqual({ action: "create" });
+    expect(decideEnsureAction(base)).toStrictEqual({ action: "create" });
   });
 
   it("reports exists when listed", () => {
-    expect(decideEnsureAction({ ...base, bucketListed: true })).toEqual({
+    expect(decideEnsureAction({ ...base, bucketListed: true })).toStrictEqual({
       action: "exists",
     });
   });
@@ -224,7 +224,7 @@ describe("decideEnsureAction", () => {
         listKind: "transient",
         listStatus: 1,
       })
-    ).toEqual({ action: "retry_list" });
+    ).toStrictEqual({ action: "retry_list" });
     expect(
       decideEnsureAction({
         ...base,
@@ -232,7 +232,7 @@ describe("decideEnsureAction", () => {
         listKind: "transient",
         listStatus: 1,
       })
-    ).toEqual({ action: "create" });
+    ).toStrictEqual({ action: "create" });
   });
 });
 
@@ -244,13 +244,13 @@ describe("bucket list parsing", () => {
           buckets: [{ name: "team-harness-files-preview" }],
         })
       )
-    ).toEqual(["team-harness-files-preview"]);
+    ).toStrictEqual(["team-harness-files-preview"]);
     expect(
       outputListsBucket(
         "name\n-----------\nteam-harness-files-preview\n",
         PREVIEW_R2_BUCKET
       )
-    ).toBe(true);
+    ).toBeTruthy();
   });
 
   it("treats already-exists create output as success", () => {
@@ -281,7 +281,7 @@ describe("URL and env helpers", () => {
       ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
       {}
     );
-    expect(present).toEqual({
+    expect(present).toStrictEqual({
       CLOUDFLARE_ACCOUNT_ID: false,
       CLOUDFLARE_API_TOKEN: true,
     });
@@ -294,7 +294,7 @@ describe("URL and env helpers", () => {
 
 describe("wrangler.jsonc preview bindings", () => {
   it("binds preview FILES to team-harness-files-preview", () => {
-    const config = readFileSync("wrangler.jsonc", "utf8");
+    const config = readFileSync("wrangler.jsonc", "utf-8");
     const preview = config.split('"preview":')[1]?.split('"staging":')[0] ?? "";
     expect(preview).toContain(PREVIEW_R2_BUCKET);
     expect(preview).toContain('"name": "tahcode-preview"');

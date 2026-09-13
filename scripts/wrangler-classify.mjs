@@ -12,7 +12,7 @@ export const PREVIEW_RETRY = {
   maxMs: 16_000,
 };
 
-const ANSI_ESCAPE = /\u001B\[[0-9;]*m/g;
+const ANSI_ESCAPE = new RegExp(`${String.fromCodePoint(0x1b)}\\[[0-9;]*m`, "g");
 
 const WORKER_MISSING = [
   /does not yet exist/i,
@@ -111,18 +111,16 @@ export function nextBackoffMs(failedAttempt, retry = PREVIEW_RETRY) {
 }
 
 export function nextDeployAction(state) {
-  const {
-    bootstrapped,
-    ensuredR2,
-    kind,
-    maxAttempts,
-    name,
-    transientAttempt,
-  } = state;
+  const { bootstrapped, ensuredR2, kind, maxAttempts, name, transientAttempt } =
+    state;
   if (kind === "ok") {
     return { type: "succeed" };
   }
-  if (kind === "transient" && name === "preview" && transientAttempt < maxAttempts) {
+  if (
+    kind === "transient" &&
+    name === "preview" &&
+    transientAttempt < maxAttempts
+  ) {
     return { backoffMs: nextBackoffMs(transientAttempt), type: "retry" };
   }
   if (kind === "worker_missing" && !bootstrapped) {
