@@ -59,25 +59,25 @@ runs:
         if [ -n "$site_url" ]; then
           extra+=(--var "CONVEX_SITE_URL:${site_url}")
         fi
+        wrangler() {
+          npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler "$@" \
+            "${extra[@]}" \
+            2>&1 | tee /tmp/wrangler.out
+          return "${PIPESTATUS[0]}"
+        }
         set +e
-        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
-          "${extra[@]}" \
-          | tee /tmp/wrangler.out
-        status=${PIPESTATUS[0]}
+        wrangler ${{ inputs.wrangler_args }}
+        status=$?
         set -e
         if [ "$status" -ne 0 ]; then
-          if grep -q "does not yet exist" /tmp/wrangler.out; then
+          if grep -Fq "does not yet exist" /tmp/wrangler.out; then
             echo "Named Worker is missing; deploying once so versions upload can target it."
             bootstrap=()
             if [ "${{ inputs.name }}" != "production" ]; then
               bootstrap+=(--env "${{ inputs.name }}")
             fi
-            npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler deploy \
-              "${bootstrap[@]}" \
-              "${extra[@]}"
-            npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
-              "${extra[@]}" \
-              | tee /tmp/wrangler.out
+            wrangler deploy "${bootstrap[@]}"
+            wrangler ${{ inputs.wrangler_args }}
           else
             exit "$status"
           fi
