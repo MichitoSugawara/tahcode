@@ -12,7 +12,66 @@ export const DESKTOP_IPC = {
   getCliStatus: "tahcode:desktop:getCliStatus",
   getHostname: "tahcode:desktop:getHostname",
   registerLocalRuntime: "tahcode:desktop:registerLocalRuntime",
+  registerProgress: "tahcode:desktop:registerProgress",
 } as const;
+
+/** Allow-listed progress steps sent on `DESKTOP_IPC.registerProgress`. */
+export const REGISTER_PROGRESS_STEPS = [
+  "installing-cli",
+  "linking",
+  "restarting-bridge",
+  "starting-bridge",
+] as const;
+
+export type RegisterProgressStep = (typeof REGISTER_PROGRESS_STEPS)[number];
+
+export function isRegisterProgressStep(
+  value: unknown
+): value is RegisterProgressStep {
+  return (
+    typeof value === "string" &&
+    (REGISTER_PROGRESS_STEPS as readonly string[]).includes(value)
+  );
+}
+
+/** Desktop passes this so *it* owns stop→start after link (old CLIs ignore it). */
+export const LINK_NO_RESTART_FLAG = "--no-restart";
+
+/** argv after `tahcode` for a one-click link that does not touch a running bridge. */
+export function linkArgv(
+  request: RegisterLocalRuntimeRequest,
+  noRestart = true
+): string[] {
+  const args = [
+    "link",
+    "--url",
+    request.convexUrl,
+    "--runtime",
+    request.runtimeId,
+    "--token",
+    request.token,
+    "--name",
+    request.name,
+  ];
+  if (noRestart) {
+    args.push(LINK_NO_RESTART_FLAG);
+  }
+  return args;
+}
+
+/**
+ * After a successful link, recycle a running bridge or start one without
+ * Multica (`--no-daemon`). Bridge-only is enough for the runtime to come online.
+ */
+export function planRegisterAfterLink(bridgeAlreadyRunning: boolean): {
+  args: readonly string[];
+  progress: RegisterProgressStep;
+} {
+  if (bridgeAlreadyRunning) {
+    return { args: ["restart", "bridge"], progress: "restarting-bridge" };
+  }
+  return { args: ["start", "--no-daemon"], progress: "starting-bridge" };
+}
 
 export const MACHINE_NAME_MAX = 60;
 
@@ -50,6 +109,8 @@ export interface RegisterLocalRuntimeOk {
   guidance?: DesktopDoctorGuidance;
   installedCli: boolean;
   ok: true;
+  /** True when an already-running bridge was stopped and started on the new link. */
+  restartedBridge: boolean;
 }
 
 export interface RegisterLocalRuntimeErr {

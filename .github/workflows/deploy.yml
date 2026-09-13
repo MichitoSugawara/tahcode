@@ -31,17 +31,27 @@ jobs:
 
       - name: Derive preview name
         id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          raw="${{ github.head_ref }}"
-          name=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
-          if [ -z "$name" ]; then
-            name="pr-${{ github.event.number }}"
-          fi
+          # Stable per-PR name. Unique branch slugs (cursor-…-40chars) each
+          # create a Convex preview and hit the team quota of 40.
+          name="pr-${{ github.event.number }}"
           echo "preview_name=$name" >> "$GITHUB_OUTPUT"
-          echo "Using Convex preview name: $name"
+
+          fallbacks=$(gh pr list --state merged --limit 30 --json headRefName \
+            --jq '[.[].headRefName] | join(",")' || true)
+          echo "preview_fallbacks=$fallbacks" >> "$GITHUB_OUTPUT"
+
+          exclude=$(gh pr list --state open --json number,headRefName \
+            --jq '[.[] | select(.number != ${{ github.event.number }}) | .headRefName, "pr-\(.number)"] | join(",")' \
+            || true)
+          echo "preview_exclude=$exclude" >> "$GITHUB_OUTPUT"
+          echo "Using Convex preview name: $name (fallbacks from recently merged PRs)"
 
       # Preview-only: deploy-stack lists/creates team-harness-files-preview
       # when credentials allow, then retries transient Wrangler `fetch failed`.
+      # Convex: claim pr-<n>, or reuse an existing preview if the quota is full.
       - id: deploy
         uses: ./.github/actions/deploy-stack
         with:
@@ -49,6 +59,8 @@ jobs:
           dotenv_file: .env.preview
           wrangler_args: versions upload --env preview --preview-alias pr-${{ github.event.number }}
           preview_name: ${{ steps.meta.outputs.preview_name }}
+          preview_fallbacks: ${{ steps.meta.outputs.preview_fallbacks }}
+          preview_exclude: ${{ steps.meta.outputs.preview_exclude }}
           convex_env_extra: --preview-name ${{ steps.meta.outputs.preview_name }}
 
       - name: Comment preview URLs on the PR

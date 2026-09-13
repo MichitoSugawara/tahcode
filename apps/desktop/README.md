@@ -90,10 +90,10 @@ Web / Convex 側（同じ PR）:
 
 1. マシン名の初期値は OS の hostname（末尾 `.local` は除く）。取れなければ従来の `guessMachineName`。
 2. レンダラが Convex `runtimes.register` を呼び、`runtimeId` + ワンタイムトークンを受け取る（ブラウザと同じ mutation）。
-3. preload が `registerLocalRuntime({ convexUrl, runtimeId, token, name })` を **invoke するだけ**。コマンド文字列は渡せない。
+3. preload が `registerLocalRuntime({ convexUrl, runtimeId, token, name }, onProgress?)` を **invoke するだけ**。コマンド文字列は渡せない。
 4. main（`localRuntime.ts`）が引数を `@tahcode/core/desktop` で検証し、`tahcode` を探す。無ければ `npm install --global tahcode --prefix ~/.tahcode/npm`（管理者権限不要のユーザ prefix）。`TAHCODE_CLI` でバイナリを上書きできる。
-5. 同じプロセスが `tahcode link --url … --runtime … --token … --name …` → `tahcode start` を **argv 配列で spawn**（shell なし）。トークンはログに出さない。
-6. UI は 登録中 → CLI 準備 → 接続待ち。既存のハートビート検出でオンラインに切り替わる。
+5. 同じプロセスが `tahcode link --url … --runtime … --token … --name … --no-restart` を **argv 配列で spawn**（shell なし）。その後、既存ブリッジがいれば `tahcode restart bridge`、なければ `tahcode start --no-daemon`。トークンはログに出さない。Multica daemon の成否は成功条件にしない（案内だけ）。
+6. UI は 登録中 → CLI 準備 → ブリッジ再起動（または起動）→ 接続待ち。既存のハートビート検出でオンラインに切り替わる。
 7. Multica 未導入 / 未ログイン / daemon 未起動なら doctor 相当の案内を出し、黙って成功にはしない。失敗時はブラウザと同じ 3 行をフォールバック表示。
 
 ブラウザ（橋なし）のコピペ 3 行は従来どおり。default deny の「他のメンバーに許可」もそのまま。
@@ -102,7 +102,7 @@ Web / Convex 側（同じ PR）:
 
 ### セキュリティ境界
 
-- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で OAuth 用の読み取り値と、allow-list の 3 invoke（`getHostname` / `getCliStatus` / `registerLocalRuntime`）だけ公開。任意のシェルは無い。
+- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で OAuth 用の読み取り値と、allow-list の 3 invoke（`getHostname` / `getCliStatus` / `registerLocalRuntime`）と登録進捗イベントだけ公開。任意のシェルは無い。
 - IPC の送信元 URL は `isAppOrigin` で検証する（アプリのオリジン以外は拒否）。
 - `will-navigate` / `will-redirect` / `setWindowOpenHandler`: **アプリのオリジン以外へは一切遷移しない**。http(s) は `shell.openExternal`（システムブラウザ）、それ以外はブロック。
 - `setPermissionRequestHandler`: notifications / clipboard / fullscreen 以外の権限要求は拒否。

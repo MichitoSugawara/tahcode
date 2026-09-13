@@ -13,6 +13,14 @@ inputs:
   preview_name:
     required: false
     default: ""
+  preview_fallbacks:
+    required: false
+    default: ""
+    description: Comma-separated Convex preview names to reuse when the preferred name hits DeploymentQuotaReached
+  preview_exclude:
+    required: false
+    default: ""
+    description: Comma-separated preview names owned by other open PRs (never steal)
   convex_env_extra:
     required: false
     default: ""
@@ -28,6 +36,9 @@ outputs:
   skip_reason:
     description: Why preview Cloudflare deploy was skipped
     value: ${{ steps.cf.outputs.skip_reason }}
+  convex_preview_name:
+    description: Convex preview identifier that was actually claimed
+    value: ${{ steps.convex.outputs.preview_name }}
 
 runs:
   using: composite
@@ -49,16 +60,27 @@ runs:
           --dotenv "${{ inputs.dotenv_file }}"
 
     - name: Deploy Convex and build the Worker
+      id: convex
       shell: bash
       run: |
-        extra=()
-        if [ -n "${{ inputs.preview_name }}" ]; then
-          extra+=(--preview-name "${{ inputs.preview_name }}")
+        if [ "${{ inputs.name }}" = "preview" ] && [ -n "${{ inputs.preview_name }}" ]; then
+          # Unique per-branch preview names filled the team quota (40).
+          # Prefer pr-<n>; on DeploymentQuotaReached reuse an existing name.
+          node scripts/convex-preview-deploy.mjs \
+            --dotenv "${{ inputs.dotenv_file }}" \
+            --preview-name "${{ inputs.preview_name }}" \
+            --fallback-names "${{ inputs.preview_fallbacks }}" \
+            --exclude-names "${{ inputs.preview_exclude }}"
+        else
+          extra=()
+          if [ -n "${{ inputs.preview_name }}" ]; then
+            extra+=(--preview-name "${{ inputs.preview_name }}")
+          fi
+          npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx convex deploy \
+            "${extra[@]}" \
+            --cmd-url-env-var-name VITE_CONVEX_URL \
+            --cmd 'echo "CONVEX_URL=$VITE_CONVEX_URL" >> "$GITHUB_ENV" && npm run cf:build'
         fi
-        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx convex deploy \
-          "${extra[@]}" \
-          --cmd-url-env-var-name VITE_CONVEX_URL \
-          --cmd 'echo "CONVEX_URL=$VITE_CONVEX_URL" >> "$GITHUB_ENV" && npm run cf:build'
 
     - name: Deploy Cloudflare
       id: cf
@@ -84,7 +106,7 @@ runs:
       shell: bash
       env:
         SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
-        CONVEX_ENV_ARGS: ${{ inputs.convex_env_extra }}
+        CONVEX_ENV_ARGS: ${{ steps.convex.outputs.preview_name != '' && format('--preview-name {0}', steps.convex.outputs.preview_name) || inputs.convex_env_extra }}
       run: |
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/sync-convex-auth-env.mjs
 
