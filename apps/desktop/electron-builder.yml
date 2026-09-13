@@ -1,9 +1,9 @@
-# electron-builder configuration for the dalecode desktop shell.
+# electron-builder configuration for the tahcode desktop shell.
 # Build on a Mac: `npm run dist` (Apple Silicon .dmg + .zip in release/).
 # Signing / notarization are intentionally off for now — see README.md.
-appId: dev.dalecode.desktop
-productName: dalecode
-copyright: Copyright © 2026 dalecode
+appId: com.tahcode.desktop
+productName: tahcode
+copyright: Copyright © 2026 tahcode
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 directories:
@@ -14,19 +14,19 @@ files:
   - out/**/*
   - package.json
   - "!out/**/*.map"
-  # electron-vite inlines everything the shell needs (including @dalecode/core);
+  # electron-vite inlines everything the shell needs (including @tahcode/core);
   # never ship node_modules — in an npm workspace the hoisted root tree would be picked up.
   - "!node_modules/**/*"
 
 asar: true
 npmRebuild: false
 
-# Registers dalecode:// so the system browser can hand the OAuth code back to
+# Registers tahcode:// so the system browser can hand the OAuth code back to
 # the app (CFBundleURLTypes on macOS; .desktop MimeType on Linux).
 protocols:
-  - name: dalecode
+  - name: tahcode
     schemes:
-      - dalecode
+      - tahcode
 
 mac:
   category: public.app-category.developer-tools
@@ -63,7 +63,7 @@ dmg:
 linux:
   category: Development
   icon: build/icon.png
-  executableName: dalecode
+  executableName: tahcode
   # `dir` only: Linux is used for CI smoke tests, not for distribution.
   target:
     - dir

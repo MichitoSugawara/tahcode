@@ -12,7 +12,7 @@ export function fallbackPage(appUrl: string, detail: string): string {
 <head>
 <meta charset="utf-8" />
 <meta name="color-scheme" content="light dark" />
-<title>dalecode — 接続できません</title>
+<title>tahcode — 接続できません</title>
 <style>
   :root { color-scheme: light dark; --canvas: #f4f5f6; --ink: #1c1f1c; --muted: #6b716b; --line: #0e9c2d55; --btn: #077015; --btn-hover: #0ab320; }
   @media (prefers-color-scheme: dark) { :root { --canvas: #0b140b; --ink: #c9c9c9; --muted: #8a938a; } }
@@ -30,7 +30,7 @@ export function fallbackPage(appUrl: string, detail: string): string {
 </head>
 <body>
 <main>
-  <h1>dalecode に接続できません</h1>
+  <h1>tahcode に接続できません</h1>
   <p>ネットワーク接続を確認してから、もう一度お試しください。</p>
   <p><code>${escapeHtml(appUrl)}</code></p>
   <p><code>${escapeHtml(detail)}</code></p>

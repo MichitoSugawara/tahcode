@@ -6,9 +6,9 @@ import {
   loginReturnUrl,
   parseAuthCallback,
   resolveRedirectTo,
-} from "@dalecode/core/desktop";
+} from "@tahcode/core/desktop";
 
-const SITE = "https://team-harness.gawara.workers.dev";
+const SITE = "https://tahcode.gawara.workers.dev";
 
 describe("desktop deep link round trip", () => {
   it("builds the redirectTo the shell hands to Convex Auth", () => {
@@ -26,8 +26,8 @@ describe("desktop deep link round trip", () => {
 
   it("ignores links without a code, foreign paths and off-site next targets", () => {
     expect(parseAuthCallback(DESKTOP_OAUTH_CALLBACK)).toBeNull();
-    expect(parseAuthCallback("dalecode://auth/other?code=x")).toBeNull();
-    expect(parseAuthCallback("https://team-harness.gawara.workers.dev/login?code=x")).toBeNull();
+    expect(parseAuthCallback("tahcode://auth/other?code=x")).toBeNull();
+    expect(parseAuthCallback("https://tahcode.gawara.workers.dev/login?code=x")).toBeNull();
     expect(parseAuthCallback(`${DESKTOP_OAUTH_CALLBACK}?code=x&next=https%3A%2F%2Fevil.example`)?.next).toBe("/");
   });
 });
@@ -54,11 +54,11 @@ describe("resolveRedirectTo", () => {
   });
 
   it("does not widen the deep-link allowance", () => {
-    expect(isDesktopOAuthCallback("dalecode://auth/other")).toBe(false);
-    expect(isDesktopOAuthCallback("dalecode://evil/callback")).toBe(false);
-    expect(isDesktopOAuthCallback("dalecode://auth/callback#frag")).toBe(false);
-    expect(isDesktopOAuthCallback("dalecode2://auth/callback")).toBe(false);
-    expect(isDesktopOAuthCallback("dalecode://user@auth/callback")).toBe(false);
-    expect(() => resolveRedirectTo("dalecode://auth/other", SITE)).toThrow(/Invalid redirectTo/);
+    expect(isDesktopOAuthCallback("tahcode://auth/other")).toBe(false);
+    expect(isDesktopOAuthCallback("tahcode://evil/callback")).toBe(false);
+    expect(isDesktopOAuthCallback("tahcode://auth/callback#frag")).toBe(false);
+    expect(isDesktopOAuthCallback("tahcode2://auth/callback")).toBe(false);
+    expect(isDesktopOAuthCallback("tahcode://user@auth/callback")).toBe(false);
+    expect(() => resolveRedirectTo("tahcode://auth/other", SITE)).toThrow(/Invalid redirectTo/);
   });
 });

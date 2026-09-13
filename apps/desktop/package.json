@@ -1,15 +1,15 @@
 {
-  "name": "@dalecode/desktop",
-  "productName": "dalecode",
+  "name": "@tahcode/desktop",
+  "productName": "tahcode",
   "version": "0.1.0",
   "private": true,
-  "description": "dalecode Desktop — Electron shell around the dalecode web app with system-browser OAuth.",
+  "description": "tahcode Desktop — Electron shell around the tahcode web app with system-browser OAuth.",
   "license": "MIT",
-  "author": "dalecode",
-  "homepage": "https://team-harness.gawara.workers.dev",
+  "author": "tahcode",
+  "homepage": "https://tahcode.gawara.workers.dev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MichitoSugawara/dalecode.git",
+    "url": "https://github.com/MichitoSugawara/tahcode.git",
     "directory": "apps/desktop"
   },
   "main": "./out/main/index.js",
@@ -21,8 +21,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "electron .",
     "dev": "electron-vite dev",
-    "dev:local": "cross-env DALECODE_DESKTOP_ENV=local electron-vite dev",
-    "dev:staging": "cross-env DALECODE_DESKTOP_ENV=staging electron-vite dev",
+    "dev:local": "cross-env TAHCODE_DESKTOP_ENV=local electron-vite dev",
+    "dev:staging": "cross-env TAHCODE_DESKTOP_ENV=staging electron-vite dev",
     "preview": "electron-vite preview",
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder --mac --arm64 dmg zip",
@@ -34,7 +34,7 @@
     "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {
-    "@dalecode/core": "*",
+    "@tahcode/core": "*",
     "@types/node": "^24.13.3",
     "cross-env": "^10.1.0",
     "electron": "44.3.0",

@@ -73,7 +73,7 @@ function withAuthErrorCodes(
  * Convex Auth treats OAuth emails as verified, so a Google sign-in links to an
  * existing user only if that user's email is verified too. */
 /* The macOS desktop shell (apps/desktop) finishes Google in the system browser
- * and gets the code back through dalecode://auth/callback; the web keeps
+ * and gets the code back through tahcode://auth/callback; the web keeps
  * Convex Auth's default rule (relative paths or SITE_URL). */
 async function redirect({
   redirectTo,

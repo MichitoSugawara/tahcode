@@ -266,7 +266,7 @@ export default function LoginPage() {
     try {
       /* land back here so `next` survives the round trip; the provider
        * exchanges the `code` on load and the effect above moves on. Inside the
-       * desktop shell the return address is its dalecode:// deep link instead;
+       * desktop shell the return address is its tahcode:// deep link instead;
        * the shell reloads this page with the code (src/lib/desktop.ts). */
       await withTimeout(
         signIn("google", { redirectTo: oauthRedirectTo(safeNext) }),

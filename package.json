@@ -30,11 +30,11 @@
     "env:dec": "node scripts/env.mjs decrypt",
     "cli": "tsx packages/cli/src/index.ts",
     "cli:build": "node packages/cli/build.mjs",
-    "desktop:dev": "npm run dev -w @dalecode/desktop",
-    "desktop:typecheck": "npm run typecheck -w @dalecode/desktop",
-    "desktop:pack": "npm run pack -w @dalecode/desktop",
-    "desktop:build": "npm run dist -w @dalecode/desktop",
-    "desktop:smoke": "npm run smoke -w @dalecode/desktop --",
+    "desktop:dev": "npm run dev -w @tahcode/desktop",
+    "desktop:typecheck": "npm run typecheck -w @tahcode/desktop",
+    "desktop:pack": "npm run pack -w @tahcode/desktop",
+    "desktop:build": "npm run dist -w @tahcode/desktop",
+    "desktop:smoke": "npm run smoke -w @tahcode/desktop --",
     "prepare": "lefthook install"
   },
   "dependencies": {

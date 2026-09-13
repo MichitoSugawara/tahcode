@@ -1,25 +1,25 @@
 /* ─────────────────────────────────────────────────────────
- * @dalecode/core/desktop — the contract between the web app, the Convex
+ * @tahcode/core/desktop — the contract between the web app, the Convex
  * backend and the Electron shell (apps/desktop). Pure functions only; no
  * DOM, Node or Electron imports, so every consumer can bundle it.
  *
- *   web     src/lib/desktop.ts            reads window.dalecodeDesktop, picks redirectTo
+ *   web     src/lib/desktop.ts            reads window.tahcodeDesktop, picks redirectTo
  *   convex  convex/lib/authRedirect.ts    allow-lists the deep link in callbacks.redirect
  *   desktop apps/desktop/src/main + preload  parses the deep link, exposes the bridge
  * ───────────────────────────────────────────────────────── */
 
-export const DEEP_LINK_SCHEME = "dalecode";
+export const DEEP_LINK_SCHEME = "tahcode";
 
 /** Where Convex Auth sends the browser after Google when the shell started the flow. */
 export const DESKTOP_OAUTH_CALLBACK = `${DEEP_LINK_SCHEME}://auth/callback`;
 
 /** Global the preload script installs on `window`. */
-export const DESKTOP_BRIDGE_KEY = "dalecodeDesktop";
+export const DESKTOP_BRIDGE_KEY = "tahcodeDesktop";
 
 export type OAuthStrategy = "system-browser" | "in-app";
 
 /** The only surface the web app sees inside the shell (read-only, contextBridge). */
-export interface DalecodeDesktopBridge {
+export interface TahcodeDesktopBridge {
   /** apps/desktop/package.json version */
   version: string;
   platform: string;
@@ -69,7 +69,7 @@ export function isDesktopOAuthCallback(value: string): boolean {
   );
 }
 
-/** `dalecode://auth/callback?code=…&next=…` → { code, next } or null for anything else. */
+/** `tahcode://auth/callback?code=…&next=…` → { code, next } or null for anything else. */
 export function parseAuthCallback(raw: string): AuthCallback | null {
   if (!isDesktopOAuthCallback(raw)) return null;
   const url = new URL(raw);
@@ -86,7 +86,7 @@ export function loginReturnUrl(appUrl: string, callback: AuthCallback): string {
   return url.toString();
 }
 
-/** First `dalecode://…` argument in a process argv (Linux/Windows second-instance hand-off). */
+/** First `tahcode://…` argument in a process argv (Linux/Windows second-instance hand-off). */
 export function findDeepLink(argv: readonly string[]): string | null {
   return argv.find((arg) => arg.startsWith(`${DEEP_LINK_SCHEME}://`)) ?? null;
 }

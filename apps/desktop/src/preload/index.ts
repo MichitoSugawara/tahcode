@@ -2,17 +2,17 @@ import { contextBridge } from "electron";
 import {
   DESKTOP_BRIDGE_KEY,
   desktopOAuthRedirectTo,
-  type DalecodeDesktopBridge,
+  type TahcodeDesktopBridge,
   type OAuthStrategy,
-} from "@dalecode/core/desktop";
+} from "@tahcode/core/desktop";
 
 /* ─────────────────────────────────────────────────────────
- * window.dalecodeDesktop — the only surface the web app sees.
+ * window.tahcodeDesktop — the only surface the web app sees.
  *
  * Runs sandboxed with contextIsolation; nothing here touches Node APIs.
  * The web app (src/lib/desktop.ts) treats the whole object as optional so
  * the same bundle keeps working in a plain browser. The shape is
- * DalecodeDesktopBridge from @dalecode/core/desktop.
+ * TahcodeDesktopBridge from @tahcode/core/desktop.
  * ───────────────────────────────────────────────────────── */
 
 function argValue(name: string): string | undefined {
@@ -20,10 +20,10 @@ function argValue(name: string): string | undefined {
   return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
 }
 
-const oauthStrategy: OAuthStrategy = argValue("dalecode-oauth") === "in-app" ? "in-app" : "system-browser";
+const oauthStrategy: OAuthStrategy = argValue("tahcode-oauth") === "in-app" ? "in-app" : "system-browser";
 
-const bridge: DalecodeDesktopBridge = {
-  version: process.env.DALECODE_DESKTOP_VERSION ?? "0.0.0",
+const bridge: TahcodeDesktopBridge = {
+  version: process.env.TAHCODE_DESKTOP_VERSION ?? "0.0.0",
   platform: process.platform,
   oauthStrategy,
   oauthRedirectTo: (next) => (oauthStrategy === "system-browser" ? desktopOAuthRedirectTo(next) : null),

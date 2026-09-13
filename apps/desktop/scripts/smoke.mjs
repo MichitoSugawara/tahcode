@@ -37,8 +37,8 @@ if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND
 
 const result = spawnSync(command, args, {
   stdio: "inherit",
-  env: { ...process.env, DALECODE_DESKTOP_SMOKE: out, ELECTRON_ENABLE_LOGGING: process.env.ELECTRON_ENABLE_LOGGING ?? "0" },
-  timeout: Number(process.env.DALECODE_DESKTOP_SMOKE_TIMEOUT_MS ?? 45000) + 30000,
+  env: { ...process.env, TAHCODE_DESKTOP_SMOKE: out, ELECTRON_ENABLE_LOGGING: process.env.ELECTRON_ENABLE_LOGGING ?? "0" },
+  timeout: Number(process.env.TAHCODE_DESKTOP_SMOKE_TIMEOUT_MS ?? 45000) + 30000,
 });
 
 if (result.error) {

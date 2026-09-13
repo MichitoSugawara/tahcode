@@ -154,28 +154,28 @@ Web と Desktop を **1 つのモノレポ**に置き、共有パッケージ + 
 （[Multica](https://github.com/multica-ai/multica) の `apps/web` + `apps/desktop` + `packages/{core,ui,views}` と同じ考え方）。
 パッケージマネージャは npm workspaces（`apps/*`, `packages/*`、lockfile はルートの 1 つ）。
 
-| Multica | dalecode（現状） | 中身 |
+| Multica | tahcode（現状） | 中身 |
 |---|---|---|
 | `apps/web`（Next） | **ルート直下の Vite アプリ**（`src/`, `index.html`, `vite.config.ts`, `worker/`, `wrangler.jsonc`） | Web。Cloudflare の deploy 設定がルートを前提にしているため、この PR では動かしていない（後述） |
-| `apps/desktop`（Electron + electron-vite） | [`apps/desktop`](apps/desktop) = `@dalecode/desktop` | Electron + electron-vite の**薄いシェル**。renderer をバンドルせず、デプロイ済み Web を URL で読む |
-| `packages/core` | [`packages/core`](packages/core) = `@dalecode/core`（現在は `./desktop` のみ）+ `shared/` | フレームワーク非依存のロジック。`@dalecode/core/desktop` は deep link / OAuth リダイレクトの契約（Web・Convex・Desktop の 3 者が同じ TS ソースを取り込む）。`shared/`（mentions / access / auth / providers）は次の移設候補 |
+| `apps/desktop`（Electron + electron-vite） | [`apps/desktop`](apps/desktop) = `@tahcode/desktop` | Electron + electron-vite の**薄いシェル**。renderer をバンドルせず、デプロイ済み Web を URL で読む |
+| `packages/core` | [`packages/core`](packages/core) = `@tahcode/core`（現在は `./desktop` のみ）+ `shared/` | フレームワーク非依存のロジック。`@tahcode/core/desktop` は deep link / OAuth リダイレクトの契約（Web・Convex・Desktop の 3 者が同じ TS ソースを取り込む）。`shared/`（mentions / access / auth / providers）は次の移設候補 |
 | `packages/ui` / `packages/views` | `src/components` / `src/harness`（未分離） | Desktop が renderer をバンドルする段階になったら切り出す。今は Web 側からのみ参照されるため分離しない（重複を作らない） |
-| `server`（Go）+ CLI | `convex/` + `runtime/` + [`packages/cli`](packages/cli)（`dalecode`） | バックエンドは Convex、ランタイムは Multica daemon をラップする CLI |
+| `server`（Go）+ CLI | `convex/` + `runtime/` + [`packages/cli`](packages/cli)（`tahcode`） | バックエンドは Convex、ランタイムは Multica daemon をラップする CLI |
 
 Desktop が「Web を URL で読む」方式なのは、共有 UI の切り出しを **必要になった分だけ**に留めて Vite/React アプリを二重化しないため。
-Web に手を入れれば Desktop にも即反映され、Desktop 固有のコードは main / preload と `@dalecode/core/desktop` だけになる。
+Web に手を入れれば Desktop にも即反映され、Desktop 固有のコードは main / preload と `@tahcode/core/desktop` だけになる。
 `apps/web` への物理的な移設（`src/` 一式 + `wrangler.jsonc` の `assets.directory` + `cf:build` + `tsconfig` の参照）は Cloudflare deploy に触るため、
 Web CI のリスクを切り離した別 PR で行う。
 
 ### デスクトップアプリ（macOS、Electron）
 
-Google ログインはシステムブラウザで行い、`dalecode://auth/callback` の deep link で戻ってくる。
+Google ログインはシステムブラウザで行い、`tahcode://auth/callback` の deep link で戻ってくる。
 設計・Electron を選んだ理由・署名/公証の手順は [`apps/desktop/README.md`](apps/desktop/README.md)。
 
 ```bash
 npm install --legacy-peer-deps   # ルートで 1 回（workspaces が apps/desktop と packages/core も入れる。Electron 本体は初回起動時に取得）
-npm run desktop:dev              # electron-vite dev。production の Web を読み込む（DALECODE_DESKTOP_ENV=staging|local で切替）
-npm run desktop:pack             # 未署名 .app（apps/desktop/release/mac-arm64/dalecode.app）— deep link の検証はこちら
+npm run desktop:dev              # electron-vite dev。production の Web を読み込む（TAHCODE_DESKTOP_ENV=staging|local で切替）
+npm run desktop:pack             # 未署名 .app（apps/desktop/release/mac-arm64/tahcode.app）— deep link の検証はこちら
 npm run desktop:build            # Apple Silicon 向け .dmg / .zip（apps/desktop/release/）
 ```
 

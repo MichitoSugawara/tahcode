@@ -47,13 +47,13 @@ jobs:
       - name: Typecheck shared package and shell
         run: |
           npx tsc -p packages/core/tsconfig.json --noEmit
-          npm run typecheck -w @dalecode/desktop
+          npm run typecheck -w @tahcode/desktop
 
       - name: Unit tests (includes the deep-link / redirect contract)
         run: npm test
 
       - name: Build main + preload (electron-vite)
-        run: npm run build -w @dalecode/desktop
+        run: npm run build -w @tahcode/desktop
 
       - name: Install xvfb
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
@@ -61,9 +61,9 @@ jobs:
       - name: Smoke-run the shell (loads production, takes a screenshot)
         run: node apps/desktop/scripts/smoke.mjs apps/desktop/release/smoke-production.png
 
-      - name: Smoke-run the OAuth return path (simulated dalecode:// callback)
+      - name: Smoke-run the OAuth return path (simulated tahcode:// callback)
         env:
-          DALECODE_DESKTOP_SMOKE_DEEP_LINK: "dalecode://auth/callback?next=%2Finvite%2Fci&code=ci-smoke"
+          TAHCODE_DESKTOP_SMOKE_DEEP_LINK: "tahcode://auth/callback?next=%2Finvite%2Fci&code=ci-smoke"
         run: node apps/desktop/scripts/smoke.mjs apps/desktop/release/smoke-deeplink.png
 
       - name: Smoke-run the offline fallback
@@ -88,19 +88,19 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Typecheck
-        run: npm run typecheck -w @dalecode/desktop
+        run: npm run typecheck -w @tahcode/desktop
 
       # Unsigned: electron-builder.yml sets `mac.identity: null`. To sign and
       # notarize, add Developer ID certificate + Apple ID secrets and drop that
       # line (see apps/desktop/README.md).
       - name: Build .dmg / .zip
-        run: npm run dist:mac -w @dalecode/desktop
+        run: npm run dist:mac -w @tahcode/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dalecode-desktop-mac-arm64
+          name: tahcode-desktop-mac-arm64
           path: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip

@@ -1,7 +1,7 @@
 import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from "electron";
 import { SERVER_PRESETS, type ServerPreset, type ShellConfig } from "./config";
 
-const REPO_URL = "https://github.com/MichitoSugawara/dalecode";
+const REPO_URL = "https://github.com/MichitoSugawara/tahcode";
 
 export interface MenuHandlers {
   reload: () => void;
@@ -102,7 +102,7 @@ export function installMenu(config: ShellConfig, getWindow: () => BrowserWindow 
     {
       role: "help",
       submenu: [
-        { label: "dalecode Web", click: () => void shell.openExternal(SERVER_PRESETS.production.url) },
+        { label: "tahcode Web", click: () => void shell.openExternal(SERVER_PRESETS.production.url) },
         { label: "Source on GitHub", click: () => void shell.openExternal(REPO_URL) },
         { type: "separator" },
         { label: `Version ${app.getVersion()}`, enabled: false },

@@ -16,13 +16,13 @@ import { fallbackPage } from "./fallback";
 import { installMenu } from "./menu";
 
 /* ─────────────────────────────────────────────────────────
- * dalecode desktop — a hardened BrowserWindow around the web app.
+ * tahcode desktop — a hardened BrowserWindow around the web app.
  *
  * - Loads the deployed web app (production by default); nothing is bundled
  *   except this process and the preload bridge.
  * - Navigation is fenced to the app origin. Anything else (Google OAuth,
  *   links in chat) opens in the user's browser.
- * - Google sign-in returns through dalecode://auth/callback; we translate it
+ * - Google sign-in returns through tahcode://auth/callback; we translate it
  *   to the web app's own /login?code=… so Convex Auth completes the exchange
  *   with the verifier it stored in this window's localStorage.
  * ───────────────────────────────────────────────────────── */
@@ -122,7 +122,7 @@ function hardenSession(): void {
     const ua = session.defaultSession
       .getUserAgent()
       .replace(/ Electron\/\S+/, "")
-      .replace(/ dalecode(-desktop)?\/\S+/, "");
+      .replace(/ tahcode(-desktop)?\/\S+/, "");
     session.defaultSession.setUserAgent(ua);
   }
 }
@@ -137,7 +137,7 @@ function createWindow(): void {
     y: bounds?.y,
     minWidth: 900,
     minHeight: 600,
-    title: "dalecode",
+    title: "tahcode",
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0b140b" : "#f4f5f6",
     titleBarStyle: "default",
@@ -147,7 +147,7 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
-      additionalArguments: [`--dalecode-oauth=${config.oauthStrategy}`],
+      additionalArguments: [`--tahcode-oauth=${config.oauthStrategy}`],
     },
   });
 
@@ -159,7 +159,7 @@ function createWindow(): void {
   win.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
     /* -3 = ERR_ABORTED: a navigation we cancelled ourselves (OAuth hand-off) */
     if (!isMainFrame || code === -3) return;
-    console.error(`dalecode desktop: failed to load ${url}: ${description} (${code})`);
+    console.error(`tahcode desktop: failed to load ${url}: ${description} (${code})`);
     void win?.loadURL(fallbackPage(config.appUrl, `${description} (${code})`));
   });
 
@@ -208,19 +208,19 @@ function guardNavigation(event: { preventDefault: () => void }, url: string): vo
 function openExternalIfWeb(url: string): void {
   if (/^https?:\/\//i.test(url)) {
     if (config.smokeScreenshotPath) {
-      console.log(`dalecode desktop smoke: would open in system browser: ${url}`);
+      console.log(`tahcode desktop smoke: would open in system browser: ${url}`);
       return;
     }
     void shell.openExternal(url);
   } else {
-    console.warn(`dalecode desktop: blocked navigation to ${url}`);
+    console.warn(`tahcode desktop: blocked navigation to ${url}`);
   }
 }
 
 function handleDeepLink(raw: string): void {
   const callback = parseAuthCallback(raw);
   if (!callback) {
-    console.warn(`dalecode desktop: ignoring unknown deep link ${raw}`);
+    console.warn(`tahcode desktop: ignoring unknown deep link ${raw}`);
     return;
   }
   if (!app.isReady() || win === null) {
@@ -248,36 +248,36 @@ function switchServer(preset: ServerPreset): void {
 
 /* CI / VM check: render whatever the shell shows (the app or the offline
  * fallback), write a PNG, exit. Exit code 0 in both cases; the log says which.
- * With DALECODE_DESKTOP_SMOKE_DEEP_LINK set, the first load is followed by a
- * simulated dalecode:// callback so the OAuth return path is exercised too. */
+ * With TAHCODE_DESKTOP_SMOKE_DEEP_LINK set, the first load is followed by a
+ * simulated tahcode:// callback so the OAuth return path is exercised too. */
 function armSmokeTest(target: BrowserWindow, outFile: string): void {
   let done = false;
-  let simulatedDeepLink = process.env.DALECODE_DESKTOP_SMOKE_DEEP_LINK || null;
+  let simulatedDeepLink = process.env.TAHCODE_DESKTOP_SMOKE_DEEP_LINK || null;
   const finish = async (reason: string) => {
     if (done) return;
     done = true;
     /* give React a moment to paint after the load event */
-    await new Promise((resolve) => setTimeout(resolve, Number(process.env.DALECODE_DESKTOP_SMOKE_SETTLE_MS ?? 4000)));
+    await new Promise((resolve) => setTimeout(resolve, Number(process.env.TAHCODE_DESKTOP_SMOKE_SETTLE_MS ?? 4000)));
     try {
       const image = await target.webContents.capturePage();
       writeFileSync(outFile, image.toPNG());
       const url = target.webContents.getURL();
       const state = url.startsWith("data:") ? "offline fallback rendered" : `showing ${url}`;
-      console.log(`dalecode desktop smoke: ${reason}; ${state}; screenshot -> ${outFile} (${image.getSize().width}x${image.getSize().height})`);
+      console.log(`tahcode desktop smoke: ${reason}; ${state}; screenshot -> ${outFile} (${image.getSize().width}x${image.getSize().height})`);
       app.exit(0);
     } catch (error) {
-      console.error("dalecode desktop smoke: screenshot failed", error);
+      console.error("tahcode desktop smoke: screenshot failed", error);
       app.exit(1);
     }
   };
   /* optional script run in the page once it is up (e.g. click "Google で続ける") */
-  const evalScript = process.env.DALECODE_DESKTOP_SMOKE_EVAL || null;
+  const evalScript = process.env.TAHCODE_DESKTOP_SMOKE_EVAL || null;
   target.webContents.on("did-finish-load", () => {
     const url = target.webContents.getURL();
     if (simulatedDeepLink && !url.startsWith("data:")) {
       const link = simulatedDeepLink;
       simulatedDeepLink = null;
-      console.log(`dalecode desktop smoke: loaded ${url}; simulating deep link ${link}`);
+      console.log(`tahcode desktop smoke: loaded ${url}; simulating deep link ${link}`);
       handleDeepLink(link);
       return;
     }
@@ -286,13 +286,13 @@ function armSmokeTest(target: BrowserWindow, outFile: string): void {
         await new Promise((resolve) => setTimeout(resolve, 2500));
         try {
           const result: unknown = await target.webContents.executeJavaScript(evalScript, true);
-          console.log(`dalecode desktop smoke: eval -> ${JSON.stringify(result)}`);
+          console.log(`tahcode desktop smoke: eval -> ${JSON.stringify(result)}`);
         } catch (error) {
-          console.error("dalecode desktop smoke: eval failed", error);
+          console.error("tahcode desktop smoke: eval failed", error);
         }
       }
       await finish(`load finished for ${url}`);
     })();
   });
-  setTimeout(() => void finish("timed out waiting for load"), Number(process.env.DALECODE_DESKTOP_SMOKE_TIMEOUT_MS ?? 45000));
+  setTimeout(() => void finish("timed out waiting for load"), Number(process.env.TAHCODE_DESKTOP_SMOKE_TIMEOUT_MS ?? 45000));
 }
