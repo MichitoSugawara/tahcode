@@ -4,6 +4,13 @@ import type { ReactNode } from "react";
 
 import { MentionText } from "@/components/atoms/MentionText";
 import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
+import {
+  SUGGEST_MENU_PREFERRED_MAX,
+  filterSuggestItems,
+  overflowClipBox,
+  placeSuggestMenu,
+} from "@/lib/suggestMenu";
+import type { SuggestMenuPlacement } from "@/lib/suggestMenu";
 
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
@@ -147,7 +154,10 @@ export default function PromptBar({
   const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(
     null
   );
-  const [menuMaxHeight, setMenuMaxHeight] = useState(288);
+  const [menuPlacement, setMenuPlacement] = useState<SuggestMenuPlacement>({
+    maxHeight: SUGGEST_MENU_PREFERRED_MAX,
+    side: "above",
+  });
   const [pickerBox, setPickerBox] = useState<{
     top: number;
     height: number;
@@ -182,19 +192,9 @@ export default function PromptBar({
 
   const rows: PromptMenuItem[] =
     menu === "at"
-      ? [
-          ...(plusOpen ? plusItems : []),
-          ...mentions.filter(
-            (item) =>
-              item.name.toLowerCase().includes(query) ||
-              (item.desc ?? "").toLowerCase().includes(query) ||
-              (item.insert ?? "").toLowerCase().includes(query)
-          ),
-        ]
+      ? [...(plusOpen ? plusItems : []), ...filterSuggestItems(mentions, query)]
       : menu === "slash"
-        ? commands.filter((item) =>
-            item.name.replace(/^\//, "").toLowerCase().startsWith(query)
-          )
+        ? filterSuggestItems(commands, query)
         : [];
 
   useEffect(() => {
@@ -214,16 +214,41 @@ export default function PromptBar({
     }
   }, [menu, query, active, rows.length, engaged]);
 
-  /* The menu grows upward from the composer; in the hero layout that can be
-   * close to the top of the viewport, so cap it to the room that is there
-   * (model lists are long) and let it scroll. */
+  /* Pin the menu to the side with room (above by default) and clamp height
+   * to the visible clip box so the first row is never cut by the window
+   * or an overflow ancestor (hero page, Electron chrome). */
   useLayoutEffect(() => {
-    if (!menu || !anchorRef.current) {
+    if (!menu) {
       return;
     }
-    const room = anchorRef.current.getBoundingClientRect().top - 16;
-    setMenuMaxHeight(Math.max(140, Math.min(288, room)));
-  }, [menu, rows.length]);
+    const anchor = anchorRef.current;
+    if (!anchor) {
+      return;
+    }
+    const update = () => {
+      const rect = anchor.getBoundingClientRect();
+      setMenuPlacement(
+        placeSuggestMenu({
+          anchor: { bottom: rect.bottom, top: rect.top },
+          bounds: overflowClipBox(anchor),
+        })
+      );
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(anchor);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
+  }, [menu, rows.length, wide]);
 
   const picker = pickers.find((item) => item.id === openPicker) ?? null;
   const pickerIndex = picker
@@ -367,17 +392,23 @@ export default function PromptBar({
 
   return (
     <div data-promptbar className="w-full">
-      {/* composer is the anchor — menus grow up from its top edge */}
+      {/* composer is the anchor — the @ / menu flips above or below */}
       <div ref={anchorRef} className="relative">
         {/* ── @ / slash menu ─────────────────────────────── */}
         {menu && (
           <div
             onMouseLeave={() => setEngaged(false)}
-            className="bg-surface shadow-raised absolute inset-x-0 bottom-full z-20 mb-2 overflow-y-auto rounded-[10px] p-1"
+            data-suggest-side={menuPlacement.side}
+            className={`bg-surface shadow-raised absolute inset-x-0 z-20 overflow-y-auto overscroll-contain rounded-[10px] p-1 ${
+              menuPlacement.side === "above"
+                ? "bottom-full mb-2"
+                : "top-full mt-2"
+            }`}
             style={{
               animation: POP,
-              maxHeight: menuMaxHeight,
-              transformOrigin: "bottom center",
+              maxHeight: menuPlacement.maxHeight,
+              transformOrigin:
+                menuPlacement.side === "above" ? "bottom center" : "top center",
             }}
           >
             <span
