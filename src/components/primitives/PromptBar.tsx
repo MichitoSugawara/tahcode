@@ -128,7 +128,7 @@ export default function PromptBar({
   pickers?: PromptPicker[];
   attachments?: PromptAttachment[];
   onRemoveAttachment?: (index: number) => void;
-  onSend: (text: string) => void | Promise<void>;
+  onSend: (text: string) => boolean | Promise<boolean>;
   onDraftChange?: (text: string) => void;
   /** one quiet line under the controls (shortcuts, auto-mention notice) */
   hint?: ReactNode;
@@ -348,9 +348,12 @@ export default function PromptBar({
       return;
     }
     const text = draft.trim();
-    update("");
     closeMenus();
-    void onSend(text);
+    void Promise.resolve(onSend(text)).then((ok) => {
+      if (ok !== false) {
+        update("");
+      }
+    });
   };
 
   const footerAt = menuFooter?.at ?? "エージェントかメンバーを選択";

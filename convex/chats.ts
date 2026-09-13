@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 
-import type { Doc } from "./_generated/dataModel";
-import { assertChatVisible, getMembership, requireRole } from "./lib/access";
+import type { Doc, Id } from "./_generated/dataModel";
+import {
+  assertChatVisible,
+  assertProjectVisible,
+  getMembership,
+  requireRole,
+} from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
 import type { ProviderDriverKind } from "./lib/providers";
@@ -97,6 +102,18 @@ export const createProjectChat = authedMutation({
     if (!membership) {
       throw new Error("Not a member of this organization");
     }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    const requested = args.memberIds ?? [];
+    if (requested.length > 50) {
+      throw new Error("Too many chat members");
+    }
+    const members = new Set<Id<"users">>([ctx.user._id, ...requested]);
+    for (const memberId of members) {
+      const target = await getMembership(ctx, project.orgId, memberId);
+      if (!target) {
+        throw new Error("All chat members must belong to this organization");
+      }
+    }
     const title = args.title.trim().slice(0, 80) || "Untitled chat";
     const agent = normalizeAgentBinding(args);
     const chatId = await ctx.db.insert("chats", {
@@ -109,16 +126,8 @@ export const createProjectChat = authedMutation({
       driverKind: agent.driverKind,
       model: agent.model,
     });
-    const members = new Set<string>([String(ctx.user._id)]);
-    for (const memberId of args.memberIds ?? []) {
-      members.add(String(memberId));
-    }
     for (const memberId of members) {
-      const user = await ctx.db.get("users", memberId as never);
-      if (!user) {
-        continue;
-      }
-      await ctx.db.insert("chatMembers", { chatId, userId: user._id });
+      await ctx.db.insert("chatMembers", { chatId, userId: memberId });
     }
     return chatId;
   },
@@ -261,6 +270,10 @@ export const addMember = authedMutation({
       throw new Error("DMs stay owner-only in Phase 1");
     }
     await requireRole(ctx, chat.orgId, ctx.user._id, "admin");
+    const targetMembership = await getMembership(ctx, chat.orgId, args.userId);
+    if (!targetMembership) {
+      throw new Error("Target is not in this organization");
+    }
     const existing = await ctx.db
       .query("chatMembers")
       .withIndex("by_chat_and_user", (q) =>

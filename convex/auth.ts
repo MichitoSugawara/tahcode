@@ -12,15 +12,9 @@ import {
   isValidEmail,
   toConvexAuthError,
 } from "./lib/authErrors";
+import { allocateUniqueHandle, normalizeHandle } from "./lib/handles";
 
 declare const process: { env: Record<string, string | undefined> };
-
-function normalizeHandle(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_]+/g, "");
-}
 
 const password = Password<DataModel>({
   profile(params) {
@@ -78,6 +72,20 @@ function withAuthErrorCodes(
  * Convex Auth treats OAuth emails as verified, so a Google sign-in links to an
  * existing user only if that user's email is verified too. */
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  callbacks: {
+    afterUserCreatedOrUpdated: async (ctx, args) => {
+      const user = await ctx.db.get("users", args.userId);
+      if (!user) {
+        return;
+      }
+      const desired =
+        user.handle ?? user.name ?? user.email?.split("@")[0] ?? "member";
+      const handle = await allocateUniqueHandle(ctx, desired, args.userId);
+      if (handle !== user.handle) {
+        await ctx.db.patch("users", args.userId, { handle });
+      }
+    },
+  },
   providers: [withAuthErrorCodes(password), Google],
 });
 

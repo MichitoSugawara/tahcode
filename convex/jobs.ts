@@ -5,7 +5,8 @@ import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
 import { authedQuery } from "./lib/customFunctions";
-import { sha256Hex } from "./lib/ids";
+import { randomToken, sha256Hex } from "./lib/ids";
+import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { jobStatus, providerKind } from "./lib/validators";
 
 const jobView = v.object({
@@ -33,6 +34,7 @@ const claimView = v.union(
     runtimeId: v.id("runtimes"),
     status: jobStatus,
     triggerMessageId: v.id("messages"),
+    leaseId: v.string(),
   }),
   v.null()
 );
@@ -53,6 +55,80 @@ async function getRuntimeByToken(
   return runtime;
 }
 
+async function recoverStaleJobs(
+  ctx: MutationCtx,
+  runtimeId: Id<"runtimes">,
+  now: number
+) {
+  const running = await ctx.db
+    .query("jobs")
+    .withIndex("by_runtime_and_status", (q) =>
+      q.eq("runtimeId", runtimeId).eq("status", "running")
+    )
+    .take(20);
+  for (const job of running) {
+    const beat = job.lastHeartbeatAt ?? job.claimedAt ?? 0;
+    if (now - beat < STALE_JOB_MS) {
+      continue;
+    }
+    const attempt = (job.attempt ?? 1) + 1;
+    if (attempt > MAX_JOB_ATTEMPTS) {
+      await ctx.db.patch("jobs", job._id, {
+        completedAt: now,
+        error: "Runtime lost contact with this job",
+        status: "failed",
+      });
+      const message = await ctx.db.get("messages", job.assistantMessageId);
+      if (message) {
+        await ctx.db.patch("messages", message._id, { status: "error" });
+      }
+      continue;
+    }
+    await ctx.db.patch("jobs", job._id, {
+      attempt,
+      claimedAt: undefined,
+      leaseId: undefined,
+      status: "queued",
+    });
+  }
+}
+
+async function touchRunningJobs(
+  ctx: MutationCtx,
+  runtimeId: Id<"runtimes">,
+  now: number
+) {
+  const running = await ctx.db
+    .query("jobs")
+    .withIndex("by_runtime_and_status", (q) =>
+      q.eq("runtimeId", runtimeId).eq("status", "running")
+    )
+    .take(20);
+  for (const job of running) {
+    await ctx.db.patch("jobs", job._id, { lastHeartbeatAt: now });
+  }
+}
+
+async function requireJobLease(
+  ctx: MutationCtx,
+  args: { jobId: Id<"jobs">; leaseId?: string; runtimeId: Id<"runtimes"> }
+) {
+  const job = await ctx.db.get("jobs", args.jobId);
+  if (!job) {
+    throw new Error("Job not found");
+  }
+  if (String(job.runtimeId) !== String(args.runtimeId)) {
+    throw new Error("Job belongs to another runtime");
+  }
+  if (job.status !== "running") {
+    throw new Error("Job is not running");
+  }
+  if (job.leaseId && args.leaseId !== job.leaseId) {
+    throw new Error("Job lease expired");
+  }
+  return job;
+}
+
 export const claimNext = mutation({
   args: {
     runtimeId: v.id("runtimes"),
@@ -60,6 +136,8 @@ export const claimNext = mutation({
   },
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const now = Date.now();
+    await recoverStaleJobs(ctx, args.runtimeId, now);
     const queued = await ctx.db
       .query("jobs")
       .withIndex("by_runtime_and_status", (q) =>
@@ -71,25 +149,30 @@ export const claimNext = mutation({
     if (!job) {
       return null;
     }
+    const leaseId = randomToken(12);
     await ctx.db.patch("jobs", job._id, {
+      attempt: (job.attempt ?? 0) + 1,
+      claimedAt: now,
+      lastHeartbeatAt: now,
+      leaseId,
       status: "running",
-      claimedAt: Date.now(),
     });
     await ctx.db.patch("runtimes", args.runtimeId, {
+      lastSeenAt: now,
       status: "online",
-      lastSeenAt: Date.now(),
     });
     return {
       _id: job._id,
-      chatId: job.chatId,
-      triggerMessageId: job.triggerMessageId,
       assistantMessageId: job.assistantMessageId,
-      runtimeId: job.runtimeId,
-      driverKind: job.driverKind,
-      model: job.model,
-      status: "running" as const,
-      prompt: job.prompt,
+      chatId: job.chatId,
       contextJson: job.contextJson,
+      driverKind: job.driverKind,
+      leaseId,
+      model: job.model,
+      prompt: job.prompt,
+      runtimeId: job.runtimeId,
+      status: "running" as const,
+      triggerMessageId: job.triggerMessageId,
     };
   },
   returns: claimView,
@@ -113,10 +196,13 @@ export const heartbeat = mutation({
   },
   handler: async (ctx, args) => {
     const runtime = await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const now = Date.now();
+    await recoverStaleJobs(ctx, runtime._id, now);
+    await touchRunningJobs(ctx, runtime._id, now);
     await ctx.db.patch("runtimes", runtime._id, {
-      status: "online",
-      lastSeenAt: Date.now(),
       hostname: args.hostname?.slice(0, 120) ?? runtime.hostname,
+      lastSeenAt: now,
+      status: "online",
     });
     for (const provider of args.providers ?? []) {
       const existing = await ctx.db
@@ -149,6 +235,7 @@ export const heartbeat = mutation({
 export const appendEvent = mutation({
   args: {
     jobId: v.id("jobs"),
+    leaseId: v.optional(v.string()),
     runtimeId: v.id("runtimes"),
     text: v.string(),
     token: v.string(),
@@ -162,14 +249,9 @@ export const appendEvent = mutation({
   },
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
-    const job = await ctx.db.get("jobs", args.jobId);
-    if (!job) {
-      throw new Error("Job not found");
-    }
-    if (String(job.runtimeId) !== String(args.runtimeId)) {
-      throw new Error("Job belongs to another runtime");
-    }
+    const job = await requireJobLease(ctx, args);
     const text = args.text.slice(0, 20_000);
+    await ctx.db.patch("jobs", job._id, { lastHeartbeatAt: Date.now() });
     await ctx.db.insert("jobEvents", {
       jobId: args.jobId,
       type: args.type,
@@ -199,18 +281,13 @@ export const complete = mutation({
     error: v.optional(v.string()),
     finalText: v.optional(v.string()),
     jobId: v.id("jobs"),
+    leaseId: v.optional(v.string()),
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
-    const job = await ctx.db.get("jobs", args.jobId);
-    if (!job) {
-      throw new Error("Job not found");
-    }
-    if (String(job.runtimeId) !== String(args.runtimeId)) {
-      throw new Error("Job belongs to another runtime");
-    }
+    const job = await requireJobLease(ctx, args);
     const failed = args.error !== undefined && args.error.length > 0;
     await ctx.db.patch("jobs", job._id, {
       status: failed ? "failed" : "done",
@@ -241,7 +318,11 @@ export const complete = mutation({
 });
 
 export const get = authedQuery({
-  args: { jobId: v.id("jobs") },
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    jobId: v.id("jobs"),
+    limit: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const job = await ctx.db.get("jobs", args.jobId);
     if (!job) {
@@ -260,12 +341,16 @@ export const get = authedQuery({
     } catch {
       return null;
     }
-    const events = await ctx.db
+    const limit = Math.min(Math.max(args.limit ?? 200, 1), 200);
+    const eventPage = await ctx.db
       .query("jobEvents")
       .withIndex("by_job", (q) => q.eq("jobId", args.jobId))
-      .order("asc")
-      .take(200);
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: limit });
+    const events = [...eventPage.page].reverse();
     return {
+      continueCursor: eventPage.continueCursor,
+      isDone: eventPage.isDone,
       job: {
         _id: job._id,
         chatId: job.chatId,
@@ -287,14 +372,16 @@ export const get = authedQuery({
   },
   returns: v.union(
     v.object({
-      job: jobView,
+      continueCursor: v.string(),
       events: v.array(
         v.object({
           _id: v.id("jobEvents"),
-          type: v.string(),
           text: v.string(),
+          type: v.string(),
         })
       ),
+      isDone: v.boolean(),
+      job: jobView,
     }),
     v.null()
   ),

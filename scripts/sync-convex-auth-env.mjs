@@ -42,6 +42,25 @@ function unescapeDotenv(value) {
   return value.replaceAll('\\"', '"').replaceAll("\\n", "\n");
 }
 
+/** Drop private JWK fields (d/p/q/…) so JWKS published to Convex is public-only. */
+function publicOnlyJwks(jwks) {
+  if (!jwks || !Array.isArray(jwks.keys)) {
+    throw new Error("JWKS must be an object with a keys array");
+  }
+  const fields = ["alg", "crv", "e", "kid", "kty", "n", "use", "x", "y"];
+  return {
+    keys: jwks.keys.map((key) => {
+      const next = {};
+      for (const field of fields) {
+        if (typeof key[field] === "string") {
+          next[field] = key[field];
+        }
+      }
+      return next;
+    }),
+  };
+}
+
 function tryParseJwks(raw) {
   try {
     const parsed = JSON.parse(raw);
@@ -156,7 +175,13 @@ if (!jwks) {
     ? "derived from JWT_PRIVATE_KEY (provided value unusable)"
     : "derived from JWT_PRIVATE_KEY";
 }
-const jwksValue = JSON.stringify(jwks);
+let publicJwks;
+try {
+  publicJwks = publicOnlyJwks(jwks);
+} catch (error) {
+  fail(error instanceof Error ? error.message : "JWKS is not publishable.");
+}
+const jwksValue = JSON.stringify(publicJwks);
 if (!tryParseJwks(jwksValue)) {
   fail("Internal error: computed JWKS is not valid JSON.");
 }
@@ -165,7 +190,7 @@ setEnv("SITE_URL", siteUrl);
 setEnv("JWT_PRIVATE_KEY", privateKey.pem);
 setEnv("JWKS", jwksValue);
 console.log(
-  `Synced SITE_URL=${siteUrl}, JWT_PRIVATE_KEY (valid PKCS8), JWKS (${jwksSource}, ${jwks.keys.length} key(s)).`
+  `Synced SITE_URL=${siteUrl}, JWT_PRIVATE_KEY (valid PKCS8), JWKS (${jwksSource}, ${publicJwks.keys.length} public key(s)).`
 );
 
 const googleId = (process.env.AUTH_GOOGLE_ID ?? "").trim();

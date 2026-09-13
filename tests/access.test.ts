@@ -40,6 +40,25 @@ describe(canUseRuntime, () => {
       })
     ).toBeTruthy();
   });
+
+  it("treats role grants as a minimum rank", () => {
+    expect(
+      canUseRuntime({
+        actorRole: "admin",
+        actorUserId: "u4",
+        grants: [{ targetType: "role", targetRole: "member" }],
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeTruthy();
+    expect(
+      canUseRuntime({
+        actorRole: "member",
+        actorUserId: "u5",
+        grants: [{ targetType: "role", targetRole: "admin" }],
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeFalsy();
+  });
 });
 
 describe("visibility", () => {
@@ -52,6 +71,18 @@ describe("visibility", () => {
         visibility: "private",
       })
     ).toBeFalsy();
+  });
+
+  it("lets org admins see private projects", () => {
+    expect(
+      canSeeProject({
+        isAdmin: true,
+        isOrgMember: true,
+        isOwner: false,
+        isProjectMember: false,
+        visibility: "private",
+      })
+    ).toBeTruthy();
   });
 
   it("keeps Phase 1 DMs owner-only", () => {

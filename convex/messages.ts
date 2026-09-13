@@ -18,11 +18,31 @@ import {
 import type { AgentTarget } from "./lib/mentions";
 import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
 import type { ProviderDriverKind } from "./lib/providers";
+import { STALE_RUNTIME_MS } from "./lib/runtimeHealth";
 import { messageDoc, providerKind } from "./lib/validators";
+
+async function enrichMessages(
+  ctx: { db: MutationCtx["db"] },
+  rows: Doc<"messages">[]
+) {
+  const out = [];
+  for (const row of rows) {
+    let authorName: string | undefined;
+    let authorHandle: string | undefined;
+    if (row.authorId) {
+      const author = await ctx.db.get("users", row.authorId);
+      authorName = author?.name;
+      authorHandle = author?.handle;
+    }
+    out.push({ ...row, authorName, authorHandle });
+  }
+  return out;
+}
 
 export const list = authedQuery({
   args: {
     chatId: v.id("chats"),
+    cursor: v.optional(v.union(v.string(), v.null())),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -35,26 +55,23 @@ export const list = authedQuery({
       throw new Error("Not a member of this organization");
     }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
-    const limit = Math.min(Math.max(args.limit ?? 100, 1), 200);
-    const rows = await ctx.db
+    const limit = Math.min(Math.max(args.limit ?? 80, 1), 200);
+    const result = await ctx.db
       .query("messages")
       .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
-      .order("asc")
-      .take(limit);
-    const out = [];
-    for (const row of rows) {
-      let authorName: string | undefined;
-      let authorHandle: string | undefined;
-      if (row.authorId) {
-        const author = await ctx.db.get("users", row.authorId);
-        authorName = author?.name;
-        authorHandle = author?.handle;
-      }
-      out.push({ ...row, authorName, authorHandle });
-    }
-    return out;
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: limit });
+    return {
+      continueCursor: result.continueCursor,
+      isDone: result.isDone,
+      messages: await enrichMessages(ctx, [...result.page].reverse()),
+    };
   },
-  returns: v.array(messageDoc),
+  returns: v.object({
+    continueCursor: v.string(),
+    isDone: v.boolean(),
+    messages: v.array(messageDoc),
+  }),
 });
 
 export const send = authedMutation({
@@ -254,7 +271,7 @@ async function pickRuntime(
   // A runtime whose heartbeat stopped stays "online" in the DB; treat it as
   // offline after 90s so jobs don't queue onto a dead machine forever.
   // (Runtime loop heartbeats every ~20s.)
-  const staleBefore = Date.now() - 90_000;
+  const staleBefore = Date.now() - STALE_RUNTIME_MS;
   const online = candidates.filter(
     (runtime) =>
       runtime.status === "online" &&

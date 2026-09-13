@@ -51,7 +51,16 @@ runs:
       shell: bash
       run: |
         set -o pipefail
+        site_url="${CONVEX_URL:-}"
+        if [ -n "$site_url" ]; then
+          site_url="${site_url%.convex.cloud}.convex.site"
+        fi
+        extra=()
+        if [ -n "$site_url" ]; then
+          extra+=(--var "CONVEX_SITE_URL:${site_url}")
+        fi
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
+          "${extra[@]}" \
           | tee /tmp/wrangler.out
         node scripts/extract-preview-url.mjs < /tmp/wrangler.out
 

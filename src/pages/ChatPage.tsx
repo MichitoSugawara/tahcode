@@ -17,12 +17,11 @@ import type { Suggestion } from "@/harness/EmptyHero";
 import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
 import { Thread } from "@/harness/thread/Thread";
-import type { ThreadMessage } from "@/harness/thread/Thread";
 import { Notice } from "@/harness/ui/Notice";
+import { useChatMessages } from "@/harness/useChatMessages";
 import { displayName } from "@/lib/format";
 import {
   hasPlaceholder,
-  isFresh,
   isPlaceholderId,
   markLoaded,
   placeholderOf,
@@ -51,10 +50,10 @@ export default function ChatPage() {
     | Chat
     | null
     | undefined;
-  const fetchedMessages = useQuery(
-    api.messages.list,
-    onServer ? { ...onServer, limit: 200 } : "skip"
-  ) as ThreadMessage[] | undefined;
+  const { hasOlder, loadOlder, loadingOlder, messages } = useChatMessages(
+    fetched?._id ?? null,
+    Boolean(fetched)
+  );
   /* while `get` is in flight the sidebar list already knows the row — placeholder or just-created;
    * a placeholder nobody is creating (stale URL after a reload) is treated like a missing chat */
   const listed = org.chats?.find((item) => String(item._id) === chatId);
@@ -64,10 +63,6 @@ export default function ChatPage() {
         ? null
         : listed
       : fetched;
-  const messages =
-    placeholder || (fetchedMessages === undefined && isFresh(chatId))
-      ? []
-      : fetchedMessages;
   const { send } = useSendMessage(chat ?? null);
   const { agent } = useChatAgent(chat ?? null);
   useDocumentTitle(
@@ -81,12 +76,16 @@ export default function ChatPage() {
     }
   }, [chat, org]);
   useEffect(() => {
-    if (chatId && fetchedMessages !== undefined) {
+    if (chatId && messages !== undefined) {
       markLoaded(chatId);
     }
-  }, [chatId, fetchedMessages]);
+  }, [chatId, messages]);
 
-  if (chat === undefined || (chat && messages === undefined)) {
+  if (
+    chat === undefined ||
+    (onServer && fetched === undefined) ||
+    (Boolean(fetched) && messages === undefined)
+  ) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <LoadingState label="チャットを開いています" variant="Dots" />
@@ -111,8 +110,9 @@ export default function ChatPage() {
             </Button>
           }
         >
-          削除されたか、あなたに閲覧権限がありません。プライベートなプロジェクト
-          / チャットは、追加されたメンバーと Owner / Admin にだけ表示されます。
+          削除されたか、あなたに閲覧権限がありません。非公開プロジェクトはプロジェクトメンバーと
+          Owner / Admin
+          に表示されます。非公開チャットはチャットメンバーだけが開けます。
         </Notice>
       </div>
     );
@@ -186,5 +186,13 @@ export default function ChatPage() {
     );
   }
 
-  return <Thread chat={chat} messages={messages ?? []} />;
+  return (
+    <Thread
+      chat={chat}
+      messages={messages ?? []}
+      hasOlder={hasOlder}
+      loadingOlder={loadingOlder}
+      onLoadOlder={() => void loadOlder()}
+    />
+  );
 }

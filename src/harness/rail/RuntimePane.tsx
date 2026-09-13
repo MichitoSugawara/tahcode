@@ -280,7 +280,7 @@ export function RuntimePane() {
               <span className="text-ink-3 block text-[11.5px]">
                 {usable.length > 0
                   ? `オンラインで許可のある ${usable.length} 台から選びます`
-                  : "いま使えるマシンはありません — 送信するとジョブは待機します"}
+                  : "いま使えるマシンはありません — 送信するとセットアップ手順が返信されます"}
               </span>
             </span>
             {runtimeId === null && (

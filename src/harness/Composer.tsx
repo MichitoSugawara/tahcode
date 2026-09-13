@@ -113,30 +113,46 @@ export function useSendMessage(chat: Chat | null) {
         if (value === undefined || listArgs.chatId !== args.chatId) {
           continue;
         }
-        store.setQuery(api.messages.list, listArgs, [
+        store.setQuery(api.messages.list, listArgs, {
           ...value,
-          {
-            _creationTime: Date.now(),
-            _id: placeholderId("messages"),
-            authorHandle: org.me.handle,
-            authorId: org.me._id,
-            authorName: org.me.name,
-            authorType: "user",
-            body: args.body,
-            chatId: args.chatId,
-            mentions: [...new Set(args.body.match(MENTION_RE) ?? [])],
-          },
-        ]);
+          messages: [
+            ...value.messages,
+            {
+              _creationTime: Date.now(),
+              _id: placeholderId("messages"),
+              authorHandle: org.me.handle,
+              authorId: org.me._id,
+              authorName: org.me.name,
+              authorType: "user",
+              body: args.body,
+              chatId: args.chatId,
+              mentions: [...new Set(args.body.match(MENTION_RE) ?? [])],
+            },
+          ],
+        });
       }
     }
   );
   const recordFile = useMutation(api.files.record);
+  const prepareUpload = useMutation(api.files.prepareUpload);
+  const ticketForKey = useMutation(api.files.ticketForKey);
   const [busy, setBusy] = useState(false);
 
   const upload = async (chatId: Id<"chats">, file: File): Promise<string> => {
+    const prepared = await prepareUpload({
+      chatId,
+      contentType: file.type || "application/octet-stream",
+      name: file.name,
+      orgId: org.org._id,
+      size: file.size,
+    });
     const response = await fetch("/api/files", {
       body: file,
-      headers: { "X-File-Name": encodeURIComponent(file.name) },
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "X-File-Name": encodeURIComponent(file.name),
+        "X-Upload-Ticket": prepared.ticket,
+      },
       method: "POST",
     });
     if (!response.ok) {
@@ -150,7 +166,6 @@ export function useSendMessage(chat: Chat | null) {
       name: string;
       contentType: string;
       size: number;
-      url: string;
     };
     await recordFile({
       chatId,
@@ -160,7 +175,13 @@ export function useSendMessage(chat: Chat | null) {
       orgId: org.org._id,
       size: uploaded.size,
     });
-    return `📎 [${uploaded.name}](${uploaded.url})`;
+    let url = `/api/files/${encodeURIComponent(uploaded.key)}`;
+    try {
+      url = await ticketForKey({ key: uploaded.key });
+    } catch {
+      /* click-to-ticket still works for the path-only link */
+    }
+    return `📎 [${uploaded.name}](${url})`;
   };
 
   const send = async (text: string, files: File[] = []) => {
@@ -428,7 +449,7 @@ export function Composer({
         {
           key: "auto",
           name: "自動選択",
-          tag: usable.length > 0 ? `${usable.length} 台` : "待機",
+          tag: usable.length > 0 ? `${usable.length} 台` : "オフライン",
         },
         ...(org.runtimes ?? []).map((runtime) => ({
           key: String(runtime._id),
@@ -458,9 +479,10 @@ export function Composer({
     const result = await sendWithRules(text, pending);
     if (result) {
       setPending([]);
-      setDraft("");
       onSent?.(result);
+      return true;
     }
+    return false;
   };
 
   let hint: ReactNode = null;

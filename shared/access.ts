@@ -49,7 +49,7 @@ export function canUseRuntime(input: {
       return grant.targetUserId === input.actorUserId;
     }
     if (grant.targetType === "role" && grant.targetRole) {
-      return grant.targetRole === input.actorRole;
+      return roleAtLeast(input.actorRole, grant.targetRole);
     }
     return false;
   });
@@ -60,6 +60,7 @@ export function canSeeProject(input: {
   isOrgMember: boolean;
   isProjectMember: boolean;
   isOwner: boolean;
+  isAdmin?: boolean;
 }): boolean {
   if (!input.isOrgMember) {
     return false;
@@ -67,7 +68,7 @@ export function canSeeProject(input: {
   if (input.visibility === "org") {
     return true;
   }
-  return input.isProjectMember || input.isOwner;
+  return input.isProjectMember || input.isOwner || input.isAdmin === true;
 }
 
 export function canSeeChat(input: {

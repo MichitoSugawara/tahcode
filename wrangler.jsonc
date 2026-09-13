@@ -7,6 +7,10 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+  "vars": {
+    "CONVEX_SITE_URL": "http://127.0.0.1:3211",
   },
   "r2_buckets": [
     {
@@ -15,6 +19,15 @@
     },
   ],
   "env": {
+    "preview": {
+      "name": "tahcode-preview",
+      "r2_buckets": [
+        {
+          "binding": "FILES",
+          "bucket_name": "team-harness-files-preview",
+        },
+      ],
+    },
     "staging": {
       "name": "tahcode-staging",
       "r2_buckets": [

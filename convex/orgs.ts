@@ -209,11 +209,13 @@ export const acceptInvite = authedMutation({
       throw new Error("Invite already used");
     }
     const user = await getCurrentUser(ctx);
-    if (
-      invite.email &&
-      user.email?.toLowerCase() !== invite.email.toLowerCase()
-    ) {
-      throw new Error("This invite is for a different email");
+    if (invite.email) {
+      if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+        throw new Error("This invite is for a different email");
+      }
+      if (user.emailVerificationTime === undefined) {
+        throw new Error("Verify your email before accepting this invite");
+      }
     }
     const existing = await getMembership(ctx, invite.orgId, user._id);
     if (!existing) {

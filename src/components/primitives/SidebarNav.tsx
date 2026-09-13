@@ -346,7 +346,9 @@ export default function SidebarNav({
   collapsible = true,
 }: SidebarNavProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set()
+  );
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspacePosition, setWorkspacePosition] = useState({
     left: 0,
@@ -403,8 +405,11 @@ export default function SidebarNav({
   const toggleGroup = (id: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -528,7 +533,7 @@ export default function SidebarNav({
                 transitionTimingFunction: CHAT_SEARCH_MOTION.easing,
               }}
             >
-              <span className="flex size-5 shrink-0 items-center justify-center text-ink-3">
+              <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
                 <ChevronDown size={15} />
               </span>
               <span className="ml-1.5">{groupsLabel}</span>
@@ -601,91 +606,91 @@ export default function SidebarNav({
           {visibleGroups.map((group) => {
             const open = needle.length > 0 || !collapsedGroups.has(group.id);
             return (
-            <div key={group.id} className="mb-2">
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={`sidebar-group-${group.id}`}
-                  onClick={() => toggleGroup(group.id)}
-                  className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
-                >
-                  <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                    <ChevronDown
-                      size={15}
-                      className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
-                    />
-                  </span>
-                  {group.icon && (
-                    <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                      {group.icon}
-                    </span>
-                  )}
-                  <span
-                    className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${group.onAdd ? "pr-7" : ""}`}
-                  >
-                    {group.label}
-                  </span>
-                </button>
-                {group.onAdd && (
+              <div key={group.id} className="mb-2">
+                <div className="relative">
                   <button
                     type="button"
-                    aria-label={group.addLabel ?? "追加"}
-                    title={group.addLabel ?? "追加"}
-                    onClick={group.onAdd}
-                    className="text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-3 z-20 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+                    aria-expanded={open}
+                    aria-controls={`sidebar-group-${group.id}`}
+                    onClick={() => toggleGroup(group.id)}
+                    className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
                   >
-                    <Plus size={14} />
-                  </button>
-                )}
-              </div>
-              {open && (
-              <div id={`sidebar-group-${group.id}`}>
-              <GlideGroup>
-                {group.items.map((item) => {
-                  const active = item.id === activeId;
-                  return (
-                    <button
-                      key={item.id}
-                      data-row
-                      type="button"
-                      title={item.label}
-                      onClick={() => onPick?.(item.id)}
-                      className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
-                        active
-                          ? "bg-active text-active-ink group-hover/glide:bg-transparent"
-                          : ""
-                      }`}
+                    <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                      <ChevronDown
+                        size={15}
+                        className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
+                      />
+                    </span>
+                    {group.icon && (
+                      <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                        {group.icon}
+                      </span>
+                    )}
+                    <span
+                      className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${group.onAdd ? "pr-7" : ""}`}
                     >
-                      <span
-                        className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}
-                      >
-                        {item.icon}
-                      </span>
-                      <span
-                        className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
-                      >
-                        {item.label}
-                      </span>
-                      {item.meta && (
-                        <span
-                          className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}
-                        >
-                          {item.meta}
-                        </span>
-                      )}
+                      {group.label}
+                    </span>
+                  </button>
+                  {group.onAdd && (
+                    <button
+                      type="button"
+                      aria-label={group.addLabel ?? "追加"}
+                      title={group.addLabel ?? "追加"}
+                      onClick={group.onAdd}
+                      className="text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-3 z-20 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+                    >
+                      <Plus size={14} />
                     </button>
-                  );
-                })}
-                {group.items.length === 0 && group.emptyHint && (
-                  <div className="sidebar-copy text-ink-3 mx-2 px-2 py-1.5 text-[12px] leading-[1.5]">
-                    {group.emptyHint}
+                  )}
+                </div>
+                {open && (
+                  <div id={`sidebar-group-${group.id}`}>
+                    <GlideGroup>
+                      {group.items.map((item) => {
+                        const active = item.id === activeId;
+                        return (
+                          <button
+                            key={item.id}
+                            data-row
+                            type="button"
+                            title={item.label}
+                            onClick={() => onPick?.(item.id)}
+                            className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
+                              active
+                                ? "bg-active text-active-ink group-hover/glide:bg-transparent"
+                                : ""
+                            }`}
+                          >
+                            <span
+                              className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}
+                            >
+                              {item.icon}
+                            </span>
+                            <span
+                              className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
+                            >
+                              {item.label}
+                            </span>
+                            {item.meta && (
+                              <span
+                                className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}
+                              >
+                                {item.meta}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {group.items.length === 0 && group.emptyHint && (
+                        <div className="sidebar-copy text-ink-3 mx-2 px-2 py-1.5 text-[12px] leading-[1.5]">
+                          {group.emptyHint}
+                        </div>
+                      )}
+                    </GlideGroup>
                   </div>
                 )}
-              </GlideGroup>
               </div>
-              )}
-            </div>
             );
           })}
           {nothingFound && (

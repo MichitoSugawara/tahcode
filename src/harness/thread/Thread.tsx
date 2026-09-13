@@ -38,10 +38,16 @@ export interface ThreadMessage {
  * ───────────────────────────────────────────────────────── */
 export function Thread({
   chat,
+  hasOlder = false,
+  loadingOlder = false,
   messages,
+  onLoadOlder,
 }: {
   chat: Chat;
+  hasOlder?: boolean;
+  loadingOlder?: boolean;
   messages: ThreadMessage[];
+  onLoadOlder?: () => void;
 }) {
   const org = useOrg();
   const { send } = useSendMessage(chat);
@@ -158,6 +164,21 @@ export function Thread({
           className="flex flex-col gap-7 px-4 pt-8 sm:px-8 lg:px-12"
           style={{ paddingBottom: composerH + 16 }}
         >
+          {hasOlder && onLoadOlder && (
+            <div className="mx-auto w-full max-w-[720px]">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={loadingOlder}
+                onClick={onLoadOlder}
+              >
+                {loadingOlder
+                  ? "以前のメッセージを読み込み中…"
+                  : "以前のメッセージを読み込む"}
+              </Button>
+            </div>
+          )}
           {messages.map((message, index) => {
             const previous = messages[index - 1];
             if (message.authorType === "user") {
@@ -241,7 +262,7 @@ export function Thread({
                 </Button>
               }
             >
-              登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできますが、エージェントの返信はランタイムが使えるようになるまで届きません。Runtime
+              登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできます。オンラインのランタイムがなければ、エージェントはセットアップ手順を返信します。Runtime
               タブで状態と許可を確認してください。
             </Notice>
           )}

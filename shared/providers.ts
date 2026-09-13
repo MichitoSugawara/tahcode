@@ -210,6 +210,16 @@ export const MENTION_TO_PROVIDER: Record<string, ProviderDriverKind> =
     )
   ) as Record<string, ProviderDriverKind>;
 
+export function providerKindFromHandle(
+  handle: string
+): ProviderDriverKind | undefined {
+  const key = handle.toLowerCase();
+  if (!Object.hasOwn(MENTION_TO_PROVIDER, key)) {
+    return undefined;
+  }
+  return MENTION_TO_PROVIDER[key];
+}
+
 export function isProviderDriverKind(
   value: string
 ): value is ProviderDriverKind {

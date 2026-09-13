@@ -13,6 +13,11 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 
 import type { ProviderDriverKind } from "../../shared/providers.ts";
+import {
+  createUtf8LineBuffer,
+  flushUtf8Lines,
+  pushUtf8Lines,
+} from "../../shared/utf8.ts";
 
 export interface ProviderProbe {
   kind: ProviderDriverKind;
@@ -212,7 +217,9 @@ export async function runHeadless(
   });
 
   let output = "";
-  let buffer = "";
+  let emittedText = false;
+  const lineBuffer = createUtf8LineBuffer();
+  const stderrBuffer = createUtf8LineBuffer();
 
   const emit = async (line: string) => {
     const trimmed = line.trim();
@@ -222,8 +229,9 @@ export async function runHeadless(
     if (kind === "codex" || kind === "claudeAgent" || kind === "cursor") {
       const parsed = tryParseJson(trimmed);
       if (parsed !== null) {
-        const classified = classifyStreamEvent(parsed);
+        const classified = classifyStreamEvent(parsed, emittedText);
         if (classified.kind === "text" && classified.text) {
+          emittedText = true;
           output += `${classified.text}\n`;
           await events.onText(`${classified.text}\n`);
         } else if (classified.kind === "tool") {
@@ -236,26 +244,27 @@ export async function runHeadless(
         return;
       }
       output += `${trimmed}\n`;
+      emittedText = true;
       await events.onText(`${trimmed}\n`);
       return;
     }
     output += `${trimmed}\n`;
+    emittedText = true;
     await events.onText(`${trimmed}\n`);
   };
 
   const onData = (data: Buffer) => {
-    buffer += data.toString();
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
+    for (const line of pushUtf8Lines(lineBuffer, data)) {
       void emit(line);
     }
   };
   child.stdout?.on("data", onData);
   child.stderr?.on("data", (data: Buffer) => {
-    const line = data.toString().trim();
-    if (line) {
-      void events.onThinking(line.slice(0, 2000));
+    for (const line of pushUtf8Lines(stderrBuffer, data)) {
+      const text = line.trim();
+      if (text) {
+        void events.onThinking(text.slice(0, 2000));
+      }
     }
   });
 
@@ -271,8 +280,14 @@ export async function runHeadless(
     child.on("close", (code) => resolve(code ?? 1));
     child.on("error", () => resolve(1));
   });
-  if (buffer.trim()) {
-    await emit(buffer);
+  for (const line of flushUtf8Lines(lineBuffer)) {
+    await emit(line);
+  }
+  for (const line of flushUtf8Lines(stderrBuffer)) {
+    const text = line.trim();
+    if (text) {
+      await events.onThinking(text.slice(0, 2000));
+    }
   }
 
   return { exitCode, output: output.trim().slice(-20_000) };
@@ -304,7 +319,10 @@ type StreamEvent =
  *   with command/tool items surfaced as tool chips; turn/thread lifecycle
  *   events are trace-only.
  */
-function classifyStreamEvent(parsed: unknown): StreamEvent {
+export function classifyStreamEvent(
+  parsed: unknown,
+  alreadyEmittedText = false
+): StreamEvent {
   if (typeof parsed !== "object" || parsed === null) {
     return { kind: "trace" };
   }
@@ -312,7 +330,11 @@ function classifyStreamEvent(parsed: unknown): StreamEvent {
   const type = typeof record.type === "string" ? record.type : "";
 
   if (type === "result" && typeof record.result === "string") {
-    return { kind: "text", text: record.result };
+    // Claude/Cursor emit the full text again as `result` after streaming
+    // assistant deltas — do not append a second copy.
+    return alreadyEmittedText
+      ? { kind: "trace" }
+      : { kind: "text", text: record.result };
   }
 
   if (type === "assistant") {

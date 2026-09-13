@@ -1,43 +1,14 @@
+import {
+  canSeeProject,
+  canUseRuntime,
+  roleAtLeast,
+} from "../../shared/access.ts";
+import type { OrgRole } from "../../shared/access.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 
-export type OrgRole = "owner" | "admin" | "member";
-
-export function canSeeProject(input: {
-  visibility: "org" | "private";
-  isOrgMember: boolean;
-  isProjectMember: boolean;
-  isOwner: boolean;
-}): boolean {
-  if (!input.isOrgMember) {
-    return false;
-  }
-  if (input.visibility === "org") {
-    return true;
-  }
-  return input.isProjectMember || input.isOwner;
-}
-
-export function canUseRuntime(input: {
-  actorUserId: string;
-  runtimeOwnerUserId: string;
-  actorRole: OrgRole;
-  grants: readonly {
-    targetType: "user" | "role";
-    targetUserId?: string;
-    targetRole?: OrgRole;
-  }[];
-}): boolean {
-  if (input.actorUserId === input.runtimeOwnerUserId) {
-    return true;
-  }
-  return input.grants.some((grant) => {
-    if (grant.targetType === "user") {
-      return grant.targetUserId === input.actorUserId;
-    }
-    return grant.targetType === "role" && grant.targetRole === input.actorRole;
-  });
-}
+export type { OrgRole };
+export { canSeeProject, canUseRuntime, roleAtLeast };
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -73,8 +44,7 @@ export async function requireRole(
   needed: OrgRole
 ) {
   const membership = await requireMembership(ctx, orgId, userId);
-  const rank: Record<OrgRole, number> = { admin: 1, member: 0, owner: 2 };
-  if (rank[membership.role] < rank[needed]) {
+  if (!roleAtLeast(membership.role, needed)) {
     throw new Error(
       needed === "owner" ? "Owner access required" : "Admin access required"
     );
@@ -105,6 +75,7 @@ export async function assertProjectVisible(
   const member = await isProjectMember(ctx, project._id, userId);
   if (
     !canSeeProject({
+      isAdmin: role === "admin" || role === "owner",
       isOrgMember: true,
       isOwner: role === "owner" || project.createdBy === userId,
       isProjectMember: member,
@@ -130,7 +101,7 @@ export async function assertChatVisible(
   if (!chat.projectId) {
     throw new Error("Project chat is missing a project");
   }
-  const project = await ctx.db.get(chat.projectId);
+  const project = await ctx.db.get("projects", chat.projectId);
   if (!project) {
     throw new Error("Project not found");
   }

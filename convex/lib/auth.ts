@@ -15,7 +15,7 @@ export async function getCurrentUserId(
 
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const userId = await getCurrentUserId(ctx);
-  const user = await ctx.db.get(userId);
+  const user = await ctx.db.get("users", userId);
   if (!user) {
     throw new Error("User not found");
   }
@@ -27,5 +27,5 @@ export async function getOptionalUser(ctx: QueryCtx | MutationCtx) {
   if (!userId) {
     return null;
   }
-  return await ctx.db.get(userId);
+  return await ctx.db.get("users", userId);
 }

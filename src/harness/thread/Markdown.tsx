@@ -5,6 +5,7 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import CodeBlock from "@/components/primitives/CodeBlock";
+import { FileLink } from "@/harness/thread/FileLink";
 
 function textOf(children: ReactNode): string {
   if (typeof children === "string") {
@@ -22,11 +23,7 @@ function textOf(children: ReactNode): string {
 }
 
 const components: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => <FileLink href={href}>{children}</FileLink>,
   code: ({ className, children }) => {
     const raw = textOf(children);
     const lang = /language-([\w-]+)/.exec(className ?? "")?.[1];

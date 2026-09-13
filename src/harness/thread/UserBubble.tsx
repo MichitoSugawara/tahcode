@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 
 import { Monogram } from "@/components/atoms/EntityChip";
 import { MentionText } from "@/components/atoms/MentionText";
+import { FileLink } from "@/harness/thread/FileLink";
 import { clockTime, colorFor, monogram } from "@/lib/format";
 
 /* the harness user bubble: right-aligned, soft field, hairline ring;
  * in shared chats the author sits above it so a room reads as a room */
 
-const LINK = /📎?\s*\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+const LINK = /📎?\s*\[([^\]]+)\]\(((?:https?:\/\/|\/api\/files\/)[^)\s]+)\)/g;
 
 function renderInline(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
@@ -22,16 +23,14 @@ function renderInline(text: string): ReactNode[] {
       );
     }
     parts.push(
-      <a
+      <FileLink
         key={`l${key++}`}
         href={match[2]}
-        target="_blank"
-        rel="noreferrer"
         className="rounded-chip bg-surface text-ink shadow-btn hover:bg-hover mx-0.5 inline-flex h-5.5 translate-y-[-1px] items-center gap-1 px-1.5 align-middle font-mono text-[11.5px] transition-colors duration-100"
       >
         <Paperclip size={11} className="text-ink-3" />
         <span className="max-w-48 truncate">{match[1]}</span>
-      </a>
+      </FileLink>
     );
     last = index + match[0].length;
   }
