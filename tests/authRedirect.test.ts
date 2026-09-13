@@ -92,4 +92,18 @@ describe(resolveRedirectTo, () => {
       /Invalid redirectTo/
     );
   });
+
+  it("keeps relative paths and desktop deep links when SITE_URL is tahcode.com", () => {
+    const custom = "https://tahcode.com";
+    expect(resolveRedirectTo("/login", custom)).toBe(`${custom}/login`);
+    expect(resolveRedirectTo(`${custom}/o/acme`, custom)).toBe(
+      `${custom}/o/acme`
+    );
+    expect(resolveRedirectTo(DESKTOP_OAUTH_CALLBACK, custom)).toBe(
+      DESKTOP_OAUTH_CALLBACK
+    );
+    expect(() => resolveRedirectTo(`${SITE}/login`, custom)).toThrow(
+      /Invalid redirectTo/
+    );
+  });
 });

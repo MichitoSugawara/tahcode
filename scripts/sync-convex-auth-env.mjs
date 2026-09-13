@@ -11,7 +11,8 @@
 // the provided one is missing, malformed, or does not match.
 //
 // Usage (env vars):
-//   SITE_URL          required  public URL of the web app (OAuth redirect target)
+//   SITE_URL          required  public URL of the web app (OAuth redirect target).
+//                               Production CI sets https://tahcode.com, not workers.dev.
 //   JWT_PRIVATE_KEY   required  PKCS8 PEM (newlines may be spaces or literal "\n")
 //   JWKS              optional  JSON web key set; derived from the key if unusable
 //   AUTH_GOOGLE_ID    optional  Google OAuth client id (synced when present)

@@ -25,11 +25,19 @@ inputs:
     required: false
     default: ""
     description: Deployment selector for convex env set, e.g. --prod or --preview-name foo (--deployment is rejected when CONVEX_DEPLOY_KEY is set)
+  public_site_url:
+    required: false
+    default: ""
+    description: >
+      Public origin for Convex Auth SITE_URL (OAuth post-login redirect). When empty, production uses https://tahcode.com; staging and preview keep the wrangler workers.dev / preview-alias URL. Override with this input or PUBLIC_SITE_URL. Does not change Worker hostnames.
 
 outputs:
   cloudflare_url:
-    description: Deployed Cloudflare URL
+    description: Deployed Cloudflare workers.dev / preview-alias URL
     value: ${{ steps.cf.outputs.cloudflare_url }}
+  public_site_url:
+    description: Public site URL used for Convex Auth SITE_URL
+    value: ${{ steps.cf.outputs.public_site_url }}
   skipped:
     description: true when preview Cloudflare deploy was skipped
     value: ${{ steps.cf.outputs.skipped }}
@@ -85,6 +93,8 @@ runs:
     - name: Deploy Cloudflare
       id: cf
       shell: bash
+      env:
+        PUBLIC_SITE_URL: ${{ inputs.public_site_url }}
       run: |
         # Preview: retry transient `fetch failed` / connectivity with backoff,
         # bootstrap a missing Worker, create the preview R2 bucket if needed.
@@ -105,7 +115,7 @@ runs:
       if: ${{ steps.cf.outputs.skipped != 'true' }}
       shell: bash
       env:
-        SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+        SITE_URL: ${{ steps.cf.outputs.public_site_url }}
         CONVEX_ENV_ARGS: ${{ steps.convex.outputs.preview_name != '' && format('--preview-name {0}', steps.convex.outputs.preview_name) || inputs.convex_env_extra }}
       run: |
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/sync-convex-auth-env.mjs
@@ -114,4 +124,5 @@ runs:
       shell: bash
       env:
         CLOUDFLARE_URL: ${{ steps.cf.outputs.cloudflare_url }}
+        PUBLIC_SITE_URL: ${{ steps.cf.outputs.public_site_url }}
       run: node scripts/write-deploy-summary.mjs ${{ inputs.name }}

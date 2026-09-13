@@ -1,6 +1,6 @@
 # tahcode — Phase 1
 
-**tahcode**（ターコード、_team agent harness_）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。本番: https://tahcode.gawara.workers.dev（旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
+**tahcode**（ターコード、_team agent harness_）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。本番: https://tahcode.com（Worker hostname `tahcode.gawara.workers.dev` は残す。旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
 
 UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと [/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts` （Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない）。
 
@@ -269,7 +269,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth の署名鍵（本番・staging・preview deploy ごとに設定される） |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | （任意）Google OAuth のクライアント ID / シークレット。設定時のみ Google ログインが有効 |
 
-`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` はデプロイ後の Cloudflare URL を CI が設定するため保存不要。
+`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` は CI が公開サイトの origin を設定するため保存不要（本番は `https://tahcode.com`。staging / preview は wrangler が返す workers.dev / preview-alias URL。`tahcode.gawara.workers.dev` は Worker hostname として残す）。
 
 ### Convex Auth の署名鍵（重要）
 
@@ -291,7 +291,7 @@ CI の同期スクリプトは `jose` で両値を検証し、エスケープや
 ### Google OAuth（任意）
 
 1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID**（Web application）。
-2. **Authorized redirect URIs** に各デプロイの Convex **site** URL のコールバックを追加: `https://<deployment>.convex.site/api/auth/callback/google` （例 本番: `https://dapper-ibex-447.convex.site/api/auth/callback/google`。`.convex.cloud` ではなく `.convex.site`）。OAuth 後の戻り先は Convex Auth の `SITE_URL`（CI が Worker の URL、本番は `https://tahcode.gawara.workers.dev` を設定）。 **Authorized JavaScript origins** に Worker の URL を登録している場合は `https://tahcode.gawara.workers.dev` へ更新する。
+2. **Authorized redirect URIs** に各デプロイの Convex **site** URL のコールバックを追加: `https://<deployment>.convex.site/api/auth/callback/google` （例 本番: `https://dapper-ibex-447.convex.site/api/auth/callback/google`。`.convex.cloud` ではなく `.convex.site`）。OAuth 後の戻り先は Convex Auth の `SITE_URL`（CI が公開サイト origin を設定。本番は `https://tahcode.com`、staging は `https://tahcode-staging.gawara.workers.dev`、preview は ephemeral な workers.dev / alias）。 **Authorized JavaScript origins** には本番 `https://tahcode.com`（と必要なら `https://tahcode.gawara.workers.dev`）を登録する。
 3. 取得した Client ID / Secret を反映する。いずれか:
    - `.env.<name>` に `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` を入れて `env:enc` → CI が同期、または
    - ダッシュボードで直接 `npx convex env set AUTH_GOOGLE_ID …`（本番は `--prod`）。
@@ -311,7 +311,7 @@ npm run env:dec -- production   # 復号の確認（平文は捨てる）
 
 - preview: `wrangler versions upload --env preview --preview-alias pr-<番号>`（Worker `tahcode-preview` + R2 `team-harness-files-preview`、PR に URL コメント）
 - staging: `wrangler deploy --env staging`（Worker `tahcode-staging` → `tahcode-staging.gawara.workers.dev` + R2 `team-harness-files-staging`）
-- production: `wrangler deploy --env=""`（トップレベル Worker `tahcode` → `tahcode.gawara.workers.dev` + R2 `team-harness-files`）+ `convex --prod`
+- production: `wrangler deploy --env=""`（トップレベル Worker `tahcode` → hostname `tahcode.gawara.workers.dev`、公開サイト `https://tahcode.com` + R2 `team-harness-files`）+ `convex --prod`。Convex Auth の `SITE_URL` は公開サイト（`https://tahcode.com`）であり、workers.dev ではない
 
 R2 バケットは環境ごとに分かれており、**Wrangler はバケットを作らない**。preview ジョブは `team-harness-files-preview` を一覧し、無ければ資格情報の範囲で作成する（作成できない / 一覧できないときは理由を出して preflight をスキップ）。staging / production のバケットは自動作成しない。手元で作る場合:
 

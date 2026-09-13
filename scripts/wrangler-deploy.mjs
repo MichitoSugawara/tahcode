@@ -22,6 +22,7 @@ import {
   parseCloudflareUrl,
   previewSkipReason,
   readEnvPresence,
+  resolvePublicSiteUrl,
   toConvexSiteUrl,
 } from "./wrangler-classify.mjs";
 
@@ -158,7 +159,7 @@ function failFinal(name, kind, status) {
   process.exit(status || 1);
 }
 
-function succeed(output) {
+function succeed(name, output) {
   const url = parseCloudflareUrl(output);
   if (!url) {
     console.error(
@@ -166,8 +167,21 @@ function succeed(output) {
     );
     process.exit(1);
   }
-  writeOutputs({ cloudflare_url: url, skip_reason: "", skipped: "false" });
+  const publicSiteUrl = resolvePublicSiteUrl({
+    cloudflareUrl: url,
+    name,
+    override: process.env.PUBLIC_SITE_URL,
+  });
+  writeOutputs({
+    cloudflare_url: url,
+    public_site_url: publicSiteUrl,
+    skip_reason: "",
+    skipped: "false",
+  });
   console.log(`Parsed Cloudflare URL: ${url}`);
+  if (publicSiteUrl !== url) {
+    console.log(`Public site URL (Convex Auth SITE_URL): ${publicSiteUrl}`);
+  }
 }
 
 function runBootstrap(name, dotenv, extra) {
@@ -193,7 +207,12 @@ function main() {
   });
   if (skip) {
     console.log(`::warning::Skipping Cloudflare preview deploy: ${skip}`);
-    writeOutputs({ cloudflare_url: "", skip_reason: skip, skipped: "true" });
+    writeOutputs({
+      cloudflare_url: "",
+      public_site_url: "",
+      skip_reason: skip,
+      skipped: "true",
+    });
     return;
   }
 
@@ -226,7 +245,7 @@ function main() {
     );
 
     if (action.type === "succeed") {
-      succeed(result.output);
+      succeed(args.name, result.output);
       return;
     }
 

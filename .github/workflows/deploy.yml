@@ -134,6 +134,7 @@ jobs:
       - name: Publish staging URL
         env:
           CLOUDFLARE_URL: ${{ steps.deploy.outputs.cloudflare_url }}
+          PUBLIC_SITE_URL: ${{ steps.deploy.outputs.public_site_url }}
           CONVEX_URL: ${{ env.CONVEX_URL }}
         run: node scripts/write-deploy-summary.mjs staging
 
@@ -147,7 +148,7 @@ jobs:
       cancel-in-progress: false
     environment:
       name: production
-      url: ${{ steps.deploy.outputs.cloudflare_url }}
+      url: ${{ steps.deploy.outputs.public_site_url }}
     env:
       DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
     steps:
@@ -164,5 +165,6 @@ jobs:
       - name: Publish production URL
         env:
           CLOUDFLARE_URL: ${{ steps.deploy.outputs.cloudflare_url }}
+          PUBLIC_SITE_URL: ${{ steps.deploy.outputs.public_site_url }}
           CONVEX_URL: ${{ env.CONVEX_URL }}
         run: node scripts/write-deploy-summary.mjs production

@@ -165,6 +165,39 @@ export function parseCloudflareUrl(output) {
   return aliasMatch?.[1] ?? previewMatch?.[1] ?? publishedMatch?.[0] ?? "";
 }
 
+/** Public web origin for production Convex Auth (OAuth post-login redirect). */
+export const PRODUCTION_PUBLIC_SITE_URL = "https://tahcode.com";
+
+function trimUrl(value) {
+  return (value ?? "").trim().replace(/\/$/, "");
+}
+
+/**
+ * Convex Auth SITE_URL / post-login redirect target.
+ *
+ * wrangler deploy always prints the workers.dev hostname. Production also
+ * serves https://tahcode.com (custom domain already bound on the Worker);
+ * auth must send users there, not to tahcode.gawara.workers.dev.
+ *
+ * Precedence: explicit override (action input / PUBLIC_SITE_URL) → name-based
+ * map → the wrangler URL. Staging and preview keep the workers.dev / alias URL
+ * unless overridden. Does not change Worker hostnames.
+ */
+export function resolvePublicSiteUrl({
+  cloudflareUrl = "",
+  name,
+  override = "",
+}) {
+  const fromOverride = trimUrl(override);
+  if (fromOverride) {
+    return fromOverride;
+  }
+  if (name === "production") {
+    return PRODUCTION_PUBLIC_SITE_URL;
+  }
+  return trimUrl(cloudflareUrl);
+}
+
 export function parseBucketNames(output) {
   const text = stripAnsi(output).trim();
   const fromJson = bucketsFromJson(text);
