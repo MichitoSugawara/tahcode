@@ -138,6 +138,7 @@ export class RuntimeClient {
 
   async appendEvent(input: {
     jobId: string;
+    /** Always send the claim lease. tahcode@0.1.0 omitted this and broke on leased jobs. */
     leaseId: string;
     runtimeId: string;
     text: string;

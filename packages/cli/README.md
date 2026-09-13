@@ -98,6 +98,8 @@ npm publish --access public   # prepublishOnly runs the bundle
 
 Current version: `0.1.0` under the new name (feature-equivalent to `dalecode@0.1.1`: background bridge, `stop` / `restart` / `logs` for both processes, `service` for launchd).
 
+`tahcode@0.1.0` omits `leaseId` on `jobs:appendEvent` / `jobs:complete`. Server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) accepts that payload so production chat works without an immediate CLI upgrade. This tree always sends the claim `leaseId` (`runtime/src/runner.ts`). **Republish as `0.1.1`** so Mac bridges stop relying on the server fallback (`npm version patch`, keep `VERSION` in `src/index.ts` in sync, then `npm publish --access public`). Existing installs: `npm i -g tahcode@latest` and `tahcode restart`.
+
 ## Migrating from dalecode
 
 The package, bin, config directory, launchd label and env vars were renamed; behaviour is unchanged.
