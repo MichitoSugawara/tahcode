@@ -18,6 +18,7 @@ import type { ProviderOptionSelection } from "./modelOptions";
 import { sanitizeOptionSelections } from "./modelOptions";
 import type { ProviderDriverKind } from "./providers";
 import {
+  cursorEffortFromOptions,
   isValidModelSlug,
   resolveCursorCliModel,
   resolveModelSlug,
@@ -93,7 +94,7 @@ export async function sendUserMessage(
         wantedKind,
       })
     : null;
-  const body = expandResolvedMentions(trimmed, runtime?.liveSlugs);
+  const body = expandResolvedMentions(trimmed);
   if (body.length > 20_000) {
     throw new Error("Message is too long");
   }
@@ -137,7 +138,11 @@ export async function sendUserMessage(
   const { driverKind, options } = target;
   const model =
     driverKind === "cursor" && target.model
-      ? resolveCursorCliModel(target.model, runtime?.liveSlugs)
+      ? resolveCursorCliModel(
+          target.model,
+          runtime?.liveSlugs,
+          cursorEffortFromOptions(options)
+        )
       : target.model;
 
   if (!runtime) {

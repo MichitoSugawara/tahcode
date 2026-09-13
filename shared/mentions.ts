@@ -1,4 +1,6 @@
+import { cursorEffortChoiceId, parseCursorModel } from "./cursorModels.ts";
 import type { ProviderOptionSelection } from "./modelOptions.ts";
+import { upsertOptionSelection } from "./modelOptions.ts";
 import {
   isValidModelSlug,
   providerKindFromHandle,
@@ -130,24 +132,41 @@ function withFallbackOptions(
 }
 
 /**
- * Rewrite `@cursor/<family>` (and aliases like `@cursor/grok`) to the
- * CLI-valid id so the mention chip matches `agent --model`. Pass the
- * machine's live slugs when known so the chip uses the same pick as the job.
+ * Rewrite `@cursor/<alias>` (e.g. `@cursor/grok`) to the family id
+ * (`@cursor/cursor-grok-4.6`). Effort stays on the SELECT, so a bare
+ * family mention is not rewritten to `-medium`.
  */
-export function expandResolvedMentions(
-  text: string,
-  liveSlugs?: readonly string[] | null
-): string {
+export function expandResolvedMentions(text: string): string {
   return text.replaceAll(
     /(^|[^A-Za-z0-9_@.+-])@(cursor)\/([A-Za-z0-9_.\-/]+)/gi,
     (full, boundary: string, handle: string, slug: string) => {
-      const resolved = resolveModelSlug("cursor", slug, liveSlugs);
+      const resolved = resolveModelSlug("cursor", slug);
       if (!resolved || resolved === slug) {
         return full;
       }
       return `${boundary}@${handle}/${resolved}`;
     }
   );
+}
+
+function applyCursorMentionEffort(target: AgentTarget): AgentTarget {
+  if (target.driverKind !== "cursor" || !target.model) {
+    return target;
+  }
+  const parsed = parseCursorModel(target.model);
+  const effort = cursorEffortChoiceId(parsed);
+  if (!effort) {
+    return target;
+  }
+  const options = upsertOptionSelection(target.options, "reasoning", effort);
+  const next: AgentTarget = {
+    driverKind: "cursor",
+    model: parsed.family,
+  };
+  if (options) {
+    next.options = options;
+  }
+  return next;
 }
 
 export function preferredTarget(
@@ -163,10 +182,12 @@ export function preferredTarget(
     );
   }
   if (mentioned.model) {
-    return withFallbackOptions(
-      { driverKind: mentioned.providerKind, model: mentioned.model },
-      fallback,
-      mentioned.providerKind === fallback.driverKind
+    return applyCursorMentionEffort(
+      withFallbackOptions(
+        { driverKind: mentioned.providerKind, model: mentioned.model },
+        fallback,
+        mentioned.providerKind === fallback.driverKind
+      )
     );
   }
   if (mentioned.providerKind === fallback.driverKind) {

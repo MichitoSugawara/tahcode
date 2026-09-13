@@ -1,5 +1,6 @@
 import {
   cursorMentionSuggestItems,
+  cursorModelFamily,
   resolveCursorCliModel,
 } from "@shared/cursorModels.ts";
 import type { CursorMentionSuggestItem } from "@shared/cursorModels.ts";
@@ -62,6 +63,7 @@ export {
   STALE_RUNNING_MS,
   canRequestMaintenance,
   cursorMentionSuggestItems,
+  cursorModelFamily,
   effortFooterFor,
   formatAgentMention,
   getProviderOptionCurrentLabel,
@@ -279,6 +281,43 @@ export function agentLabel(
 ): string {
   const label = providerLabel(kind);
   return model ? `${label} · ${model}` : label;
+}
+
+/** Family slug for picker values (`cursor-grok-4.6-high` → `cursor-grok-4.6`). */
+export function pickerModelSlug(
+  kind: ProviderDriverKind,
+  model: string | null | undefined
+): string {
+  if (!model) {
+    return "";
+  }
+  return kind === "cursor" ? cursorModelFamily(model) : model;
+}
+
+/** Effort-hint row for the active model, matching a family if the slug is suffixed. */
+export function catalogModelHint<
+  T extends {
+    slug: string;
+    defaultReasoningLevel?: string;
+    supportedReasoningLevels?: string[];
+  },
+>(
+  kind: ProviderDriverKind,
+  model: string | null | undefined,
+  models: readonly T[]
+): T | undefined {
+  if (!model) {
+    return undefined;
+  }
+  const exact = models.find((item) => item.slug === model);
+  if (exact) {
+    return exact;
+  }
+  if (kind !== "cursor") {
+    return undefined;
+  }
+  const family = cursorModelFamily(model);
+  return models.find((item) => item.slug === family);
 }
 
 /** The mention the composer prepends when a project message names no agent. */

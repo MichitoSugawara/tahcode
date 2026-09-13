@@ -15,6 +15,12 @@
  * persist for t3code parity but have no headless flag (ACP-only upstream).
  */
 
+import {
+  CURSOR_DEFAULT_EFFORT,
+  CURSOR_SUGGEST_EFFORTS,
+  cursorFamilyNeedsEffortFallback,
+  cursorModelFamily,
+} from "./cursorModels.ts";
 import type { ProviderDriverKind } from "./providers.ts";
 
 export type ProviderOptionChoice = {
@@ -300,6 +306,44 @@ function opencodeDefaultVariant(model: string | undefined | null): string {
   return "medium";
 }
 
+const CURSOR_GENERIC_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+
+function cursorEffortIds(
+  model: string | undefined | null,
+  hint?: ReasoningHint
+): readonly string[] {
+  const live = hint?.supportedReasoningLevels?.filter((id) =>
+    isValidOptionValue(id)
+  );
+  if (live && live.length > 0) {
+    return live;
+  }
+  if (cursorFamilyNeedsEffortFallback(cursorModelFamily(model ?? ""))) {
+    return CURSOR_SUGGEST_EFFORTS;
+  }
+  return CURSOR_GENERIC_EFFORTS;
+}
+
+function cursorDefaultEffort(
+  ids: readonly string[],
+  hint?: ReasoningHint
+): string {
+  const fromHint = hint?.defaultReasoningLevel?.trim();
+  if (fromHint && ids.includes(fromHint)) {
+    return fromHint;
+  }
+  if (ids.includes(CURSOR_DEFAULT_EFFORT)) {
+    return CURSOR_DEFAULT_EFFORT;
+  }
+  return ids[0] ?? CURSOR_DEFAULT_EFFORT;
+}
+
 /**
  * Descriptors for the active provider + model. Empty = hide the control
  * (Antigravity bakes effort into the model slug).
@@ -349,18 +393,17 @@ export function optionDescriptorsFor(
         ),
       ];
     }
-    case "cursor":
+    case "cursor": {
+      const ids = cursorEffortIds(model, hint);
+      const defaultId = cursorDefaultEffort(ids, hint);
       return [
         selectDescriptor(
           "reasoning",
           "Reasoning",
-          labeledChoices(
-            ["low", "medium", "high", "xhigh", "max"],
-            CODEX_EFFORT_LABELS,
-            "medium"
-          )
+          labeledChoices(ids, CODEX_EFFORT_LABELS, defaultId)
         ),
       ];
+    }
     case "opencode":
       return [
         selectDescriptor(
@@ -647,7 +690,7 @@ export function effortFooterFor(kind: ProviderDriverKind): string {
     case "claudeAgent":
       return "claude -p --effort … · Ultrathink はプロンプト先頭に注入（t3code と同じ）";
     case "cursor":
-      return "選択はチャットに保存。agent -p には effort フラグがなく、t3code は ACP setConfigOption で渡す";
+      return "agent --model {family}-{effort}（未選択は medium。@cursor だけなら CLI の既定）";
     case "opencode":
       return "opencode run --variant …（t3code OpenCode variant）";
     case "grok":

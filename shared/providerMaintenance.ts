@@ -18,7 +18,7 @@
  *    is "manual", shown to the owner as a command to run themselves. No
  *    `curl | sh`, no shell interpolation.
  */
-import { cursorModelFamily } from "./cursorModels.ts";
+import { collapseCursorCatalog, cursorModelFamily } from "./cursorModels.ts";
 import { catalogFor, isValidModelSlug } from "./providers.ts";
 import type { ProviderDriverKind, ProviderModel } from "./providers.ts";
 
@@ -454,6 +454,8 @@ export type CatalogModel = LiveModel & {
   legacy?: boolean;
   /** Static-catalog short spellings (`grok` → `cursor-grok-4.6`), when the slug matches. */
   aliases?: readonly string[];
+  /** Effort-suffixed CLI ids collapsed into this family row. */
+  variantSlugs?: readonly string[];
 };
 
 function staticCatalogMatch(
@@ -479,6 +481,45 @@ function staticCatalogMatch(
  * reported one (the account's real catalog — the same choice Multica makes),
  * otherwise the static snapshot from `shared/providers.ts`.
  */
+function applyCursorFamilyCollapse(
+  kind: ProviderDriverKind,
+  source: ModelSource,
+  models: CatalogModel[],
+  statics: readonly ProviderModel[]
+): CatalogModel[] {
+  if (kind !== "cursor") {
+    return models;
+  }
+  return collapseCursorCatalog(models).map((row) => {
+    const match = staticCatalogMatch("cursor", row.slug, statics);
+    const model: CatalogModel = {
+      name: match?.name ?? row.name,
+      slug: row.slug,
+      source,
+    };
+    const aliases = row.aliases ?? match?.aliases;
+    if (aliases && aliases.length > 0) {
+      model.aliases = aliases;
+    }
+    if (row.default) {
+      model.default = true;
+    }
+    if (row.legacy) {
+      model.legacy = true;
+    }
+    if (row.defaultReasoningLevel) {
+      model.defaultReasoningLevel = row.defaultReasoningLevel;
+    }
+    if (row.supportedReasoningLevels) {
+      model.supportedReasoningLevels = row.supportedReasoningLevels;
+    }
+    if (row.variantSlugs) {
+      model.variantSlugs = row.variantSlugs;
+    }
+    return model;
+  });
+}
+
 export function mergeModelCatalog(
   kind: ProviderDriverKind,
   live: readonly LiveModel[] | null | undefined
@@ -489,52 +530,54 @@ export function mergeModelCatalog(
     return match?.aliases ? { ...model, aliases: match.aliases } : model;
   };
   if (live && live.length > 0) {
+    const models = live.map((model) =>
+      withAliases(
+        {
+          ...model,
+          name:
+            model.name ??
+            staticCatalogMatch(kind, model.slug, statics)?.name ??
+            model.slug,
+          source: "live",
+        },
+        model.slug
+      )
+    );
     return {
       source: "live",
-      models: live.map((model) =>
+      models: applyCursorFamilyCollapse(kind, "live", models, statics),
+    };
+  }
+  const models = [
+    ...statics
+      .filter((model) => !model.legacy)
+      .map((model) =>
         withAliases(
           {
-            ...model,
-            name:
-              model.name ??
-              staticCatalogMatch(kind, model.slug, statics)?.name ??
-              model.slug,
-            source: "live",
+            name: model.name,
+            slug: model.slug,
+            source: "static" as const,
           },
           model.slug
         )
       ),
-    };
-  }
+    ...statics
+      .filter((model) => model.legacy)
+      .map((model) =>
+        withAliases(
+          {
+            legacy: true,
+            name: model.name,
+            slug: model.slug,
+            source: "static" as const,
+          },
+          model.slug
+        )
+      ),
+  ];
   return {
     source: "static",
-    models: [
-      ...statics
-        .filter((model) => !model.legacy)
-        .map((model) =>
-          withAliases(
-            {
-              name: model.name,
-              slug: model.slug,
-              source: "static",
-            },
-            model.slug
-          )
-        ),
-      ...statics
-        .filter((model) => model.legacy)
-        .map((model) =>
-          withAliases(
-            {
-              legacy: true,
-              name: model.name,
-              slug: model.slug,
-              source: "static",
-            },
-            model.slug
-          )
-        ),
-    ],
+    models: applyCursorFamilyCollapse(kind, "static", models, statics),
   };
 }
 

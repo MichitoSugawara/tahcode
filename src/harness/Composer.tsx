@@ -43,7 +43,9 @@ import { isPlaceholderId, placeholderId, resolveId } from "@/lib/optimistic";
 import {
   PROVIDERS,
   agentMention,
+  catalogModelHint,
   cursorMentionSuggestItems,
+  cursorModelFamily,
   effortFooterFor,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
@@ -52,6 +54,7 @@ import {
   modelDisplayName,
   modelMentionExample,
   optionDescriptorsFor,
+  pickerModelSlug,
   primaryOptionDescriptor,
   retainValidOptions,
   supportsModelPick,
@@ -81,7 +84,7 @@ function effortPickers(
     options?: ProviderOptionSelection[] | null
   ) => void
 ): PromptPicker[] {
-  const hint = models.find((model) => model.slug === agent.model);
+  const hint = catalogModelHint(agent.driverKind, agent.model, models);
   const primary = primaryOptionDescriptor(
     optionDescriptorsFor(agent.driverKind, agent.model, hint)
   );
@@ -171,11 +174,13 @@ export function useChatAgent(chat: Chat | null) {
       model: string | null,
       nextOptions?: ProviderOptionSelection[] | null
     ) => {
+      const resolvedModel =
+        driverKind === "cursor" && model ? cursorModelFamily(model) : model;
       const options =
         nextOptions === undefined
-          ? retainValidOptions(driverKind, model, agent.options)
+          ? retainValidOptions(driverKind, resolvedModel, agent.options)
           : (nextOptions ?? undefined);
-      org.setAgent(driverKind, model, options ?? null);
+      org.setAgent(driverKind, resolvedModel, options ?? null);
       if (chat) {
         /* a chat opened straight from its create dialog may still carry a placeholder id */
         void resolveId(chat._id)
@@ -183,7 +188,7 @@ export function useChatAgent(chat: Chat | null) {
             bindChat({
               chatId,
               driverKind,
-              model: model ?? undefined,
+              model: resolvedModel ?? undefined,
               options,
             })
           )
@@ -307,13 +312,7 @@ export function useSendMessage(chat: Chat | null) {
       if (chat.kind === "project" && !hasAgentMention(body)) {
         body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
       }
-      const cursorCatalog = modelCatalogFor("cursor", org.runtimes);
-      body = expandResolvedMentions(
-        body,
-        cursorCatalog.source === "live"
-          ? cursorCatalog.models.map((model) => model.slug)
-          : undefined
-      );
+      body = expandResolvedMentions(body);
       const result = await sendMessage({
         body,
         chatId,
@@ -666,7 +665,7 @@ export function Composer({
         ? (modelDisplayName(agent.driverKind, agent.model) ?? agent.model)
         : "既定モデル",
       onChange: (key) => setAgent(agent.driverKind, key || null),
-      value: agent.model ?? "",
+      value: pickerModelSlug(agent.driverKind, agent.model),
     },
     ...effortPickers(agent, catalog.models, setAgent),
     {
@@ -776,7 +775,7 @@ export function Composer({
           at: modelToken
             ? cursorSuggestKind === "effort"
               ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
-              : `${PROVIDERS[modelToken.providerKind].label} のモデル · @${modelToken.handle} だけなら CLI の既定モデル`
+              : `${PROVIDERS[modelToken.providerKind].label} のモデル · 推論はセレクトで選択 · @${modelToken.handle} だけなら CLI の既定モデル`
             : "エージェントかメンバーを選択 · @provider/ でモデル候補",
           dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
         }}

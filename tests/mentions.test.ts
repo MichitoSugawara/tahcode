@@ -54,9 +54,7 @@ describe(parseMentions, () => {
 
   it("resolves catalog aliases and preserves unknown slugs", () => {
     expect(parseMentions("@claude/opus")[0]?.model).toBe("claude-opus-5");
-    expect(parseMentions("@cursor/grok")[0]?.model).toBe(
-      "cursor-grok-4.6-medium"
-    );
+    expect(parseMentions("@cursor/grok")[0]?.model).toBe("cursor-grok-4.6");
     expect(parseMentions("@cursor/gpt-5.6-sol-high")[0]?.model).toBe(
       "gpt-5.6-sol-high"
     );
@@ -189,7 +187,7 @@ describe("model slugs", () => {
 
   it("resolves aliases per provider and formats mentions", () => {
     expect(resolveModelSlug("claudeAgent", "Sonnet")).toBe("claude-sonnet-5");
-    expect(resolveModelSlug("cursor", "grok")).toBe("cursor-grok-4.6-medium");
+    expect(resolveModelSlug("cursor", "grok")).toBe("cursor-grok-4.6");
     expect(resolveModelSlug("cursor", "  ")).toBeUndefined();
     expect(formatAgentMention("cursor", "muse-spark-1.3")).toBe(
       "@cursor/muse-spark-1.3"

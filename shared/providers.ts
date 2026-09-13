@@ -1,4 +1,4 @@
-import { cursorModelFamily, resolveCursorCliModel } from "./cursorModels.ts";
+import { cursorModelFamily } from "./cursorModels.ts";
 
 /**
  * Provider kinds and metadata, ported from t3code's BUILT_IN_DRIVERS.
@@ -266,37 +266,31 @@ export function isValidModelSlug(value: string): boolean {
 
 /**
  * Normalize a requested model for a provider: trims, resolves catalog aliases
- * (`@claude/opus` → `claude-opus-5`, `@cursor/grok` → `cursor-grok-4.6-medium`),
+ * (`@claude/opus` → `claude-opus-5`, `@cursor/grok` → `cursor-grok-4.6`),
  * and returns `undefined` for an empty request so callers fall back to the CLI
- * default. Cursor families that the CLI rejects without an effort suffix
- * become `{family}-medium` (or a live prefix). Unknown slugs otherwise pass
- * through — the CLI's own catalog is the authority, not this snapshot.
+ * default. Cursor effort suffixes stay on the slug (`cursor-grok-4.6-high`);
+ * composing `{family}-{effort}` for `agent --model` happens at dispatch.
+ * Unknown slugs otherwise pass through — the CLI's own catalog is the
+ * authority, not this snapshot.
  */
 export function resolveModelSlug(
   kind: ProviderDriverKind,
-  requested: string | undefined | null,
-  liveSlugs?: readonly string[] | null
+  requested: string | undefined | null
 ): string | undefined {
   const trimmed = requested?.trim();
   if (!trimmed) {
     return undefined;
   }
   const lower = trimmed.toLowerCase();
-  let resolved = trimmed;
   for (const model of catalogFor(kind).models) {
     if (model.slug.toLowerCase() === lower) {
-      resolved = model.slug;
-      break;
+      return model.slug;
     }
     if (model.aliases?.some((alias) => alias.toLowerCase() === lower)) {
-      resolved = model.slug;
-      break;
+      return model.slug;
     }
   }
-  if (kind === "cursor") {
-    return resolveCursorCliModel(resolved, liveSlugs);
-  }
-  return resolved;
+  return trimmed;
 }
 
 /** Display name for a model slug, falling back to the slug itself. */
