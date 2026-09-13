@@ -6,7 +6,11 @@ import {
   chatKind,
   chatVisibility,
   grantTarget,
+  installMethod,
   jobStatus,
+  liveModel,
+  maintenanceKind,
+  maintenanceStatus,
   messageAuthorType,
   orgRole,
   providerKind,
@@ -168,6 +172,26 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_and_slug", ["orgId", "slug"]),
 
+  /* owner-triggered maintenance the bridge executes from its allowlist (CLI update / model refresh) */
+  runtimeCommands: defineTable({
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    kind: maintenanceKind,
+    driverKind: providerKind,
+    status: maintenanceStatus,
+    requestedBy: v.id("users"),
+    /* filled in by the bridge when it claims the command: the exact argv it is about to run */
+    command: v.optional(v.string()),
+    log: v.string(),
+    error: v.optional(v.string()),
+    versionBefore: v.optional(v.string()),
+    versionAfter: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"]),
+
   runtimeGrants: defineTable({
     runtimeId: v.id("runtimes"),
     targetType: grantTarget,
@@ -184,6 +208,11 @@ export default defineSchema({
     available: v.boolean(),
     version: v.optional(v.string()),
     binaryPath: v.optional(v.string()),
+    installMethod: v.optional(installMethod),
+    models: v.optional(v.array(liveModel)),
+    modelsCheckedAt: v.optional(v.number()),
+    modelsError: v.optional(v.string()),
+    updateCommand: v.optional(v.string()),
   })
     .index("by_runtime", ["runtimeId"])
     .index("by_runtime_and_kind", ["runtimeId", "driverKind"]),
@@ -198,6 +227,11 @@ export default defineSchema({
     status: v.union(v.literal("online"), v.literal("offline")),
     lastSeenAt: v.optional(v.number()),
     tokenHash: v.string(),
+    /* reported by the bridge: tahcode CLI version + what it can do ("maintenance", "liveModels") */
+    bridgeVersion: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
+    /* machine-owner setting: let org Owner/Admin trigger CLI updates on this machine */
+    maintenanceByAdmins: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
     .index("by_owner", ["ownerUserId"])

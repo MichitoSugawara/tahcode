@@ -7,7 +7,12 @@ import { assertChatVisible, getMembership } from "./lib/access";
 import { authedQuery } from "./lib/customFunctions";
 import { randomToken, sha256Hex } from "./lib/ids";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
-import { jobStatus, providerKind } from "./lib/validators";
+import { upsertProviderReports } from "./lib/runtimeReports";
+import {
+  jobStatus,
+  providerKind,
+  runtimeProviderReport,
+} from "./lib/validators";
 
 const jobView = v.object({
   _id: v.id("jobs"),
@@ -181,16 +186,10 @@ export const claimNext = mutation({
 export const heartbeat = mutation({
   args: {
     hostname: v.optional(v.string()),
-    providers: v.optional(
-      v.array(
-        v.object({
-          driverKind: providerKind,
-          available: v.boolean(),
-          version: v.optional(v.string()),
-          binaryPath: v.optional(v.string()),
-        })
-      )
-    ),
+    /* newer bridges identify themselves so the UI can tell an old bridge from a missing feature */
+    bridgeVersion: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
+    providers: v.optional(v.array(runtimeProviderReport)),
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
@@ -203,30 +202,18 @@ export const heartbeat = mutation({
       hostname: args.hostname?.slice(0, 120) ?? runtime.hostname,
       lastSeenAt: now,
       status: "online",
+      ...(args.bridgeVersion !== undefined
+        ? { bridgeVersion: args.bridgeVersion.slice(0, 40) }
+        : {}),
+      ...(args.capabilities !== undefined
+        ? {
+            capabilities: args.capabilities
+              .slice(0, 10)
+              .map((item) => item.slice(0, 40)),
+          }
+        : {}),
     });
-    for (const provider of args.providers ?? []) {
-      const existing = await ctx.db
-        .query("runtimeProviders")
-        .withIndex("by_runtime_and_kind", (q) =>
-          q.eq("runtimeId", runtime._id).eq("driverKind", provider.driverKind)
-        )
-        .unique();
-      if (existing) {
-        await ctx.db.patch("runtimeProviders", existing._id, {
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      } else {
-        await ctx.db.insert("runtimeProviders", {
-          runtimeId: runtime._id,
-          driverKind: provider.driverKind,
-          available: provider.available,
-          version: provider.version,
-          binaryPath: provider.binaryPath,
-        });
-      }
-    }
+    await upsertProviderReports(ctx, runtime._id, args.providers ?? []);
     return null;
   },
   returns: v.null(),
