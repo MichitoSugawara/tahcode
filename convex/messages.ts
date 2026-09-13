@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   assertCanUseRuntime,
   assertChatVisible,
@@ -22,7 +22,7 @@ import { STALE_RUNTIME_MS } from "./lib/runtimeHealth";
 import { messageDoc, providerKind } from "./lib/validators";
 
 async function enrichMessages(
-  ctx: { db: MutationCtx["db"] },
+  ctx: { db: QueryCtx["db"] },
   rows: Doc<"messages">[]
 ) {
   const out = [];

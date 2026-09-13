@@ -1,6 +1,6 @@
 export type Utf8LineBuffer = {
   buffer: string;
-  decoder: TextDecoder;
+  decoder: InstanceType<typeof TextDecoder>;
 };
 
 export function createUtf8LineBuffer(): Utf8LineBuffer {
