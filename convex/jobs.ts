@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { resolveCompletedMessageBody } from "../shared/jobs.ts";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -313,7 +314,7 @@ export const complete = mutation({
         });
       } else {
         await ctx.db.patch("messages", message._id, {
-          body: args.finalText.slice(-100000),
+          body: resolveCompletedMessageBody(message.body, args.finalText),
           status: failed ? "error" : "done",
         });
       }
