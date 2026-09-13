@@ -11,4 +11,16 @@ describe(classifyStreamEvent, () => {
       classifyStreamEvent({ result: "only this", type: "result" }, false)
     ).toStrictEqual({ kind: "text", text: "only this" });
   });
+
+  it("surfaces Codex image_generation items as tool rows", () => {
+    expect(
+      classifyStreamEvent({
+        item: {
+          item_type: "image_generation",
+          saved_path: "/tmp/ig.png",
+        },
+        type: "item.completed",
+      })
+    ).toMatchObject({ kind: "tool" });
+  });
 });

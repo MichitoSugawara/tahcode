@@ -225,6 +225,29 @@ describe(headlessArgs, () => {
     ).toStrictEqual(["run", "--model", "anthropic/claude-sonnet-5", "hi"]);
   });
 
+  it("gives Codex $imagegen workspace-write and rewrites /imagegen", () => {
+    expect(
+      headlessArgs("codex", "$imagegen a fox", "gpt-5.6-sol")
+    ).toStrictEqual([
+      "exec",
+      "--model",
+      "gpt-5.6-sol",
+      "-s",
+      "workspace-write",
+      "--skip-git-repo-check",
+      "--json",
+      "$imagegen a fox",
+    ]);
+    expect(headlessArgs("codex", "/imagegen a fox")).toStrictEqual([
+      "exec",
+      "-s",
+      "workspace-write",
+      "--skip-git-repo-check",
+      "--json",
+      "$imagegen a fox",
+    ]);
+  });
+
   it("adds Grok's model flag when a model is set", () => {
     expect(headlessArgs("grok", "hi", "grok-4.6")).toStrictEqual([
       "--model",

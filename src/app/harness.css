@@ -99,10 +99,15 @@
   font-weight: 600;
   color: var(--ink);
 }
-.md img {
+.md img,
+.artifact-image {
   max-width: 100%;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+.artifact-figure {
+  margin: 0.5rem 0;
+  max-width: 36rem;
 }
 
 /* streaming reply: the editor caret rides the end of the last block */

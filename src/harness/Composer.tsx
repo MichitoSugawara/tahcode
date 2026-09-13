@@ -1,3 +1,8 @@
+import {
+  applyImagegenDraft,
+  imagegenInsert,
+  wiredHarnessFeatures,
+} from "@shared/harnessFeatures.ts";
 import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -5,6 +10,7 @@ import {
   Brain,
   Cpu,
   Folder,
+  Image as ImageIcon,
   MessageSquarePlus,
   Paperclip,
   Sparkles,
@@ -292,7 +298,10 @@ export function useSendMessage(chat: Chat | null) {
       for (const file of files) {
         links.push(await upload(chatId, file));
       }
-      let body = [text, ...links].filter(Boolean).join("\n");
+      let body = applyImagegenDraft(
+        agent.driverKind,
+        [text, ...links].filter(Boolean).join("\n")
+      );
       if (chat.kind === "project" && !hasAgentMention(body)) {
         body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
       }
@@ -523,7 +532,28 @@ export function Composer({
           },
         ]
       : []),
+    ...wiredHarnessFeatures()
+      .filter((feature) => feature.slash)
+      .map((feature) => ({
+        desc: "Codex CLI の画像生成スキルを挿入",
+        icon: <ImageIcon size={14} />,
+        insert: feature.insert(agent.driverKind),
+        key: feature.id,
+        name: feature.slash ?? feature.name,
+        trailing: "Codex",
+      })),
   ];
+
+  const harnessCommands: PromptMenuItem[] = wiredHarnessFeatures().map(
+    (feature) => ({
+      desc: feature.description,
+      icon: <ImageIcon size={14} />,
+      insert: feature.insert(agent.driverKind),
+      key: feature.id,
+      name: feature.name,
+      trailing: "Codex",
+    })
+  );
 
   const plusItems: PromptMenuItem[] = [
     {
@@ -532,6 +562,14 @@ export function Composer({
       icon: <Paperclip size={14} />,
       key: "attach",
       name: "ファイルを添付",
+    },
+    {
+      desc: "Codex の $imagegen を使って画像を生成",
+      icon: <ImageIcon size={14} />,
+      insert: imagegenInsert(agent.driverKind),
+      key: "imagegen",
+      name: "画像を生成",
+      trailing: "Codex",
     },
   ];
 
@@ -659,9 +697,9 @@ export function Composer({
       ? "生成中 — 中断でこのジョブを止められます"
       : "生成中です";
   } else if (isProject) {
-    hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · ⏎ 送信 · ⇧⏎ 改行`;
+    hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
   } else {
-    hint = `DM ではエージェントが常に応答します（${mention}） · ⏎ 送信 · ⇧⏎ 改行`;
+    hint = `DM ではエージェントが常に応答します（${mention}） · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
   }
 
   return (
@@ -681,6 +719,7 @@ export function Composer({
         }
         mentions={mentions}
         commands={commands}
+        harnessCommands={harnessCommands}
         plusItems={plusItems}
         pickers={pickers}
         attachments={pending.map((file) => ({
@@ -698,6 +737,7 @@ export function Composer({
           at: modelToken
             ? `${PROVIDERS[modelToken.providerKind].label} のモデル · @${modelToken.handle} だけなら CLI の既定モデル`
             : "エージェントかメンバーを選択 · @provider/ でモデル候補",
+          dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
         }}
       />
       <input
