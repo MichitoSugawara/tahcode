@@ -221,11 +221,13 @@ export async function runUpdate(
     };
   }
   if (result.exitCode !== 0) {
-    const detail = result.stderr
-      .trim()
-      .split("\n")
-      .findLast((line) => line.length > 0)
-      ?.slice(0, 300);
+    let detail: string | undefined;
+    for (const line of result.stderr.trim().split("\n")) {
+      if (line.length > 0) {
+        detail = line;
+      }
+    }
+    detail = detail?.slice(0, 300);
     return {
       ok: false,
       plan,

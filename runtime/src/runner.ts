@@ -91,29 +91,28 @@ class ModelCache {
 
 export function reportFor(
   probe: ProviderProbe,
-  models: ModelsDiscovery | undefined
+  models?: ModelsDiscovery
 ): ProviderReport {
-  return {
-    driverKind: probe.kind,
+  const report: ProviderReport = {
     available: probe.available,
-    version: probe.version ?? undefined,
     binaryPath: probe.binary ?? undefined,
+    driverKind: probe.kind,
     installMethod: probe.installMethod,
     updateCommand: probe.updateCommand,
-    ...(models
-      ? {
-          models: models.models,
-          modelsCheckedAt: models.checkedAt,
-          modelsError: models.error,
-        }
-      : probe.available && !supportsLiveModels(probe.kind)
-        ? {
-            models: [],
-            modelsCheckedAt: Date.now(),
-            modelsError: PROVIDER_MAINTENANCE[probe.kind].modelsHint,
-          }
-        : {}),
+    version: probe.version ?? undefined,
   };
+  if (models) {
+    report.models = models.models;
+    report.modelsCheckedAt = models.checkedAt;
+    report.modelsError = models.error;
+    return report;
+  }
+  if (probe.available && !supportsLiveModels(probe.kind)) {
+    report.models = [];
+    report.modelsCheckedAt = Date.now();
+    report.modelsError = PROVIDER_MAINTENANCE[probe.kind].modelsHint;
+  }
+  return report;
 }
 
 export async function runLoop(options: RunnerOptions): Promise<void> {
