@@ -80,8 +80,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル + 推論レベル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
-8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
-   **プロバイダ設定** — マシンカードの「プロバイダ設定」で、検出 CLI ごとの使えるモデル（ライブ / 静的）・バージョン・インストール方法を確認し、所有者は「CLI を更新」「モデルを再取得」を実行（進行ログ・結果はその場に表示）
+8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き **プロバイダ設定** — マシンカードの「プロバイダ設定」で、検出 CLI ごとの使えるモデル（ライブ / 静的）・バージョン・インストール方法を確認し、所有者は「CLI を更新」「モデルを再取得」を実行（進行ログ・結果はその場に表示）
 9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / 推論レベル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール） **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
@@ -101,7 +100,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存エージェント結びつけ（チャット保存 → job → `headlessArgs`）に載せたもの。コンポーザと「新しいチャット」に **Reasoning** ピルが出る（対応プロバイダだけ。Antigravity はモデル slug に High/Medium/Low が含まれるので非表示）。ラベル・値・既定は t3code に合わせてある。
 
 | プロバイダ | option id | 既定 | 実行時 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Codex | `reasoningEffort`（None…Ultra、`xhigh` = Extra High） | `medium`（`gpt-6-astra` も medium。ライブ `codex debug models` に `supported_reasoning_levels` があればそれを使う） | `codex exec --config model_reasoning_effort=high`（未選択ならフラグなし = CLI の設定） |
 | Claude | `effort`（Low…Max / Ultracode / Ultrathink）。Haiku は `thinking` On/Off | Fable `medium`、Opus/Sonnet `high`、Opus 4.7 `xhigh` | `claude -p --effort …`。Ultrathink はプロンプト先頭 `Ultrathink:\n`（`--effort` なし）。Ultracode は `--effort xhigh` + `--settings {"ultracode":true}`。モデルごとの `effortMap`（Opus 4.7 の `xhigh`→`max`、Sonnet 4.6 の `max`→`high`）も t3code と同じ |
 | OpenCode | `variant`（low / medium / high / xhigh） | Anthropic/Google `high`、OpenAI `medium` | `opencode run --variant high` |
@@ -128,7 +127,7 @@ Multica の型（daemon がランタイムごとに CLI を検出してバージ
 - **モデル一覧のライブ取得** — ブリッジ（`tahcode start`）が起動時と 30 分ごと、更新後・再取得指示後に各 CLI の一覧コマンドを叩き、ハートビートで報告する。コンポーザのモデルピッカー・`@cursor/` のメンション候補・「新しいチャット」のモデル選択も、接続中のマシンがライブ一覧を報告していればそれに差し替わる（フッターに `live: agent models の結果（office-mac）`）。マシンが 1 台もなければ静的カタログ。
 
 | プロバイダ | モデル一覧 | 更新コマンド（ブリッジの許可リスト） |
-|---|---|---|
+| --- | --- | --- |
 | Codex | **live** `codex debug models --bundled`（0.122.0+、JSON。古い CLI は静的） | npm `npm i -g @openai/codex@latest` / Homebrew `brew upgrade codex` / 判別不能なら手動案内 |
 | Cursor | **live** `agent models` | `agent update` |
 | OpenCode | **live** `opencode models`（`provider/model`） | `opencode upgrade`（CLI 側がインストール方法を判別） |
@@ -188,8 +187,7 @@ tahcode start        # Multica daemon を起動 → tahcode のジョブブリ�
 ```
 
 2. Multica CLI が未導入なら `tahcode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
-3. 確認: `tahcode doctor`（Node / Multica / 検出 CLI / tahcode 接続）、`tahcode status`、`tahcode logs -f`。
-   モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。
+3. 確認: `tahcode doctor`（Node / Multica / 検出 CLI / tahcode 接続）、`tahcode status`、`tahcode logs -f`。モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。
 
 役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。 `tahcode multica <args>` で Multica CLI をそのまま呼べます（例: `tahcode multica login`）。
 

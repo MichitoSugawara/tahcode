@@ -16,12 +16,12 @@ import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import { planHeadlessEffort } from "../../shared/modelOptions.ts";
 import type { InstallMethod } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
-import { plannedUpdateLabel, resolveInstallMethod } from "./maintenance.ts";
 import {
   createUtf8LineBuffer,
   flushUtf8Lines,
   pushUtf8Lines,
 } from "../../shared/utf8.ts";
+import { plannedUpdateLabel, resolveInstallMethod } from "./maintenance.ts";
 
 export interface ProviderProbe {
   kind: ProviderDriverKind;
@@ -136,9 +136,14 @@ export async function probeProviders(): Promise<ProviderProbe[]> {
 }
 
 /** Re-read one provider's version after an update (same probe as the heartbeat uses). */
-export async function probeVersion(kind: ProviderDriverKind): Promise<{ binary: string | null; version: string | null }> {
+export async function probeVersion(
+  kind: ProviderDriverKind
+): Promise<{ binary: string | null; version: string | null }> {
   const binary = await whichBinary(BINARIES[kind] ?? []);
-  return { binary, version: binary ? await binaryVersion(binary, ["--version"]) : null };
+  return {
+    binary,
+    version: binary ? await binaryVersion(binary, ["--version"]) : null,
+  };
 }
 
 function headlessSummary(kind: ProviderDriverKind): string {

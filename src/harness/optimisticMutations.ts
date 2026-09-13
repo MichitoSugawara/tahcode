@@ -5,7 +5,10 @@ import { useCallback } from "react";
 
 import { useOrg } from "@/harness/OrgContext";
 import { placeholderId } from "@/lib/optimistic";
-import type { ProviderDriverKind, ProviderOptionSelection } from "@/lib/providers";
+import type {
+  ProviderDriverKind,
+  ProviderOptionSelection,
+} from "@/lib/providers";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";

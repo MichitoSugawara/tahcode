@@ -54,7 +54,9 @@ export function NewChatDialog({
     org.provider
   );
   const [model, setModel] = useState<string | null>(org.model);
-  const [options, setOptions] = useState<ProviderOptionSelection[] | undefined>(org.options);
+  const [options, setOptions] = useState<ProviderOptionSelection[] | undefined>(
+    org.options
+  );
 
   useEffect(() => {
     if (open) {
@@ -255,7 +257,11 @@ export function NewChatDialog({
               onChange={(kind, next, nextOptions) => {
                 setDriverKind(kind);
                 setModel(next);
-                setOptions(nextOptions === undefined ? undefined : (nextOptions ?? undefined));
+                setOptions(
+                  nextOptions === undefined
+                    ? undefined
+                    : (nextOptions ?? undefined)
+                );
               }}
             />
           </div>

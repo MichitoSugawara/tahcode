@@ -1,19 +1,4 @@
 import {
-  PROVIDER_MAINTENANCE,
-  STALE_RUNNING_MS,
-  canRequestMaintenance,
-  installMethodLabel,
-  mergeModelCatalog,
-  modelsCommandLabel,
-  supportsLiveModels,
-  type CatalogModel,
-  type InstallMethod,
-  type LiveModel,
-  type MaintenanceKind,
-  type MaintenanceStatus,
-  type ModelSource,
-} from "@shared/providerMaintenance.ts";
-import {
   effortFooterFor,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
@@ -23,9 +8,28 @@ import {
   sanitizeOptionSelections,
   supportsEffortPick,
   upsertOptionSelection,
-  type ProviderOptionDescriptor,
-  type ProviderOptionSelection,
 } from "@shared/modelOptions.ts";
+import type {
+  ProviderOptionDescriptor,
+  ProviderOptionSelection,
+} from "@shared/modelOptions.ts";
+import {
+  PROVIDER_MAINTENANCE,
+  STALE_RUNNING_MS,
+  canRequestMaintenance,
+  installMethodLabel,
+  mergeModelCatalog,
+  modelsCommandLabel,
+  supportsLiveModels,
+} from "@shared/providerMaintenance.ts";
+import type {
+  CatalogModel,
+  InstallMethod,
+  LiveModel,
+  MaintenanceKind,
+  MaintenanceStatus,
+  ModelSource,
+} from "@shared/providerMaintenance.ts";
 import {
   PROVIDER_CATALOG,
   catalogFor,
@@ -172,7 +176,12 @@ export type RuntimeModelSource = {
   status: "online" | "offline";
   lastSeenAt?: number;
   canUse: boolean;
-  providers: { driverKind: ProviderDriverKind; available: boolean; models?: LiveModel[]; modelsCheckedAt?: number }[];
+  providers: {
+    driverKind: ProviderDriverKind;
+    available: boolean;
+    models?: LiveModel[];
+    modelsCheckedAt?: number;
+  }[];
 };
 
 export type ProviderModelCatalog = {
@@ -192,14 +201,30 @@ export type ProviderModelCatalog = {
  * static snapshot. Runtimes that stopped heartbeating still count: the list
  * they reported is the best knowledge we have until they come back.
  */
-export function modelCatalogFor(kind: ProviderDriverKind, runtimes: readonly RuntimeModelSource[] | undefined): ProviderModelCatalog {
+export function modelCatalogFor(
+  kind: ProviderDriverKind,
+  runtimes: readonly RuntimeModelSource[] | undefined
+): ProviderModelCatalog {
   const reports = (runtimes ?? [])
     .flatMap((runtime) =>
       runtime.providers
-        .filter((provider) => provider.driverKind === kind && provider.available && (provider.models?.length ?? 0) > 0)
-        .map((provider) => ({ runtime, models: provider.models ?? [], checkedAt: provider.modelsCheckedAt ?? 0 })),
+        .filter(
+          (provider) =>
+            provider.driverKind === kind &&
+            provider.available &&
+            (provider.models?.length ?? 0) > 0
+        )
+        .map((provider) => ({
+          runtime,
+          models: provider.models ?? [],
+          checkedAt: provider.modelsCheckedAt ?? 0,
+        }))
     )
-    .sort((a, b) => Number(b.runtime.canUse) - Number(a.runtime.canUse) || b.checkedAt - a.checkedAt);
+    .sort(
+      (a, b) =>
+        Number(b.runtime.canUse) - Number(a.runtime.canUse) ||
+        b.checkedAt - a.checkedAt
+    );
   const best = reports[0];
   if (best) {
     const merged = mergeModelCatalog(kind, best.models);

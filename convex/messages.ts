@@ -241,11 +241,14 @@ function explicitTarget(args: {
     );
   }
   const options = sanitizeOptionSelections(args.options);
-  return {
+  const target: AgentTarget = {
     driverKind: args.driverKind,
     model: resolveModelSlug(args.driverKind, trimmed),
-    ...(options ? { options } : {}),
   };
+  if (options) {
+    target.options = options;
+  }
+  return target;
 }
 
 type RuntimePick = {

@@ -41,7 +41,11 @@ export function AgentPicker({
   driverKind: ProviderDriverKind;
   model: string | null;
   options?: ProviderOptionSelection[];
-  onChange: (driverKind: ProviderDriverKind, model: string | null, options?: ProviderOptionSelection[] | null) => void;
+  onChange: (
+    driverKind: ProviderDriverKind,
+    model: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void;
 }) {
   const org = useOrg();
   const [open, setOpen] = useState(false);
@@ -184,7 +188,15 @@ export function AgentPicker({
                     data-menu-row
                     onClick={() => {
                       setOpen(false);
-                      onChange(driverKind, option.slug || null, retainValidOptions(driverKind, option.slug || null, options));
+                      onChange(
+                        driverKind,
+                        option.slug || null,
+                        retainValidOptions(
+                          driverKind,
+                          option.slug || null,
+                          options
+                        )
+                      );
                     }}
                     className="relative z-10 flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left"
                   >
@@ -266,23 +278,43 @@ function EffortPicker({
   driverKind: ProviderDriverKind;
   model: string | null;
   options?: ProviderOptionSelection[];
-  onChange: (driverKind: ProviderDriverKind, model: string | null, options?: ProviderOptionSelection[] | null) => void;
+  onChange: (
+    driverKind: ProviderDriverKind,
+    model: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const org = useOrg();
-  const catalog = useMemo(() => modelCatalogFor(driverKind, org.runtimes), [driverKind, org.runtimes]);
+  const catalog = useMemo(
+    () => modelCatalogFor(driverKind, org.runtimes),
+    [driverKind, org.runtimes]
+  );
   const hint = catalog.models.find((item) => item.slug === model);
-  const primary = primaryOptionDescriptor(optionDescriptorsFor(driverKind, model, hint));
-  if (!primary) return null;
+  const primary = primaryOptionDescriptor(
+    optionDescriptorsFor(driverKind, model, hint)
+  );
+  if (!primary) {
+    return null;
+  }
   const current = getProviderOptionCurrentValue(primary, options);
   const items =
     primary.type === "boolean"
       ? [
-          { id: "false", label: "Off", isDefault: primary.currentValue === false },
+          {
+            id: "false",
+            label: "Off",
+            isDefault: primary.currentValue === false,
+          },
           { id: "true", label: "On", isDefault: primary.currentValue === true },
         ]
       : primary.options;
-  const currentKey = primary.type === "boolean" ? (current ? "true" : "false") : String(current ?? "");
+  const currentKey =
+    primary.type === "boolean"
+      ? current
+        ? "true"
+        : "false"
+      : String(current ?? "");
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -291,21 +323,28 @@ function EffortPicker({
           type="button"
           aria-label="推論レベルを選択"
           aria-expanded={open}
-          className="flex h-9 w-full items-center gap-2 rounded-control bg-field px-3 text-left text-[13px] text-ink shadow-hairline transition-[box-shadow] duration-150 hover:shadow-[0_0_0_1px_var(--line-strong)]"
+          className="rounded-control bg-field text-ink shadow-hairline flex h-9 w-full items-center gap-2 px-3 text-left text-[13px] transition-[box-shadow] duration-150 hover:shadow-[0_0_0_1px_var(--line-strong)]"
         >
-          <span className="shrink-0 text-[12px] text-ink-3">{primary.label}</span>
-          <span className="min-w-0 flex-1 truncate font-medium">{getProviderOptionCurrentLabel(primary, options)}</span>
-          <ChevronDown size={13} className="shrink-0 text-ink-3" />
+          <span className="text-ink-3 shrink-0 text-[12px]">
+            {primary.label}
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">
+            {getProviderOptionCurrentLabel(primary, options)}
+          </span>
+          <ChevronDown size={13} className="text-ink-3 shrink-0" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           align="start"
           sideOffset={6}
-          className="z-[80] w-[var(--radix-popover-trigger-width)] rounded-[10px] bg-surface p-1 shadow-raised outline-none"
+          className="bg-surface shadow-raised z-[80] w-[var(--radix-popover-trigger-width)] rounded-[10px] p-1 outline-none"
           style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both" }}
         >
-          <GlideMenu className="flex max-h-64 flex-col gap-px overflow-y-auto" highlightClassName="inset-x-0 rounded-[6px] bg-hover">
+          <GlideMenu
+            className="flex max-h-64 flex-col gap-px overflow-y-auto"
+            highlightClassName="inset-x-0 rounded-[6px] bg-hover"
+          >
             {items.map((option) => {
               const on = currentKey === option.id;
               return (
@@ -315,21 +354,38 @@ function EffortPicker({
                   data-menu-row
                   onClick={() => {
                     setOpen(false);
-                    const value = primary.type === "boolean" ? option.id === "true" : option.id;
-                    onChange(driverKind, model, upsertOptionSelection(options, primary.id, value));
+                    const value =
+                      primary.type === "boolean"
+                        ? option.id === "true"
+                        : option.id;
+                    onChange(
+                      driverKind,
+                      model,
+                      upsertOptionSelection(options, primary.id, value)
+                    );
                   }}
                   className="relative z-10 flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left"
                 >
-                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{option.label}</span>
-                  {option.isDefault && <span className="shrink-0 text-[10.5px] text-green">既定</span>}
-                  <span className={`shrink-0 text-ink ${on ? "" : "invisible"}`}>
+                  <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                    {option.label}
+                  </span>
+                  {option.isDefault && (
+                    <span className="text-green shrink-0 text-[10.5px]">
+                      既定
+                    </span>
+                  )}
+                  <span
+                    className={`text-ink shrink-0 ${on ? "" : "invisible"}`}
+                  >
                     <Check size={13} strokeWidth={2.5} />
                   </span>
                 </button>
               );
             })}
           </GlideMenu>
-          <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] leading-relaxed text-ink-3">{effortFooterFor(driverKind)}</div>
+          <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px] leading-relaxed">
+            {effortFooterFor(driverKind)}
+          </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

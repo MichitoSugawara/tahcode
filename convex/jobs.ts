@@ -202,21 +202,26 @@ export const heartbeat = mutation({
     const now = Date.now();
     await recoverStaleJobs(ctx, runtime._id, now);
     await touchRunningJobs(ctx, runtime._id, now);
-    await ctx.db.patch("runtimes", runtime._id, {
+    const runtimePatch: {
+      hostname: string | undefined;
+      lastSeenAt: number;
+      status: "online";
+      bridgeVersion?: string;
+      capabilities?: string[];
+    } = {
       hostname: args.hostname?.slice(0, 120) ?? runtime.hostname,
       lastSeenAt: now,
       status: "online",
-      ...(args.bridgeVersion !== undefined
-        ? { bridgeVersion: args.bridgeVersion.slice(0, 40) }
-        : {}),
-      ...(args.capabilities !== undefined
-        ? {
-            capabilities: args.capabilities
-              .slice(0, 10)
-              .map((item) => item.slice(0, 40)),
-          }
-        : {}),
-    });
+    };
+    if (args.bridgeVersion !== undefined) {
+      runtimePatch.bridgeVersion = args.bridgeVersion.slice(0, 40);
+    }
+    if (args.capabilities !== undefined) {
+      runtimePatch.capabilities = args.capabilities
+        .slice(0, 10)
+        .map((item) => item.slice(0, 40));
+    }
+    await ctx.db.patch("runtimes", runtime._id, runtimePatch);
     await upsertProviderReports(ctx, runtime._id, args.providers ?? []);
     return null;
   },

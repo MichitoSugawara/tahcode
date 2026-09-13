@@ -60,12 +60,24 @@ const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
 function effortPickers(
   agent: ComposerAgent,
-  models: { slug: string; defaultReasoningLevel?: string; supportedReasoningLevels?: string[] }[],
-  setAgent: (driverKind: ProviderDriverKind, model: string | null, options?: ProviderOptionSelection[] | null) => void,
+  models: {
+    slug: string;
+    defaultReasoningLevel?: string;
+    supportedReasoningLevels?: string[];
+  }[],
+  setAgent: (
+    driverKind: ProviderDriverKind,
+    model: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void
 ): PromptPicker[] {
   const hint = models.find((model) => model.slug === agent.model);
-  const primary = primaryOptionDescriptor(optionDescriptorsFor(agent.driverKind, agent.model, hint));
-  if (!primary) return [];
+  const primary = primaryOptionDescriptor(
+    optionDescriptorsFor(agent.driverKind, agent.model, hint)
+  );
+  if (!primary) {
+    return [];
+  }
   const current = getProviderOptionCurrentValue(primary, agent.options);
   if (primary.type === "boolean") {
     return [
@@ -80,7 +92,11 @@ function effortPickers(
         ],
         value: current ? "true" : "false",
         onChange: (key) =>
-          setAgent(agent.driverKind, agent.model, upsertOptionSelection(agent.options, primary.id, key === "true")),
+          setAgent(
+            agent.driverKind,
+            agent.model,
+            upsertOptionSelection(agent.options, primary.id, key === "true")
+          ),
         footer: effortFooterFor(agent.driverKind),
       },
     ];
@@ -97,7 +113,12 @@ function effortPickers(
         tag: option.isDefault ? "既定" : undefined,
       })),
       value: typeof current === "string" ? current : "",
-      onChange: (key) => setAgent(agent.driverKind, agent.model, upsertOptionSelection(agent.options, primary.id, key)),
+      onChange: (key) =>
+        setAgent(
+          agent.driverKind,
+          agent.model,
+          upsertOptionSelection(agent.options, primary.id, key)
+        ),
       footer: effortFooterFor(agent.driverKind),
     },
   ];
@@ -128,12 +149,22 @@ export function useChatAgent(chat: Chat | null) {
   const org = useOrg();
   const bindChat = useSetChatAgent();
   const agent: ComposerAgent = chat?.driverKind
-    ? { driverKind: chat.driverKind, model: chat.model ?? null, options: chat.options }
+    ? {
+        driverKind: chat.driverKind,
+        model: chat.model ?? null,
+        options: chat.options,
+      }
     : { driverKind: org.provider, model: org.model, options: org.options };
   const setAgent = useCallback(
-    (driverKind: ProviderDriverKind, model: string | null, nextOptions?: ProviderOptionSelection[] | null) => {
+    (
+      driverKind: ProviderDriverKind,
+      model: string | null,
+      nextOptions?: ProviderOptionSelection[] | null
+    ) => {
       const options =
-        nextOptions === undefined ? retainValidOptions(driverKind, model, agent.options) : (nextOptions ?? undefined);
+        nextOptions === undefined
+          ? retainValidOptions(driverKind, model, agent.options)
+          : (nextOptions ?? undefined);
       org.setAgent(driverKind, model, options ?? null);
       if (chat) {
         /* a chat opened straight from its create dialog may still carry a placeholder id */
@@ -406,7 +437,14 @@ export function Composer({
           String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
     return [...agents, ...people];
-  }, [modelToken, org.members, org.me._id, org.runtimes, installed, liveRuntimes.length]);
+  }, [
+    modelToken,
+    org.members,
+    org.me._id,
+    org.runtimes,
+    installed,
+    liveRuntimes.length,
+  ]);
 
   const commands: PromptMenuItem[] = [
     {
@@ -461,7 +499,10 @@ export function Composer({
   ];
 
   /* live list from a connected machine when one reported it, static snapshot otherwise */
-  const catalog = useMemo(() => modelCatalogFor(agent.driverKind, org.runtimes), [agent.driverKind, org.runtimes]);
+  const catalog = useMemo(
+    () => modelCatalogFor(agent.driverKind, org.runtimes),
+    [agent.driverKind, org.runtimes]
+  );
   const models = catalog.models;
   const pickers: PromptPicker[] = [
     {

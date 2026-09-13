@@ -12,4 +12,7 @@ export {
   supportsLiveModels,
   updatePlanFor,
 } from "../../shared/providerMaintenance.ts";
-export type { MaintenanceKind, MaintenanceStatus } from "../../shared/providerMaintenance.ts";
+export type {
+  MaintenanceKind,
+  MaintenanceStatus,
+} from "../../shared/providerMaintenance.ts";

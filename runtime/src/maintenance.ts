@@ -7,15 +7,18 @@
  */
 import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
+
 import {
   PROVIDER_MAINTENANCE,
   classifyInstallMethod,
   parseModelListOutput,
   updateCommandLabel,
   updatePlanFor,
-  type InstallMethod,
-  type LiveModel,
-  type UpdatePlan,
+} from "../../shared/providerMaintenance.ts";
+import type {
+  InstallMethod,
+  LiveModel,
+  UpdatePlan,
 } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 
@@ -29,7 +32,9 @@ export type ModelsDiscovery = {
 };
 
 export function resolveInstallMethod(binaryPath: string | null): InstallMethod {
-  if (!binaryPath) return "unknown";
+  if (!binaryPath) {
+    return "unknown";
+  }
   let resolved = binaryPath;
   try {
     resolved = realpathSync(binaryPath);
@@ -39,35 +44,64 @@ export function resolveInstallMethod(binaryPath: string | null): InstallMethod {
   return classifyInstallMethod(resolved);
 }
 
-export function plannedUpdate(kind: ProviderDriverKind, binaryPath: string | null): UpdatePlan | null {
+export function plannedUpdate(
+  kind: ProviderDriverKind,
+  binaryPath: string | null
+): UpdatePlan | null {
   return updatePlanFor(kind, resolveInstallMethod(binaryPath), binaryPath);
 }
 
-export function plannedUpdateLabel(kind: ProviderDriverKind, binaryPath: string | null): string | undefined {
+export function plannedUpdateLabel(
+  kind: ProviderDriverKind,
+  binaryPath: string | null
+): string | undefined {
   return updateCommandLabel(plannedUpdate(kind, binaryPath)) ?? undefined;
 }
 
-type Captured = { exitCode: number; stdout: string; stderr: string; timedOut: boolean };
+type Captured = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+};
 
-function capture(argv: readonly string[], timeoutMs: number, onLine?: (line: string) => void): Promise<Captured> {
+function capture(
+  argv: readonly string[],
+  timeoutMs: number,
+  onLine?: (line: string) => void
+): Promise<Captured> {
   return new Promise((resolve) => {
     const [bin, ...args] = argv;
     if (!bin) {
-      resolve({ exitCode: 127, stdout: "", stderr: "empty argv", timedOut: false });
+      resolve({
+        exitCode: 127,
+        stdout: "",
+        stderr: "empty argv",
+        timedOut: false,
+      });
       return;
     }
     // No shell: argv is passed verbatim, so nothing in it can be interpolated.
-    const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CI: "1", NO_COLOR: "1" } });
+    const child = spawn(bin, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CI: "1", NO_COLOR: "1" },
+    });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
     let pending = "";
     const feed = (chunk: Buffer) => {
-      if (!onLine) return;
+      if (!onLine) {
+        return;
+      }
       pending += chunk.toString();
       const lines = pending.split(/\r?\n/);
       pending = lines.pop() ?? "";
-      for (const line of lines) if (line.trim()) onLine(line);
+      for (const line of lines) {
+        if (line.trim()) {
+          onLine(line);
+        }
+      }
     };
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -84,11 +118,18 @@ function capture(argv: readonly string[], timeoutMs: number, onLine?: (line: str
     }, timeoutMs);
     child.on("error", (error) => {
       clearTimeout(timer);
-      resolve({ exitCode: 127, stdout, stderr: `${stderr}${error.message}`, timedOut });
+      resolve({
+        exitCode: 127,
+        stdout,
+        stderr: `${stderr}${error.message}`,
+        timedOut,
+      });
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (pending.trim() && onLine) onLine(pending);
+      if (pending.trim() && onLine) {
+        onLine(pending);
+      }
       resolve({ exitCode: code ?? 1, stdout, stderr, timedOut });
     });
   });
@@ -99,19 +140,48 @@ function capture(argv: readonly string[], timeoutMs: number, onLine?: (line: str
  * `grok models`). Codex / Claude have no such command and report the static
  * catalog instead (`error` explains why so the UI can say so).
  */
-export async function discoverModels(kind: ProviderDriverKind, binaryPath: string | null): Promise<ModelsDiscovery> {
+export async function discoverModels(
+  kind: ProviderDriverKind,
+  binaryPath: string | null
+): Promise<ModelsDiscovery> {
   const argv = PROVIDER_MAINTENANCE[kind].modelsArgv;
   const checkedAt = Date.now();
-  if (!argv) return { models: [], checkedAt, error: "no models command" };
-  if (!binaryPath) return { models: [], checkedAt, error: "CLI not installed" };
-  const result = await capture([binaryPath, ...argv], MODELS_TIMEOUT_MS);
-  if (result.timedOut) return { models: [], checkedAt, error: `${argv.join(" ")} timed out after ${MODELS_TIMEOUT_MS / 1000}s` };
-  if (result.exitCode !== 0) {
-    const detail = (result.stderr || result.stdout).trim().split("\n")[0]?.slice(0, 200);
-    return { models: [], checkedAt, error: `${argv.join(" ")} exited with ${result.exitCode}${detail ? `: ${detail}` : ""}` };
+  if (!argv) {
+    return { models: [], checkedAt, error: "no models command" };
   }
-  const models = parseModelListOutput(kind, `${result.stdout}\n${result.stderr}`);
-  if (models.length === 0) return { models: [], checkedAt, error: `${argv.join(" ")} printed no parsable models` };
+  if (!binaryPath) {
+    return { models: [], checkedAt, error: "CLI not installed" };
+  }
+  const result = await capture([binaryPath, ...argv], MODELS_TIMEOUT_MS);
+  if (result.timedOut) {
+    return {
+      models: [],
+      checkedAt,
+      error: `${argv.join(" ")} timed out after ${MODELS_TIMEOUT_MS / 1000}s`,
+    };
+  }
+  if (result.exitCode !== 0) {
+    const detail = (result.stderr || result.stdout)
+      .trim()
+      .split("\n")[0]
+      ?.slice(0, 200);
+    return {
+      models: [],
+      checkedAt,
+      error: `${argv.join(" ")} exited with ${result.exitCode}${detail ? `: ${detail}` : ""}`,
+    };
+  }
+  const models = parseModelListOutput(
+    kind,
+    `${result.stdout}\n${result.stderr}`
+  );
+  if (models.length === 0) {
+    return {
+      models: [],
+      checkedAt,
+      error: `${argv.join(" ")} printed no parsable models`,
+    };
+  }
   return { models, checkedAt };
 }
 
@@ -127,16 +197,41 @@ export type UpdateOutcome = {
  * `onLine`. Refuses (without spawning anything) when the allowlist has no
  * non-interactive path for this install.
  */
-export async function runUpdate(kind: ProviderDriverKind, binaryPath: string | null, onLine: (line: string) => void): Promise<UpdateOutcome> {
+export async function runUpdate(
+  kind: ProviderDriverKind,
+  binaryPath: string | null,
+  onLine: (line: string) => void
+): Promise<UpdateOutcome> {
   const plan = plannedUpdate(kind, binaryPath);
   if (!plan) {
-    return { ok: false, plan: null, exitCode: 1, error: `no supported update path for ${kind} (${PROVIDER_MAINTENANCE[kind].manualHint})` };
+    return {
+      ok: false,
+      plan: null,
+      exitCode: 1,
+      error: `no supported update path for ${kind} (${PROVIDER_MAINTENANCE[kind].manualHint})`,
+    };
   }
   const result = await capture(plan.argv, UPDATE_TIMEOUT_MS, onLine);
-  if (result.timedOut) return { ok: false, plan, exitCode: result.exitCode, error: `update timed out after ${UPDATE_TIMEOUT_MS / 60000} minutes` };
+  if (result.timedOut) {
+    return {
+      ok: false,
+      plan,
+      exitCode: result.exitCode,
+      error: `update timed out after ${UPDATE_TIMEOUT_MS / 60000} minutes`,
+    };
+  }
   if (result.exitCode !== 0) {
-    const detail = result.stderr.trim().split("\n").filter(Boolean).pop()?.slice(0, 300);
-    return { ok: false, plan, exitCode: result.exitCode, error: `${updateCommandLabel(plan)} exited with ${result.exitCode}${detail ? `: ${detail}` : ""}` };
+    const detail = result.stderr
+      .trim()
+      .split("\n")
+      .findLast((line) => line.length > 0)
+      ?.slice(0, 300);
+    return {
+      ok: false,
+      plan,
+      exitCode: result.exitCode,
+      error: `${updateCommandLabel(plan)} exited with ${result.exitCode}${detail ? `: ${detail}` : ""}`,
+    };
   }
   return { ok: true, plan, exitCode: 0 };
 }

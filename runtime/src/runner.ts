@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 
+import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_MAINTENANCE,
@@ -9,18 +10,13 @@ import {
   supportsLiveModels,
   updateCommandLabel,
 } from "../../shared/providerMaintenance.ts";
-import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
 import type { ProviderProbe } from "./providers.ts";
-import {
-  probeProviders,
-  probeVersion,
-  runHeadless,
-} from "./providers.ts";
+import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
 
 export interface RunnerOptions {
   convexUrl: string;
@@ -38,7 +34,10 @@ export interface RunnerOptions {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const BRIDGE_CAPABILITIES = [BRIDGE_CAPABILITY_MAINTENANCE, BRIDGE_CAPABILITY_LIVE_MODELS];
+export const BRIDGE_CAPABILITIES = [
+  BRIDGE_CAPABILITY_MAINTENANCE,
+  BRIDGE_CAPABILITY_LIVE_MODELS,
+];
 
 /**
  * Live model catalogs, one per provider, refreshed lazily: a CLI's `models`
@@ -47,8 +46,11 @@ export const BRIDGE_CAPABILITIES = [BRIDGE_CAPABILITY_MAINTENANCE, BRIDGE_CAPABI
  */
 class ModelCache {
   private entries = new Map<ProviderDriverKind, ModelsDiscovery>();
+  private refreshMs: number;
 
-  constructor(private refreshMs: number) {}
+  constructor(refreshMs: number) {
+    this.refreshMs = refreshMs;
+  }
 
   get(kind: ProviderDriverKind): ModelsDiscovery | undefined {
     return this.entries.get(kind);
@@ -68,10 +70,16 @@ class ModelCache {
   /** Refresh whatever is stale among installed providers that have a models command. */
   async refreshStale(probes: ProviderProbe[]): Promise<void> {
     for (const probe of probes) {
-      if (!probe.available || !supportsLiveModels(probe.kind) || !this.stale(probe.kind)) continue;
+      if (
+        !probe.available ||
+        !supportsLiveModels(probe.kind) ||
+        !this.stale(probe.kind)
+      ) {
+        continue;
+      }
       const discovery = await this.refresh(probe);
       console.log(
-        `[runtime] models ${probe.kind}: ${discovery.models.length > 0 ? `${discovery.models.length} live` : `static (${discovery.error ?? "none"})`}`,
+        `[runtime] models ${probe.kind}: ${discovery.models.length > 0 ? `${discovery.models.length} live` : `static (${discovery.error ?? "none"})`}`
       );
     }
   }
@@ -81,7 +89,10 @@ class ModelCache {
   }
 }
 
-export function reportFor(probe: ProviderProbe, models: ModelsDiscovery | undefined): ProviderReport {
+export function reportFor(
+  probe: ProviderProbe,
+  models: ModelsDiscovery | undefined
+): ProviderReport {
   return {
     driverKind: probe.kind,
     available: probe.available,
@@ -90,9 +101,17 @@ export function reportFor(probe: ProviderProbe, models: ModelsDiscovery | undefi
     installMethod: probe.installMethod,
     updateCommand: probe.updateCommand,
     ...(models
-      ? { models: models.models, modelsCheckedAt: models.checkedAt, modelsError: models.error }
+      ? {
+          models: models.models,
+          modelsCheckedAt: models.checkedAt,
+          modelsError: models.error,
+        }
       : probe.available && !supportsLiveModels(probe.kind)
-        ? { models: [], modelsCheckedAt: Date.now(), modelsError: PROVIDER_MAINTENANCE[probe.kind].modelsHint }
+        ? {
+            models: [],
+            modelsCheckedAt: Date.now(),
+            modelsError: PROVIDER_MAINTENANCE[probe.kind].modelsHint,
+          }
         : {}),
   };
 }
@@ -113,7 +132,9 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       runtimeId: options.runtimeId,
       token: options.token,
       hostname: os.hostname(),
-      providers: probes.map((probe) => reportFor(probe, models.get(probe.kind))),
+      providers: probes.map((probe) =>
+        reportFor(probe, models.get(probe.kind))
+      ),
       bridgeVersion: options.bridgeVersion,
       capabilities: BRIDGE_CAPABILITIES,
     });
@@ -184,20 +205,29 @@ async function executeCommand(
   options: RunnerOptions,
   command: ClaimedCommand,
   probes: ProviderProbe[],
-  models: ModelCache,
+  models: ModelCache
 ): Promise<void> {
   const probe = probes.find((item) => item.kind === command.driverKind);
-  const auth = { runtimeId: options.runtimeId, token: options.token, commandId: command._id };
+  const auth = {
+    runtimeId: options.runtimeId,
+    token: options.token,
+    commandId: command._id,
+  };
   let buffered = "";
   let flushTimer: NodeJS.Timeout | null = null;
   const flush = async () => {
-    if (!buffered) return;
+    if (!buffered) {
+      return;
+    }
     const text = buffered;
     buffered = "";
     try {
       await client.appendCommandLog({ ...auth, text });
     } catch (error) {
-      console.error("[runtime] command log failed", error instanceof Error ? error.message : error);
+      console.error(
+        "[runtime] command log failed",
+        error instanceof Error ? error.message : error
+      );
     }
   };
   const onLine = (line: string) => {
@@ -209,8 +239,14 @@ async function executeCommand(
       }, 700);
     }
   };
-  const finish = async (input: { error?: string; versionAfter?: string; text?: string }) => {
-    if (flushTimer) clearTimeout(flushTimer);
+  const finish = async (input: {
+    error?: string;
+    versionAfter?: string;
+    text?: string;
+  }) => {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+    }
     flushTimer = null;
     await flush();
     await client.completeCommand({ ...auth, ...input });
@@ -219,47 +255,78 @@ async function executeCommand(
   try {
     if (command.kind === "refreshModels") {
       if (!probe?.available) {
-        await finish({ error: `${command.driverKind} CLI is not installed on ${os.hostname()}` });
+        await finish({
+          error: `${command.driverKind} CLI is not installed on ${os.hostname()}`,
+        });
         return;
       }
-      const label = modelsCommandLabel(probe.kind, probe.binary ? path.basename(probe.binary) : null) ?? `${probe.kind} models`;
-      await client.appendCommandLog({ ...auth, text: `$ ${label}\n`, command: label });
+      const label =
+        modelsCommandLabel(
+          probe.kind,
+          probe.binary ? path.basename(probe.binary) : null
+        ) ?? `${probe.kind} models`;
+      await client.appendCommandLog({
+        ...auth,
+        text: `$ ${label}\n`,
+        command: label,
+      });
       const discovery = await models.refresh(probe);
       if (discovery.models.length === 0) {
-        await finish({ error: discovery.error ?? "no models found", text: "→ 静的カタログにフォールバックします\n" });
+        await finish({
+          error: discovery.error ?? "no models found",
+          text: "→ 静的カタログにフォールバックします\n",
+        });
         return;
       }
-      await finish({ text: `${discovery.models.map((model) => `  ${model.slug}${model.default ? " (default)" : ""}`).join("\n")}\n✓ ${discovery.models.length} models\n` });
+      await finish({
+        text: `${discovery.models.map((model) => `  ${model.slug}${model.default ? " (default)" : ""}`).join("\n")}\n✓ ${discovery.models.length} models\n`,
+      });
       return;
     }
 
     // updateCli
     if (!probe?.available || !probe.binary) {
-      await finish({ error: `${command.driverKind} CLI is not installed on ${os.hostname()} — install it first` });
+      await finish({
+        error: `${command.driverKind} CLI is not installed on ${os.hostname()} — install it first`,
+      });
       return;
     }
     const versionBefore = probe.version ?? undefined;
     const plan = plannedUpdate(probe.kind, probe.binary);
     if (!plan) {
-      await finish({ error: `no supported update path for ${probe.displayName} on this install (${PROVIDER_MAINTENANCE[probe.kind].manualHint})` });
+      await finish({
+        error: `no supported update path for ${probe.displayName} on this install (${PROVIDER_MAINTENANCE[probe.kind].manualHint})`,
+      });
       return;
     }
     // Report the command before spawning so the UI shows what is running.
     const label = updateCommandLabel(plan) ?? plan.argv.join(" ");
-    await client.appendCommandLog({ ...auth, text: `$ ${label}\n`, command: label, versionBefore });
+    await client.appendCommandLog({
+      ...auth,
+      text: `$ ${label}\n`,
+      command: label,
+      versionBefore,
+    });
     const started = Date.now();
     const outcome = await runUpdate(probe.kind, probe.binary, onLine);
     if (!outcome.ok) {
-      await finish({ error: outcome.error ?? `update failed (exit ${outcome.exitCode})` });
+      await finish({
+        error: outcome.error ?? `update failed (exit ${outcome.exitCode})`,
+      });
       return;
     }
     const after = await probeVersion(probe.kind);
     models.forget(probe.kind);
     if (after.binary && supportsLiveModels(probe.kind)) {
-      await models.refresh({ ...probe, binary: after.binary, version: after.version });
+      await models.refresh({
+        ...probe,
+        binary: after.binary,
+        version: after.version,
+      });
     }
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-    const changed = after.version && versionBefore && after.version !== versionBefore;
+    const changed =
+      after.version && versionBefore && after.version !== versionBefore;
     await finish({
       versionAfter: after.version ?? undefined,
       text: `✓ ${label} finished in ${elapsed}s${after.version ? ` · ${changed ? `${versionBefore} → ${after.version}` : `${after.version} (already latest)`}` : ""}\n`,

@@ -18,7 +18,8 @@
  *    is "manual", shown to the owner as a command to run themselves. No
  *    `curl | sh`, no shell interpolation.
  */
-import { type ProviderDriverKind, catalogFor, isValidModelSlug } from "./providers.ts";
+import { catalogFor, isValidModelSlug } from "./providers.ts";
+import type { ProviderDriverKind } from "./providers.ts";
 
 /* ── vocabulary ──────────────────────────────────────────── */
 
@@ -28,7 +29,13 @@ export type InstallMethod = (typeof INSTALL_METHODS)[number];
 export const MAINTENANCE_KINDS = ["updateCli", "refreshModels"] as const;
 export type MaintenanceKind = (typeof MAINTENANCE_KINDS)[number];
 
-export const MAINTENANCE_STATUSES = ["queued", "running", "done", "failed", "cancelled"] as const;
+export const MAINTENANCE_STATUSES = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+  "cancelled",
+] as const;
 export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
 
 /** A command still "running" this long after being claimed lost its bridge (crash / restart mid-update). */
@@ -76,12 +83,16 @@ type ProviderMaintenanceEntry = {
   manualHint: string;
 };
 
-export const PROVIDER_MAINTENANCE: Record<ProviderDriverKind, ProviderMaintenanceEntry> = {
+export const PROVIDER_MAINTENANCE: Record<
+  ProviderDriverKind,
+  ProviderMaintenanceEntry
+> = {
   codex: {
     // Codex 0.122.0+ ships a structured, offline catalog dump (JSON on stdout);
     // Multica's daemon uses the same hook. Older binaries fail → static fallback.
     modelsArgv: ["debug", "models", "--bundled"],
-    modelsHint: "codex debug models --bundled（Codex 0.122.0 以降。古い CLI は静的カタログ）",
+    modelsHint:
+      "codex debug models --bundled（Codex 0.122.0 以降。古い CLI は静的カタログ）",
     selfUpdateArgv: null,
     npmPackage: "@openai/codex",
     brewName: "codex",
@@ -89,7 +100,8 @@ export const PROVIDER_MAINTENANCE: Record<ProviderDriverKind, ProviderMaintenanc
   },
   claudeAgent: {
     modelsArgv: null,
-    modelsHint: "Claude Code にはモデル一覧コマンドがないため静的カタログ（t3code model-manifest）",
+    modelsHint:
+      "Claude Code にはモデル一覧コマンドがないため静的カタログ（t3code model-manifest）",
     selfUpdateArgv: ["update"],
     npmPackage: "@anthropic-ai/claude-code",
     brewName: "claude-code",
@@ -135,9 +147,14 @@ export function supportsLiveModels(kind: ProviderDriverKind): boolean {
 }
 
 /** `agent models` — the display form of the discovery command. */
-export function modelsCommandLabel(kind: ProviderDriverKind, binary?: string | null): string | null {
+export function modelsCommandLabel(
+  kind: ProviderDriverKind,
+  binary?: string | null
+): string | null {
   const argv = PROVIDER_MAINTENANCE[kind].modelsArgv;
-  if (!argv) return null;
+  if (!argv) {
+    return null;
+  }
   return [binary ?? catalogFor(kind).binaryNames[0] ?? kind, ...argv].join(" ");
 }
 
@@ -147,11 +164,22 @@ export function modelsCommandLabel(kind: ProviderDriverKind, binary?: string | n
  * `node_modules`, Homebrew under `Cellar`/`homebrew`; everything else is the
  * vendor's own installer (`~/.local/bin/agent`, `~/.opencode/bin`, …).
  */
-export function classifyInstallMethod(resolvedBinaryPath: string | null | undefined): InstallMethod {
-  if (!resolvedBinaryPath) return "unknown";
-  const normalized = resolvedBinaryPath.replace(/\\/g, "/");
-  if (/\/node_modules\//.test(normalized) || /\/npm\/|\/\.npm-global\/|\/\.nvm\/|\/\.volta\/|\/\.fnm\//.test(normalized)) return "npm";
-  if (/\/Cellar\/|\/homebrew\/|\/linuxbrew\/|\/Caskroom\//.test(normalized)) return "brew";
+export function classifyInstallMethod(
+  resolvedBinaryPath: string | null | undefined
+): InstallMethod {
+  if (!resolvedBinaryPath) {
+    return "unknown";
+  }
+  const normalized = resolvedBinaryPath.replaceAll("\\", "/");
+  if (
+    /\/node_modules\//.test(normalized) ||
+    /\/npm\/|\/\.npm-global\/|\/\.nvm\/|\/\.volta\/|\/\.fnm\//.test(normalized)
+  ) {
+    return "npm";
+  }
+  if (/\/Cellar\/|\/homebrew\/|\/linuxbrew\/|\/Caskroom\//.test(normalized)) {
+    return "brew";
+  }
   return "installer";
 }
 
@@ -163,27 +191,45 @@ export function classifyInstallMethod(resolvedBinaryPath: string | null | undefi
  * Returns null when no documented, non-interactive path exists — the UI then
  * shows `manualHint` instead of a button.
  */
-export function updatePlanFor(kind: ProviderDriverKind, installMethod: InstallMethod, binary?: string | null): UpdatePlan | null {
+export function updatePlanFor(
+  kind: ProviderDriverKind,
+  installMethod: InstallMethod,
+  binary?: string | null
+): UpdatePlan | null {
   const entry = PROVIDER_MAINTENANCE[kind];
   if (installMethod === "npm" && entry.npmPackage) {
-    return { via: "npm", argv: ["npm", "install", "-g", `${entry.npmPackage}@latest`] };
+    return {
+      via: "npm",
+      argv: ["npm", "install", "-g", `${entry.npmPackage}@latest`],
+    };
   }
   if (installMethod === "brew" && entry.brewName) {
     return { via: "brew", argv: ["brew", "upgrade", entry.brewName] };
   }
   if (entry.selfUpdateArgv) {
-    return { via: "self", argv: [binary ?? catalogFor(kind).binaryNames[0] ?? kind, ...entry.selfUpdateArgv] };
+    return {
+      via: "self",
+      argv: [
+        binary ?? catalogFor(kind).binaryNames[0] ?? kind,
+        ...entry.selfUpdateArgv,
+      ],
+    };
   }
   // A package-manager install we cannot classify still has a package path.
   if (entry.npmPackage && installMethod === "unknown") {
-    return { via: "npm", argv: ["npm", "install", "-g", `${entry.npmPackage}@latest`] };
+    return {
+      via: "npm",
+      argv: ["npm", "install", "-g", `${entry.npmPackage}@latest`],
+    };
   }
   return null;
 }
 
 /** `agent update` — display form (binary basename, full argv otherwise). */
 export function updateCommandLabel(plan: UpdatePlan | null): string | null {
-  if (!plan) return null;
+  if (!plan) {
+    return null;
+  }
   const [bin = "", ...rest] = plan.argv;
   return [bin.split(/[\\/]/).pop() ?? bin, ...rest].join(" ");
 }
@@ -204,66 +250,117 @@ export function installMethodLabel(method: InstallMethod | undefined): string {
 /* ── output parsing (pure) ───────────────────────────────── */
 
 // eslint-disable-next-line no-control-regex
-const ANSI_RE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const ANSI_RE = /\u001B\[[0-9;?]*[ -/]*[@-~]/g;
 const BULLET_RE = /^[\s\-*•·>›✓✔☑▸▶]+/;
-const DEFAULT_MARK_RE = /\((?:current|default|selected|active)\)|\[(?:current|default)\]|(?:^|\s)\*(?=\s|$)/i;
-const HEADER_RE = /^(available|models?\b|usage|options?|commands?|name\b|id\b|provider\b|listing|fetching|loading|note|tip|hint|run\b|use\b)/i;
+const DEFAULT_MARK_RE =
+  /\((?:current|default|selected|active)\)|\[(?:current|default)\]|(?:^|\s)\*(?=\s|$)/i;
+const HEADER_RE =
+  /^(available|models?\b|usage|options?|commands?|name\b|id\b|provider\b|listing|fetching|loading|note|tip|hint|run\b|use\b)/i;
 
 function stripAnsi(text: string): string {
   return text.replace(ANSI_RE, "");
 }
 
 function candidateFromJson(value: unknown): LiveModel | null {
-  if (typeof value === "string") return isValidModelSlug(value) ? { slug: value } : null;
-  if (typeof value !== "object" || value === null) return null;
+  if (typeof value === "string") {
+    return isValidModelSlug(value) ? { slug: value } : null;
+  }
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
   const record = value as Record<string, unknown>;
   // `codex debug models` lists hidden entries too; Codex's own picker skips them.
-  if (record.visibility === "hide" || record.hidden === true) return null;
-  const slugField = [record.id, record.slug, record.model, record.value, record.name].find((field) => typeof field === "string" && isValidModelSlug(field));
-  if (typeof slugField !== "string") return null;
-  const nameField = [record.displayName, record.display_name, record.label, record.title, record.name].find(
-    (field) => typeof field === "string" && field !== slugField && field.trim().length > 0,
+  if (record.visibility === "hide" || record.hidden === true) {
+    return null;
+  }
+  const slugField = [
+    record.id,
+    record.slug,
+    record.model,
+    record.value,
+    record.name,
+  ].find((field) => typeof field === "string" && isValidModelSlug(field));
+  if (typeof slugField !== "string") {
+    return null;
+  }
+  const nameField = [
+    record.displayName,
+    record.display_name,
+    record.label,
+    record.title,
+    record.name,
+  ].find(
+    (field) =>
+      typeof field === "string" &&
+      field !== slugField &&
+      field.trim().length > 0
   );
-  const isDefault = record.default === true || record.current === true || record.selected === true;
-  const defaultReasoning = [record.default_reasoning_level, record.defaultReasoningLevel, record.defaultReasoningEffort].find(
-    (field) => typeof field === "string" && field.trim().length > 0,
-  );
-  const levelsRaw = [record.supported_reasoning_levels, record.supportedReasoningLevels, record.supportedReasoningEfforts].find(
-    (field) => Array.isArray(field),
-  );
+  const isDefault =
+    record.default === true ||
+    record.current === true ||
+    record.selected === true;
+  const defaultReasoning = [
+    record.default_reasoning_level,
+    record.defaultReasoningLevel,
+    record.defaultReasoningEffort,
+  ].find((field) => typeof field === "string" && field.trim().length > 0);
+  const levelsRaw = [
+    record.supported_reasoning_levels,
+    record.supportedReasoningLevels,
+    record.supportedReasoningEfforts,
+  ].find((field) => Array.isArray(field));
   const supportedReasoningLevels = Array.isArray(levelsRaw)
     ? levelsRaw
         .map((item) => {
-          if (typeof item === "string") return item;
+          if (typeof item === "string") {
+            return item;
+          }
           if (typeof item === "object" && item !== null) {
-            const effort = (item as Record<string, unknown>).reasoningEffort ?? (item as Record<string, unknown>).id;
+            const effort =
+              (item as Record<string, unknown>).reasoningEffort ??
+              (item as Record<string, unknown>).id;
             return typeof effort === "string" ? effort : "";
           }
           return "";
         })
         .filter((item) => item.length > 0)
     : undefined;
-  return {
-    slug: slugField,
-    ...(typeof nameField === "string" ? { name: nameField.trim() } : {}),
-    ...(isDefault ? { default: true } : {}),
-    ...(typeof defaultReasoning === "string" ? { defaultReasoningLevel: defaultReasoning.trim() } : {}),
-    ...(supportedReasoningLevels && supportedReasoningLevels.length > 0 ? { supportedReasoningLevels } : {}),
-  };
+  const model: LiveModel = { slug: slugField };
+  if (typeof nameField === "string") {
+    model.name = nameField.trim();
+  }
+  if (isDefault) {
+    model.default = true;
+  }
+  if (typeof defaultReasoning === "string") {
+    model.defaultReasoningLevel = defaultReasoning.trim();
+  }
+  if (supportedReasoningLevels && supportedReasoningLevels.length > 0) {
+    model.supportedReasoningLevels = supportedReasoningLevels;
+  }
+  return model;
 }
 
 function parseJsonModels(text: string): LiveModel[] | null {
   const trimmed = text.trim();
-  if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) return null;
+  if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) {
+    return null;
+  }
   try {
     const parsed = JSON.parse(trimmed) as unknown;
     const list = Array.isArray(parsed)
       ? parsed
       : typeof parsed === "object" && parsed !== null
-        ? ((parsed as Record<string, unknown>).models ?? (parsed as Record<string, unknown>).data ?? (parsed as Record<string, unknown>).items)
+        ? ((parsed as Record<string, unknown>).models ??
+          (parsed as Record<string, unknown>).data ??
+          (parsed as Record<string, unknown>).items)
         : null;
-    if (!Array.isArray(list)) return null;
-    const models = list.map(candidateFromJson).filter((model): model is LiveModel => model !== null);
+    if (!Array.isArray(list)) {
+      return null;
+    }
+    const models = list
+      .map(candidateFromJson)
+      .filter((model): model is LiveModel => model !== null);
     return models.length > 0 ? models : null;
   } catch {
     return null;
@@ -277,31 +374,61 @@ function parseJsonModels(text: string): LiveModel[] | null {
  * marker, JSON arrays — and ignores headers and prose. Returns an empty list
  * when nothing parsable was found so callers fall back to the static catalog.
  */
-export function parseModelListOutput(kind: ProviderDriverKind, output: string): LiveModel[] {
+export function parseModelListOutput(
+  kind: ProviderDriverKind,
+  output: string
+): LiveModel[] {
   const clean = stripAnsi(output);
   const fromJson = parseJsonModels(clean);
-  if (fromJson) return dedupe(fromJson);
+  if (fromJson) {
+    return dedupe(fromJson);
+  }
 
   const models: LiveModel[] = [];
   for (const rawLine of clean.split(/\r?\n/)) {
     let line = rawLine.trim();
-    if (!line) continue;
-    if (line.endsWith(":") || HEADER_RE.test(line)) continue;
+    if (!line) {
+      continue;
+    }
+    if (line.endsWith(":") || HEADER_RE.test(line)) {
+      continue;
+    }
     const isDefault = DEFAULT_MARK_RE.test(line);
-    line = line.replace(new RegExp(DEFAULT_MARK_RE.source, "gi"), " ").replace(BULLET_RE, "").trim();
-    if (!line) continue;
+    line = line
+      .replaceAll(new RegExp(DEFAULT_MARK_RE.source, "gi"), " ")
+      .replace(BULLET_RE, "")
+      .trim();
+    if (!line) {
+      continue;
+    }
     // `slug - Name`, `slug — Name`, `slug: Name`, `slug<TAB>Name`, `slug   Name`
-    const parts = line.split(/\s+[-—–:]\s+|\t+|\s{2,}|\s+\|\s+/).map((part) => part.trim()).filter(Boolean);
+    const parts = line
+      .split(/\s+[-—–:]\s+|\t+|\s{2,}|\s+\|\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
     const first = parts[0] ?? "";
     // The slug is the first whitespace-free token of the first column.
     const slug = first.split(/\s+/)[0] ?? "";
-    if (!isValidModelSlug(slug)) continue;
+    if (!isValidModelSlug(slug)) {
+      continue;
+    }
     // OpenCode lists `provider/model`; everything else must look like an id, not a word.
-    if (kind === "opencode" && !slug.includes("/")) continue;
-    if (kind !== "opencode" && !/[\d\-./_]/.test(slug) && slug !== "auto") continue;
+    if (kind === "opencode" && !slug.includes("/")) {
+      continue;
+    }
+    if (kind !== "opencode" && !/[\d\-./_]/.test(slug) && slug !== "auto") {
+      continue;
+    }
     const rest = first.split(/\s+/).slice(1).join(" ");
     const name = (parts.slice(1).join(" · ") || rest).trim();
-    models.push({ slug, ...(name && name !== slug ? { name } : {}), ...(isDefault ? { default: true } : {}) });
+    const model: LiveModel = { slug };
+    if (name && name !== slug) {
+      model.name = name;
+    }
+    if (isDefault) {
+      model.default = true;
+    }
+    models.push(model);
   }
   return dedupe(models);
 }
@@ -310,7 +437,9 @@ function dedupe(models: LiveModel[]): LiveModel[] {
   const seen = new Set<string>();
   const out: LiveModel[] = [];
   for (const model of models) {
-    if (seen.has(model.slug)) continue;
+    if (seen.has(model.slug)) {
+      continue;
+    }
     seen.add(model.slug);
     out.push(model);
   }
@@ -319,27 +448,52 @@ function dedupe(models: LiveModel[]): LiveModel[] {
 
 /* ── catalog merge (shared by pickers and the settings UI) ── */
 
-export type CatalogModel = LiveModel & { source: ModelSource; legacy?: boolean };
+export type CatalogModel = LiveModel & {
+  source: ModelSource;
+  legacy?: boolean;
+};
 
 /**
  * What a picker should show for a provider: the live list when a machine
  * reported one (the account's real catalog — the same choice Multica makes),
  * otherwise the static snapshot from `shared/providers.ts`.
  */
-export function mergeModelCatalog(kind: ProviderDriverKind, live: readonly LiveModel[] | null | undefined): { models: CatalogModel[]; source: ModelSource } {
+export function mergeModelCatalog(
+  kind: ProviderDriverKind,
+  live: readonly LiveModel[] | null | undefined
+): { models: CatalogModel[]; source: ModelSource } {
   const statics = catalogFor(kind).models;
   if (live && live.length > 0) {
-    const named = new Map(statics.map((model) => [model.slug, model.name] as const));
+    const named = new Map(
+      statics.map((model) => [model.slug, model.name] as const)
+    );
     return {
       source: "live",
-      models: live.map((model) => ({ ...model, name: model.name ?? named.get(model.slug) ?? model.slug, source: "live" })),
+      models: live.map((model) => ({
+        ...model,
+        name: model.name ?? named.get(model.slug) ?? model.slug,
+        source: "live",
+      })),
     };
   }
   return {
     source: "static",
     models: [
-      ...statics.filter((model) => !model.legacy).map((model) => ({ slug: model.slug, name: model.name, source: "static" as const })),
-      ...statics.filter((model) => model.legacy).map((model) => ({ slug: model.slug, name: model.name, legacy: true, source: "static" as const })),
+      ...statics
+        .filter((model) => !model.legacy)
+        .map((model) => ({
+          slug: model.slug,
+          name: model.name,
+          source: "static" as const,
+        })),
+      ...statics
+        .filter((model) => model.legacy)
+        .map((model) => ({
+          slug: model.slug,
+          name: model.name,
+          legacy: true,
+          source: "static" as const,
+        })),
     ],
   };
 }
@@ -364,9 +518,16 @@ export type MaintenanceActor = {
  *   anyone already allowed to run jobs there may refresh (it is strictly less
  *   powerful than the jobs they can already dispatch).
  */
-export function canRequestMaintenance(kind: MaintenanceKind, input: MaintenanceActor): boolean {
-  if (input.actorUserId === input.runtimeOwnerUserId) return true;
+export function canRequestMaintenance(
+  kind: MaintenanceKind,
+  input: MaintenanceActor
+): boolean {
+  if (input.actorUserId === input.runtimeOwnerUserId) {
+    return true;
+  }
   const privileged = input.actorRole === "owner" || input.actorRole === "admin";
-  if (kind === "updateCli") return input.maintenanceByAdmins && privileged;
+  if (kind === "updateCli") {
+    return input.maintenanceByAdmins && privileged;
+  }
   return input.canUseRuntime || (input.maintenanceByAdmins && privileged);
 }

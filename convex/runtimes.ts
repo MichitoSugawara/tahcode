@@ -268,11 +268,17 @@ export const setMaintenancePolicy = authedMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const runtime = await ctx.db.get("runtimes", args.runtimeId);
-    if (!runtime) throw new Error("Runtime not found");
-    if (String(runtime.ownerUserId) !== String(ctx.user._id)) {
-      throw new Error("Only the machine owner can change who may update its CLIs");
+    if (!runtime) {
+      throw new Error("Runtime not found");
     }
-    await ctx.db.patch("runtimes", runtime._id, { maintenanceByAdmins: args.maintenanceByAdmins });
+    if (String(runtime.ownerUserId) !== String(ctx.user._id)) {
+      throw new Error(
+        "Only the machine owner can change who may update its CLIs"
+      );
+    }
+    await ctx.db.patch("runtimes", runtime._id, {
+      maintenanceByAdmins: args.maintenanceByAdmins,
+    });
     return null;
   },
 });

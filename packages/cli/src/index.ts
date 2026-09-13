@@ -2,6 +2,22 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
+import { RuntimeClient } from "../../../runtime/src/convexClient.ts";
+import {
+  discoverModels,
+  plannedUpdate,
+  runUpdate,
+} from "../../../runtime/src/maintenance.ts";
+import {
+  probeProviders,
+  probeVersion,
+} from "../../../runtime/src/providers.ts";
+import type { ProviderProbe } from "../../../runtime/src/providers.ts";
+import {
+  BRIDGE_CAPABILITIES,
+  reportFor,
+  runLoop,
+} from "../../../runtime/src/runner.ts";
 import {
   mergeModelCatalog,
   PROVIDER_MAINTENANCE,
@@ -13,10 +29,6 @@ import {
   isProviderDriverKind,
   PROVIDER_CATALOG,
 } from "../../../shared/providers.ts";
-import { RuntimeClient } from "../../../runtime/src/convexClient.ts";
-import { discoverModels, plannedUpdate, runUpdate } from "../../../runtime/src/maintenance.ts";
-import { probeProviders, probeVersion, type ProviderProbe } from "../../../runtime/src/providers.ts";
-import { BRIDGE_CAPABILITIES, reportFor, runLoop } from "../../../runtime/src/runner.ts";
 import {
   BRIDGE_LOG_PATH,
   LAUNCHD_LABEL,
@@ -518,7 +530,7 @@ async function cmdDoctor(): Promise<void> {
       bridgeVersion: VERSION,
       capabilities: BRIDGE_CAPABILITIES,
       hostname: os.hostname(),
-      providers: probes.map((probe) => reportFor(probe, undefined)),
+      providers: probes.map((probe) => reportFor(probe)),
       runtimeId: link.runtimeId,
       token: link.token,
     });
@@ -555,16 +567,26 @@ async function cmdProviders(): Promise<void> {
       `${probe.displayName} (${probe.kind}): ${probe.available ? `${probe.binary} ${probe.version ?? ""}`.trim() : "未検出"} — ${probe.headlessSummary}`
     );
   }
-  info(`モデル一覧: ${code("tahcode models")} · CLI の更新: ${code("tahcode update <provider>")}`);
+  info(
+    `モデル一覧: ${code("tahcode models")} · CLI の更新: ${code("tahcode update <provider>")}`
+  );
 }
 
 /** Resolve a `codex` / `claude` / `cursor` / `agent` … argument to a provider kind. */
 function providerArg(raw: string | undefined): ProviderDriverKind | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   const lower = raw.toLowerCase();
-  if (isProviderDriverKind(raw)) return raw;
+  if (isProviderDriverKind(raw)) {
+    return raw;
+  }
   const entry = PROVIDER_CATALOG.find(
-    (item) => item.kind.toLowerCase() === lower || item.displayName.toLowerCase() === lower || item.mentionHandles.includes(lower) || item.binaryNames.includes(lower),
+    (item) =>
+      item.kind.toLowerCase() === lower ||
+      item.displayName.toLowerCase() === lower ||
+      item.mentionHandles.includes(lower) ||
+      item.binaryNames.includes(lower)
   );
   return entry?.kind ?? null;
 }
@@ -572,23 +594,41 @@ function providerArg(raw: string | undefined): ProviderDriverKind | null {
 async function cmdModels(positional: string[]): Promise<void> {
   const only = positional[0] ? providerArg(positional[0]) : null;
   if (positional[0] && !only) {
-    fail(`不明なプロバイダ: ${positional[0]}（codex / claude / cursor / grok / opencode / antigravity）`);
+    fail(
+      `不明なプロバイダ: ${positional[0]}（codex / claude / cursor / grok / opencode / antigravity）`
+    );
     process.exit(2);
   }
-  const probes = (await probeProviders()).filter((probe) => !only || probe.kind === only);
+  const probes = (await probeProviders()).filter(
+    (probe) => !only || probe.kind === only
+  );
   for (const probe of probes) {
-    heading(`${probe.displayName}${probe.available ? dim(` · ${probe.binary} ${probe.version ?? ""}`.trimEnd()) : dim(" · 未検出")}`);
+    heading(
+      `${probe.displayName}${probe.available ? dim(` · ${probe.binary} ${probe.version ?? ""}`.trimEnd()) : dim(" · 未検出")}`
+    );
     if (probe.available && supportsLiveModels(probe.kind)) {
       const discovery = await discoverModels(probe.kind, probe.binary);
       const merged = mergeModelCatalog(probe.kind, discovery.models);
       (merged.source === "live" ? ok : warn)(
-        merged.source === "live" ? `${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件` : `ライブ取得に失敗（${discovery.error ?? "不明"}）→ 静的カタログ ${merged.models.length} 件`,
+        merged.source === "live"
+          ? `${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件`
+          : `ライブ取得に失敗（${discovery.error ?? "不明"}）→ 静的カタログ ${merged.models.length} 件`
       );
-      for (const model of merged.models) info(`${model.slug}${model.name && model.name !== model.slug ? dim(`  ${model.name}`) : ""}${model.default ? dim("  (default)") : ""}`);
+      for (const model of merged.models) {
+        info(
+          `${model.slug}${model.name && model.name !== model.slug ? dim(`  ${model.name}`) : ""}${model.default ? dim("  (default)") : ""}`
+        );
+      }
     } else {
       const merged = mergeModelCatalog(probe.kind, null);
-      info(`${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件${probe.available ? "" : "（CLI 未検出のため参考値）"}`);
-      for (const model of merged.models) info(`${model.slug}${model.name !== model.slug ? dim(`  ${model.name}`) : ""}${model.legacy ? dim("  legacy") : ""}`);
+      info(
+        `${PROVIDER_MAINTENANCE[probe.kind].modelsHint} → ${merged.models.length} 件${probe.available ? "" : "（CLI 未検出のため参考値）"}`
+      );
+      for (const model of merged.models) {
+        info(
+          `${model.slug}${model.name === model.slug ? "" : dim(`  ${model.name}`)}${model.legacy ? dim("  legacy") : ""}`
+        );
+      }
     }
   }
 }
@@ -596,7 +636,9 @@ async function cmdModels(positional: string[]): Promise<void> {
 async function cmdUpdate(flags: Flags, positional: string[]): Promise<void> {
   const target = positional[0];
   if (!target) {
-    fail("更新するプロバイダを指定してください: tahcode update <codex|claude|cursor|grok|opencode|all>");
+    fail(
+      "更新するプロバイダを指定してください: tahcode update <codex|claude|cursor|grok|opencode|all>"
+    );
     process.exit(2);
   }
   const probes = await probeProviders();
@@ -625,22 +667,32 @@ async function cmdUpdate(flags: Flags, positional: string[]): Promise<void> {
     heading(`${probe.displayName} ${dim(probe.version ?? "")}`.trimEnd());
     const plan = plannedUpdate(probe.kind, probe.binary);
     if (!plan) {
-      warn(`このインストール方法（${probe.installMethod}）向けの自動更新はありません → 手動: ${code(PROVIDER_MAINTENANCE[probe.kind].manualHint)}`);
+      warn(
+        `このインストール方法（${probe.installMethod}）向けの自動更新はありません → 手動: ${code(PROVIDER_MAINTENANCE[probe.kind].manualHint)}`
+      );
       continue;
     }
-    info(`実行するコマンド: ${code(updateCommandLabel(plan) ?? "")}${dim(` （${plan.via} · ${probe.binary}）`)}`);
+    info(
+      `実行するコマンド: ${code(updateCommandLabel(plan) ?? "")}${dim(` （${plan.via} · ${probe.binary}）`)}`
+    );
     if (!flags.yes) {
       info(`実行するには ${code(`tahcode update ${target} --yes`)}`);
       continue;
     }
-    const outcome = await runUpdate(probe.kind, probe.binary, (line) => console.log(`    ${dim(line)}`));
+    const outcome = await runUpdate(probe.kind, probe.binary, (line) =>
+      console.log(`    ${dim(line)}`)
+    );
     if (!outcome.ok) {
       fail(outcome.error ?? `更新に失敗しました（exit ${outcome.exitCode}）`);
       exit = 1;
       continue;
     }
     const after = await probeVersion(probe.kind);
-    ok(after.version && after.version !== probe.version ? `更新しました: ${probe.version ?? "?"} → ${after.version}` : `最新です: ${after.version ?? probe.version ?? ""}`.trim());
+    ok(
+      after.version && after.version !== probe.version
+        ? `更新しました: ${probe.version ?? "?"} → ${after.version}`
+        : `最新です: ${after.version ?? probe.version ?? ""}`.trim()
+    );
   }
   process.exit(exit);
 }

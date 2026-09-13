@@ -22,9 +22,7 @@ export function Switch({
         checked ? "bg-btn" : "bg-line-strong"
       }`}
     >
-      <SwitchPrimitive.Thumb
-        className="block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform duration-200 data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-[2px]"
-      />
+      <SwitchPrimitive.Thumb className="block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform duration-200 data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-[2px]" />
     </SwitchPrimitive.Root>
   );
 }

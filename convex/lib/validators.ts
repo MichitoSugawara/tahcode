@@ -30,7 +30,7 @@ export const installMethod = v.union(
   v.literal("npm"),
   v.literal("brew"),
   v.literal("installer"),
-  v.literal("unknown"),
+  v.literal("unknown")
 );
 
 export const liveModel = v.object({
@@ -50,7 +50,7 @@ export const optionSelection = v.object({
 
 export const maintenanceKind = v.union(
   v.literal("updateCli"),
-  v.literal("refreshModels"),
+  v.literal("refreshModels")
 );
 
 export const maintenanceStatus = v.union(
@@ -58,7 +58,7 @@ export const maintenanceStatus = v.union(
   v.literal("running"),
   v.literal("done"),
   v.literal("failed"),
-  v.literal("cancelled"),
+  v.literal("cancelled")
 );
 
 /** What a bridge reports about one provider CLI on its machine (heartbeat + owner report). */

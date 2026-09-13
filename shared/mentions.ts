@@ -118,8 +118,14 @@ export function preferredProvider(
  * keeps that model for a bare `@cursor`), else the CLI default. Without a
  * provider mention the fallback (chat binding / composer pick) is used as is.
  */
-function withFallbackOptions(target: AgentTarget, fallback: AgentTarget, sameProvider: boolean): AgentTarget {
-  if (!sameProvider || !fallback.options || fallback.options.length === 0) return target;
+function withFallbackOptions(
+  target: AgentTarget,
+  fallback: AgentTarget,
+  sameProvider: boolean
+): AgentTarget {
+  if (!sameProvider || !fallback.options || fallback.options.length === 0) {
+    return target;
+  }
   return { ...target, options: fallback.options };
 }
 
@@ -143,7 +149,11 @@ export function preferredTarget(
     );
   }
   if (mentioned.providerKind === fallback.driverKind) {
-    return withFallbackOptions({ driverKind: fallback.driverKind, model: fallback.model }, fallback, true);
+    return withFallbackOptions(
+      { driverKind: fallback.driverKind, model: fallback.model },
+      fallback,
+      true
+    );
   }
   return { driverKind: mentioned.providerKind, model: undefined };
 }

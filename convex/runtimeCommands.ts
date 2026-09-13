@@ -1,11 +1,22 @@
 import { v } from "convex/values";
+
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { canUseRuntime, getMembership, listRuntimeGrants } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { sha256Hex } from "./lib/ids";
-import { BRIDGE_CAPABILITY_MAINTENANCE, STALE_RUNNING_MS, canRequestMaintenance, supportsLiveModels } from "./lib/providerMaintenance";
-import { maintenanceKind, maintenanceStatus, providerKind } from "./lib/validators";
+import {
+  BRIDGE_CAPABILITY_MAINTENANCE,
+  STALE_RUNNING_MS,
+  canRequestMaintenance,
+  supportsLiveModels,
+} from "./lib/providerMaintenance";
+import {
+  maintenanceKind,
+  maintenanceStatus,
+  providerKind,
+} from "./lib/validators";
 
 /* ─────────────────────────────────────────────────────────
  * RUNTIME COMMANDS — owner-triggered maintenance on a machine.
@@ -48,19 +59,33 @@ const claimedView = v.union(
     kind: maintenanceKind,
     driverKind: providerKind,
   }),
-  v.null(),
+  v.null()
 );
 
-async function getRuntimeByToken(ctx: MutationCtx, runtimeId: Id<"runtimes">, token: string) {
+async function getRuntimeByToken(
+  ctx: MutationCtx,
+  runtimeId: Id<"runtimes">,
+  token: string
+) {
   const runtime = await ctx.db.get("runtimes", runtimeId);
-  if (!runtime) throw new Error("Runtime not found");
-  if ((await sha256Hex(token)) !== runtime.tokenHash) throw new Error("Invalid runtime token");
+  if (!runtime) {
+    throw new Error("Runtime not found");
+  }
+  if ((await sha256Hex(token)) !== runtime.tokenHash) {
+    throw new Error("Invalid runtime token");
+  }
   return runtime;
 }
 
-async function actorFor(ctx: QueryCtx | MutationCtx, runtime: Doc<"runtimes">, userId: Id<"users">) {
+async function actorFor(
+  ctx: QueryCtx | MutationCtx,
+  runtime: Doc<"runtimes">,
+  userId: Id<"users">
+) {
   const membership = await getMembership(ctx, runtime.orgId, userId);
-  if (!membership) throw new Error("Not a member of this organization");
+  if (!membership) {
+    throw new Error("Not a member of this organization");
+  }
   const grants = await listRuntimeGrants(ctx, runtime._id);
   return {
     actorUserId: String(userId),
@@ -73,18 +98,29 @@ async function actorFor(ctx: QueryCtx | MutationCtx, runtime: Doc<"runtimes">, u
       actorRole: membership.role,
       grants: grants.map((grant) => ({
         targetType: grant.targetType,
-        targetUserId: grant.targetUserId ? String(grant.targetUserId) : undefined,
+        targetUserId: grant.targetUserId
+          ? String(grant.targetUserId)
+          : undefined,
         targetRole: grant.targetRole,
       })),
     }),
   };
 }
 
-async function getCommandForBridge(ctx: MutationCtx, runtimeId: Id<"runtimes">, token: string, commandId: Id<"runtimeCommands">) {
+async function getCommandForBridge(
+  ctx: MutationCtx,
+  runtimeId: Id<"runtimes">,
+  token: string,
+  commandId: Id<"runtimeCommands">
+) {
   await getRuntimeByToken(ctx, runtimeId, token);
   const command = await ctx.db.get("runtimeCommands", commandId);
-  if (!command) throw new Error("Command not found");
-  if (String(command.runtimeId) !== String(runtimeId)) throw new Error("Command belongs to another runtime");
+  if (!command) {
+    throw new Error("Command not found");
+  }
+  if (String(command.runtimeId) !== String(runtimeId)) {
+    throw new Error("Command belongs to another runtime");
+  }
   return command;
 }
 
@@ -97,35 +133,53 @@ export const request = authedMutation({
   returns: v.id("runtimeCommands"),
   handler: async (ctx, args) => {
     const runtime = await ctx.db.get("runtimes", args.runtimeId);
-    if (!runtime) throw new Error("Runtime not found");
+    if (!runtime) {
+      throw new Error("Runtime not found");
+    }
     const actor = await actorFor(ctx, runtime, ctx.user._id);
     if (!canRequestMaintenance(args.kind, actor)) {
       throw new Error(
         args.kind === "updateCli"
           ? "Only the machine owner can update CLIs on this machine (owner may allow admins in the machine's provider settings)"
-          : "You need permission to use this machine to refresh its models",
+          : "You need permission to use this machine to refresh its models"
       );
     }
     if (args.driverKind === "antigravity") {
-      throw new Error("Antigravity has no CLI on the machine; nothing to update");
+      throw new Error(
+        "Antigravity has no CLI on the machine; nothing to update"
+      );
     }
     if (args.kind === "refreshModels" && !supportsLiveModels(args.driverKind)) {
-      throw new Error("This provider's CLI has no models command; the static catalog applies");
+      throw new Error(
+        "This provider's CLI has no models command; the static catalog applies"
+      );
     }
     if (!(runtime.capabilities ?? []).includes(BRIDGE_CAPABILITY_MAINTENANCE)) {
-      throw new Error("The tahcode bridge on this machine is too old for remote maintenance — run `npm i -g tahcode@latest` and `tahcode restart` there");
+      throw new Error(
+        "The tahcode bridge on this machine is too old for remote maintenance — run `npm i -g tahcode@latest` and `tahcode restart` there"
+      );
     }
     await failStaleRuns(ctx, runtime._id);
     const pending = await ctx.db
       .query("runtimeCommands")
-      .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", runtime._id).eq("status", "queued"))
+      .withIndex("by_runtime_and_status", (q) =>
+        q.eq("runtimeId", runtime._id).eq("status", "queued")
+      )
       .take(50);
     const running = await ctx.db
       .query("runtimeCommands")
-      .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", runtime._id).eq("status", "running"))
+      .withIndex("by_runtime_and_status", (q) =>
+        q.eq("runtimeId", runtime._id).eq("status", "running")
+      )
       .take(50);
-    if ([...pending, ...running].some((command) => command.driverKind === args.driverKind)) {
-      throw new Error("A command for this provider is already queued or running on this machine");
+    if (
+      [...pending, ...running].some(
+        (command) => command.driverKind === args.driverKind
+      )
+    ) {
+      throw new Error(
+        "A command for this provider is already queued or running on this machine"
+      );
     }
     return await ctx.db.insert("runtimeCommands", {
       runtimeId: runtime._id,
@@ -144,38 +198,65 @@ export const cancel = authedMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const command = await ctx.db.get("runtimeCommands", args.commandId);
-    if (!command) throw new Error("Command not found");
+    if (!command) {
+      throw new Error("Command not found");
+    }
     const runtime = await ctx.db.get("runtimes", command.runtimeId);
-    if (!runtime) throw new Error("Runtime not found");
+    if (!runtime) {
+      throw new Error("Runtime not found");
+    }
     const isRequester = String(command.requestedBy) === String(ctx.user._id);
     const isOwner = String(runtime.ownerUserId) === String(ctx.user._id);
-    if (!isRequester && !isOwner) throw new Error("Only the requester or the machine owner can cancel");
-    const now = Date.now();
-    const staleRunning = command.status === "running" && command.claimedAt !== undefined && now - command.claimedAt > STALE_RUNNING_MS;
-    if (command.status !== "queued" && !staleRunning) {
-      throw new Error("Only queued commands (or a run the bridge stopped reporting on) can be cancelled");
+    if (!isRequester && !isOwner) {
+      throw new Error("Only the requester or the machine owner can cancel");
     }
-    await ctx.db.patch("runtimeCommands", command._id, {
+    const now = Date.now();
+    const staleRunning =
+      command.status === "running" &&
+      command.claimedAt !== undefined &&
+      now - command.claimedAt > STALE_RUNNING_MS;
+    if (command.status !== "queued" && !staleRunning) {
+      throw new Error(
+        "Only queued commands (or a run the bridge stopped reporting on) can be cancelled"
+      );
+    }
+    const cancelPatch: {
+      status: "cancelled";
+      completedAt: number;
+      error?: string;
+    } = {
       status: "cancelled",
       completedAt: now,
-      ...(staleRunning ? { error: "Cancelled after the bridge stopped reporting" } : {}),
-    });
+    };
+    if (staleRunning) {
+      cancelPatch.error = "Cancelled after the bridge stopped reporting";
+    }
+    await ctx.db.patch("runtimeCommands", command._id, cancelPatch);
     return null;
   },
 });
 
 /** Fail runs whose bridge went away mid-command so the UI never shows an eternal spinner. */
-async function failStaleRuns(ctx: MutationCtx, runtimeId: Id<"runtimes">): Promise<void> {
+async function failStaleRuns(
+  ctx: MutationCtx,
+  runtimeId: Id<"runtimes">
+): Promise<void> {
   const running = await ctx.db
     .query("runtimeCommands")
-    .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", runtimeId).eq("status", "running"))
+    .withIndex("by_runtime_and_status", (q) =>
+      q.eq("runtimeId", runtimeId).eq("status", "running")
+    )
     .take(20);
   const now = Date.now();
   for (const command of running) {
-    if (command.claimedAt !== undefined && now - command.claimedAt > STALE_RUNNING_MS) {
+    if (
+      command.claimedAt !== undefined &&
+      now - command.claimedAt > STALE_RUNNING_MS
+    ) {
       await ctx.db.patch("runtimeCommands", command._id, {
         status: "failed",
-        error: "The bridge stopped reporting before the command finished (restarted or lost connection). Check `tahcode logs` on the machine.",
+        error:
+          "The bridge stopped reporting before the command finished (restarted or lost connection). Check `tahcode logs` on the machine.",
         completedAt: now,
       });
     }
@@ -187,7 +268,9 @@ export const list = authedQuery({
   returns: v.array(commandView),
   handler: async (ctx, args) => {
     const runtime = await ctx.db.get("runtimes", args.runtimeId);
-    if (!runtime) return [];
+    if (!runtime) {
+      return [];
+    }
     const actor = await actorFor(ctx, runtime, ctx.user._id);
     // Logs can contain local paths; only people who may maintain the machine see them.
     const seesLogs = canRequestMaintenance("updateCli", actor);
@@ -226,13 +309,24 @@ export const claimNext = mutation({
     await failStaleRuns(ctx, args.runtimeId);
     const queued = await ctx.db
       .query("runtimeCommands")
-      .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", args.runtimeId).eq("status", "queued"))
+      .withIndex("by_runtime_and_status", (q) =>
+        q.eq("runtimeId", args.runtimeId).eq("status", "queued")
+      )
       .order("asc")
       .take(1);
     const command = queued[0];
-    if (!command) return null;
-    await ctx.db.patch("runtimeCommands", command._id, { status: "running", claimedAt: Date.now() });
-    return { _id: command._id, kind: command.kind, driverKind: command.driverKind };
+    if (!command) {
+      return null;
+    }
+    await ctx.db.patch("runtimeCommands", command._id, {
+      status: "running",
+      claimedAt: Date.now(),
+    });
+    return {
+      _id: command._id,
+      kind: command.kind,
+      driverKind: command.driverKind,
+    };
   },
 });
 
@@ -248,13 +342,29 @@ export const appendLog = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const command = await getCommandForBridge(ctx, args.runtimeId, args.token, args.commandId);
-    if (command.status !== "running") return null;
-    await ctx.db.patch("runtimeCommands", command._id, {
+    const command = await getCommandForBridge(
+      ctx,
+      args.runtimeId,
+      args.token,
+      args.commandId
+    );
+    if (command.status !== "running") {
+      return null;
+    }
+    const logPatch: {
+      log: string;
+      command?: string;
+      versionBefore?: string;
+    } = {
       log: `${command.log}${args.text}`.slice(-LOG_CAP),
-      ...(args.command !== undefined ? { command: args.command.slice(0, 300) } : {}),
-      ...(args.versionBefore !== undefined ? { versionBefore: args.versionBefore.slice(0, 80) } : {}),
-    });
+    };
+    if (args.command !== undefined) {
+      logPatch.command = args.command.slice(0, 300);
+    }
+    if (args.versionBefore !== undefined) {
+      logPatch.versionBefore = args.versionBefore.slice(0, 80);
+    }
+    await ctx.db.patch("runtimeCommands", command._id, logPatch);
     return null;
   },
 });
@@ -270,8 +380,15 @@ export const complete = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const command = await getCommandForBridge(ctx, args.runtimeId, args.token, args.commandId);
-    if (command.status !== "running") return null;
+    const command = await getCommandForBridge(
+      ctx,
+      args.runtimeId,
+      args.token,
+      args.commandId
+    );
+    if (command.status !== "running") {
+      return null;
+    }
     const failed = args.error !== undefined && args.error.length > 0;
     await ctx.db.patch("runtimeCommands", command._id, {
       status: failed ? "failed" : "done",

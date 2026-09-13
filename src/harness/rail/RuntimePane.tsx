@@ -1,5 +1,13 @@
 import { useMutation } from "convex/react";
-import { Check, Cpu, Plus, ShieldCheck, SlidersHorizontal, Trash2, Zap } from "lucide-react";
+import {
+  Check,
+  Cpu,
+  Plus,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
@@ -116,7 +124,8 @@ export function RuntimeCard({
                     className="size-1.5 rounded-full"
                     style={{
                       background:
-                        PROVIDERS[provider.driverKind]?.color ?? "var(--accent)",
+                        PROVIDERS[provider.driverKind]?.color ??
+                        "var(--accent)",
                     }}
                   />
                   {PROVIDERS[provider.driverKind]?.label ?? provider.driverKind}
@@ -185,7 +194,14 @@ export function RuntimeCard({
                 <Zap size={12} /> {selected ? "指定を解除" : "このマシンを使う"}
               </Button>
             )}
-            <Button type="button" size="xs" variant="secondary" onClick={() => openDialog({ kind: "runtimeProviders", runtimeId: runtime._id })}>
+            <Button
+              type="button"
+              size="xs"
+              variant="secondary"
+              onClick={() =>
+                openDialog({ kind: "runtimeProviders", runtimeId: runtime._id })
+              }
+            >
               <SlidersHorizontal size={12} /> プロバイダ設定
             </Button>
             {(mine || isAdmin) && (

@@ -112,7 +112,11 @@ export type DialogState =
   | { kind: "newChat"; projectId?: Id<"projects"> }
   | { kind: "registerRuntime" }
   | { kind: "grant"; runtimeId: Id<"runtimes"> }
-  | { kind: "runtimeProviders"; runtimeId: Id<"runtimes">; focus?: ProviderDriverKind }
+  | {
+      kind: "runtimeProviders";
+      runtimeId: Id<"runtimes">;
+      focus?: ProviderDriverKind;
+    }
   | { kind: "invite" }
   | null;
 
@@ -146,7 +150,11 @@ interface OrgContextValue {
   provider: ProviderDriverKind;
   model: string | null;
   options: ProviderOptionSelection[] | undefined;
-  setAgent: (kind: ProviderDriverKind, model?: string | null, options?: ProviderOptionSelection[] | null) => void;
+  setAgent: (
+    kind: ProviderDriverKind,
+    model?: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void;
   runtimeId: Id<"runtimes"> | null;
   setRuntimeId: (id: Id<"runtimes"> | null) => void;
   tabs: Id<"chats">[];

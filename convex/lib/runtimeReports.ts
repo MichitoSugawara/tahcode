@@ -1,4 +1,5 @@
 import type { Infer } from "convex/values";
+
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import type { runtimeProviderReport } from "./validators";
@@ -17,43 +18,83 @@ const MAX_MODELS = 200;
 export async function upsertProviderReports(
   ctx: MutationCtx,
   runtimeId: Id<"runtimes">,
-  providers: readonly ProviderReport[],
+  providers: readonly ProviderReport[]
 ): Promise<void> {
   for (const provider of providers) {
     const existing = await ctx.db
       .query("runtimeProviders")
       .withIndex("by_runtime_and_kind", (q) =>
-        q.eq("runtimeId", runtimeId).eq("driverKind", provider.driverKind),
+        q.eq("runtimeId", runtimeId).eq("driverKind", provider.driverKind)
       )
       .unique();
-    const base = {
+    const patch: {
+      available: boolean;
+      version?: string;
+      binaryPath?: string;
+      installMethod?: ProviderReport["installMethod"];
+      updateCommand?: string;
+      models?: {
+        slug: string;
+        name?: string;
+        default?: boolean;
+        defaultReasoningLevel?: string;
+        supportedReasoningLevels?: string[];
+      }[];
+      modelsCheckedAt?: number;
+      modelsError?: string;
+    } = {
       available: provider.available,
       version: provider.version?.slice(0, 80),
       binaryPath: provider.binaryPath?.slice(0, 500),
     };
-    const maintenance = {
-      ...(provider.installMethod !== undefined ? { installMethod: provider.installMethod } : {}),
-      ...(provider.updateCommand !== undefined ? { updateCommand: provider.updateCommand.slice(0, 200) } : {}),
-      ...(provider.modelsCheckedAt !== undefined
-        ? {
-            models: (provider.models ?? []).slice(0, MAX_MODELS).map((model) => ({
-              slug: model.slug.slice(0, 80),
-              ...(model.name ? { name: model.name.slice(0, 120) } : {}),
-              ...(model.default ? { default: true } : {}),
-            })),
-            modelsCheckedAt: provider.modelsCheckedAt,
-            modelsError: provider.modelsError?.slice(0, 500),
+    if (provider.installMethod !== undefined) {
+      patch.installMethod = provider.installMethod;
+    }
+    if (provider.updateCommand !== undefined) {
+      patch.updateCommand = provider.updateCommand.slice(0, 200);
+    }
+    if (provider.modelsCheckedAt !== undefined) {
+      patch.models = (provider.models ?? [])
+        .slice(0, MAX_MODELS)
+        .map((model) => {
+          const row: {
+            slug: string;
+            name?: string;
+            default?: boolean;
+            defaultReasoningLevel?: string;
+            supportedReasoningLevels?: string[];
+          } = { slug: model.slug.slice(0, 80) };
+          if (model.name) {
+            row.name = model.name.slice(0, 120);
           }
-        : {}),
-    };
+          if (model.default) {
+            row.default = true;
+          }
+          if (model.defaultReasoningLevel) {
+            row.defaultReasoningLevel = model.defaultReasoningLevel.slice(
+              0,
+              40
+            );
+          }
+          if (model.supportedReasoningLevels) {
+            row.supportedReasoningLevels = model.supportedReasoningLevels
+              .slice(0, 20)
+              .map((level) => level.slice(0, 40));
+          }
+          return row;
+        });
+      patch.modelsCheckedAt = provider.modelsCheckedAt;
+      if (provider.modelsError !== undefined) {
+        patch.modelsError = provider.modelsError.slice(0, 500);
+      }
+    }
     if (existing) {
-      await ctx.db.patch("runtimeProviders", existing._id, { ...base, ...maintenance });
+      await ctx.db.patch("runtimeProviders", existing._id, patch);
     } else {
       await ctx.db.insert("runtimeProviders", {
         runtimeId,
         driverKind: provider.driverKind,
-        ...base,
-        ...maintenance,
+        ...patch,
       });
     }
   }
