@@ -30,6 +30,9 @@ export type MaintenanceKind = (typeof MAINTENANCE_KINDS)[number];
 export const MAINTENANCE_STATUSES = ["queued", "running", "done", "failed", "cancelled"] as const;
 export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
 
+/** A command still "running" this long after being claimed lost its bridge (crash / restart mid-update). */
+export const STALE_RUNNING_MS = 15 * 60_000;
+
 /** Heartbeat capabilities a bridge advertises; an old bridge reports none. */
 export const BRIDGE_CAPABILITY_MAINTENANCE = "maintenance";
 export const BRIDGE_CAPABILITY_LIVE_MODELS = "liveModels";

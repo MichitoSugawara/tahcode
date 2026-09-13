@@ -7,6 +7,7 @@ export {
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_MAINTENANCE,
   PROVIDER_MAINTENANCE,
+  STALE_RUNNING_MS,
   canRequestMaintenance,
   supportsLiveModels,
   updatePlanFor,

@@ -4,7 +4,7 @@ import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { canUseRuntime, getMembership, listRuntimeGrants } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { sha256Hex } from "./lib/ids";
-import { BRIDGE_CAPABILITY_MAINTENANCE, canRequestMaintenance, supportsLiveModels } from "./lib/providerMaintenance";
+import { BRIDGE_CAPABILITY_MAINTENANCE, STALE_RUNNING_MS, canRequestMaintenance, supportsLiveModels } from "./lib/providerMaintenance";
 import { maintenanceKind, maintenanceStatus, providerKind } from "./lib/validators";
 
 /* ─────────────────────────────────────────────────────────
@@ -115,6 +115,7 @@ export const request = authedMutation({
     if (!(runtime.capabilities ?? []).includes(BRIDGE_CAPABILITY_MAINTENANCE)) {
       throw new Error("The tahcode bridge on this machine is too old for remote maintenance — run `npm i -g tahcode@latest` and `tahcode restart` there");
     }
+    await failStaleRuns(ctx, runtime._id);
     const pending = await ctx.db
       .query("runtimeCommands")
       .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", runtime._id).eq("status", "queued"))
@@ -149,11 +150,37 @@ export const cancel = authedMutation({
     const isRequester = String(command.requestedBy) === String(ctx.user._id);
     const isOwner = String(runtime.ownerUserId) === String(ctx.user._id);
     if (!isRequester && !isOwner) throw new Error("Only the requester or the machine owner can cancel");
-    if (command.status !== "queued") throw new Error("Only queued commands can be cancelled");
-    await ctx.db.patch("runtimeCommands", command._id, { status: "cancelled", completedAt: Date.now() });
+    const now = Date.now();
+    const staleRunning = command.status === "running" && command.claimedAt !== undefined && now - command.claimedAt > STALE_RUNNING_MS;
+    if (command.status !== "queued" && !staleRunning) {
+      throw new Error("Only queued commands (or a run the bridge stopped reporting on) can be cancelled");
+    }
+    await ctx.db.patch("runtimeCommands", command._id, {
+      status: "cancelled",
+      completedAt: now,
+      ...(staleRunning ? { error: "Cancelled after the bridge stopped reporting" } : {}),
+    });
     return null;
   },
 });
+
+/** Fail runs whose bridge went away mid-command so the UI never shows an eternal spinner. */
+async function failStaleRuns(ctx: MutationCtx, runtimeId: Id<"runtimes">): Promise<void> {
+  const running = await ctx.db
+    .query("runtimeCommands")
+    .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", runtimeId).eq("status", "running"))
+    .take(20);
+  const now = Date.now();
+  for (const command of running) {
+    if (command.claimedAt !== undefined && now - command.claimedAt > STALE_RUNNING_MS) {
+      await ctx.db.patch("runtimeCommands", command._id, {
+        status: "failed",
+        error: "The bridge stopped reporting before the command finished (restarted or lost connection). Check `tahcode logs` on the machine.",
+        completedAt: now,
+      });
+    }
+  }
+}
 
 export const list = authedQuery({
   args: { runtimeId: v.id("runtimes") },
@@ -195,6 +222,8 @@ export const claimNext = mutation({
   returns: claimedView,
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    // A bridge that is polling again after a crash is exactly the one whose old run is stale.
+    await failStaleRuns(ctx, args.runtimeId);
     const queued = await ctx.db
       .query("runtimeCommands")
       .withIndex("by_runtime_and_status", (q) => q.eq("runtimeId", args.runtimeId).eq("status", "queued"))

@@ -1,9 +1,11 @@
 import os from "node:os";
+import path from "node:path";
 
 import {
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_MAINTENANCE,
   PROVIDER_MAINTENANCE,
+  modelsCommandLabel,
   supportsLiveModels,
   updateCommandLabel,
 } from "../../shared/providerMaintenance.ts";
@@ -219,7 +221,7 @@ async function executeCommand(
         await finish({ error: `${command.driverKind} CLI is not installed on ${os.hostname()}` });
         return;
       }
-      const label = `${probe.binary} ${PROVIDER_MAINTENANCE[probe.kind].modelsArgv?.join(" ") ?? ""}`.trim();
+      const label = modelsCommandLabel(probe.kind, probe.binary ? path.basename(probe.binary) : null) ?? `${probe.kind} models`;
       await client.appendCommandLog({ ...auth, text: `$ ${label}\n`, command: label });
       const discovery = await models.refresh(probe);
       if (discovery.models.length === 0) {

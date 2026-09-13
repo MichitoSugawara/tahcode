@@ -15,10 +15,12 @@ import { Switch } from "@/harness/ui/Switch";
 import { displayName, errorSummary, relativeTime } from "@/lib/format";
 import {
   MAINTENANCE_LABEL,
+  MAINTENANCE_NOUN,
   MAINTENANCE_STATUS_LABEL,
   PROVIDERS,
   PROVIDER_KINDS,
   PROVIDER_MAINTENANCE,
+  STALE_RUNNING_MS,
   canRequestMaintenance,
   installMethodLabel,
   mergeModelCatalog,
@@ -279,7 +281,7 @@ function ProviderRow({
     setBusy(maintenanceKind);
     try {
       await request({ runtimeId: runtime._id, kind: maintenanceKind, driverKind: kind });
-      toast.success(live ? `${info.label}: ${MAINTENANCE_LABEL[maintenanceKind]}をマシンに送りました` : `${info.label}: ${MAINTENANCE_LABEL[maintenanceKind]}をキューに入れました（接続後に実行）`);
+      toast.success(live ? `${info.label}: ${MAINTENANCE_NOUN[maintenanceKind]}をマシンに送りました` : `${info.label}: ${MAINTENANCE_NOUN[maintenanceKind]}をキューに入れました（接続後に実行）`);
     } catch (error) {
       toast.error(errorSummary(error) ?? "リクエストに失敗しました");
     } finally {
@@ -307,6 +309,7 @@ function ProviderRow({
   return (
     <div
       ref={ref}
+      data-provider={kind}
       className={`overflow-hidden rounded-card bg-surface transition-[box-shadow] duration-200 ${focused ? "shadow-[0_0_0_1px_var(--accent),var(--shadow-card)]" : "shadow-card"}`}
     >
       <div className="primitive-card-bar flex flex-wrap items-center gap-2 border-b border-line">
@@ -418,7 +421,18 @@ function ProviderRow({
         )}
         {noCli && <p className="text-[11.5px] text-ink-3">{maintenance.manualHint}</p>}
 
-        {activeCommand && <ActiveCommand command={activeCommand} now={now} onCancel={activeCommand.status === "queued" ? () => void cancel({ commandId: activeCommand._id }).catch((error: unknown) => toast.error(errorSummary(error) ?? "取り消せませんでした")) : undefined} />}
+        {activeCommand && (
+          <ActiveCommand
+            command={activeCommand}
+            now={now}
+            live={live}
+            onCancel={
+              activeCommand.status === "queued" || (activeCommand.claimedAt !== undefined && now - activeCommand.claimedAt > STALE_RUNNING_MS)
+                ? () => void cancel({ commandId: activeCommand._id }).catch((error: unknown) => toast.error(errorSummary(error) ?? "取り消せませんでした"))
+                : undefined
+            }
+          />
+        )}
         {!activeCommand && lastFinished && <FinishedCommand command={lastFinished} now={now} />}
       </div>
     </div>
@@ -442,14 +456,19 @@ function logTail(log: string, lines = 8): string[] {
   return log.split("\n").filter((line) => line.trim().length > 0).slice(-lines);
 }
 
-function ActiveCommand({ command, now, onCancel }: { command: Command; now: number; onCancel?: () => void }) {
+function ActiveCommand({ command, now, live, onCancel }: { command: Command; now: number; live: boolean; onCancel?: () => void }) {
   const tail = logTail(command.log);
+  const stale = command.status === "running" && command.claimedAt !== undefined && now - command.claimedAt > STALE_RUNNING_MS;
   return (
     <div className="rounded-card bg-inset px-3 py-2.5 shadow-hairline" style={{ animation: "fade-in 200ms ease-out both" }}>
       <div className="flex items-center gap-2 text-[12.5px]">
         <span className="size-3 shrink-0 rounded-full border-2 border-ink-3 border-t-transparent" style={{ animation: "spin 0.9s linear infinite" }} />
         <Shimmer className="font-medium">
-          {command.status === "queued" ? `${MAINTENANCE_LABEL[command.kind]} — マシンの受付を待っています` : `${MAINTENANCE_LABEL[command.kind]}を実行中`}
+          {command.status === "queued"
+            ? `${MAINTENANCE_NOUN[command.kind]} — ${live ? "マシンの受付を待っています" : "マシンがオフラインです。接続後に実行されます"}`
+            : stale
+              ? `${MAINTENANCE_NOUN[command.kind]} — ブリッジからの応答が途絶えています`
+              : `${MAINTENANCE_NOUN[command.kind]}を実行中`}
         </Shimmer>
         {command.command && <code className="truncate font-mono text-[11.5px] text-ink-2">$ {command.command}</code>}
         <span className="ml-auto shrink-0 text-[11.5px] text-ink-3">{relativeTime(command.claimedAt ?? command._creationTime, now)}</span>
@@ -477,7 +496,7 @@ function FinishedCommand({ command, now }: { command: Command; now: number }) {
       : null;
   const lines = command.log.split("\n").filter((line) => line.trim().length > 0);
   return (
-    <Notice tone={failed ? "warn" : "success"} title={`${MAINTENANCE_LABEL[command.kind]}${failed ? "に失敗しました" : "が完了しました"} · ${command.completedAt ? relativeTime(command.completedAt, now) : ""}`}>
+    <Notice tone={failed ? "warn" : "success"} title={`${MAINTENANCE_NOUN[command.kind]}${failed ? "に失敗しました" : "が完了しました"} · ${command.completedAt ? relativeTime(command.completedAt, now) : ""}`}>
       <div className="flex flex-col gap-1">
         {command.command && <code className="font-mono text-[11.5px]">$ {command.command}</code>}
         {versionLine && <span className="font-mono text-[12px]">{versionLine}</span>}
@@ -514,7 +533,7 @@ function History({ commands, now }: { commands: Command[]; now: number }) {
             return (
               <div key={String(command._id)} className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2 text-[12px] last:border-b-0">
                 <Monogram color={PROVIDERS[command.driverKind].color}>{PROVIDERS[command.driverKind].label.charAt(0)}</Monogram>
-                <span className="font-medium text-ink">{MAINTENANCE_LABEL[command.kind]}</span>
+                <span className="font-medium text-ink">{MAINTENANCE_NOUN[command.kind]}</span>
                 {command.command && <code className="truncate font-mono text-[11px] text-ink-3">$ {command.command}</code>}
                 <StatusPill tone={tone} className="h-5 text-[11px]">
                   {MAINTENANCE_STATUS_LABEL[command.status]}

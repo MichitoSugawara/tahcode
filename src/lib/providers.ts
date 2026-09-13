@@ -1,5 +1,6 @@
 import {
   PROVIDER_MAINTENANCE,
+  STALE_RUNNING_MS,
   canRequestMaintenance,
   installMethodLabel,
   mergeModelCatalog,
@@ -22,7 +23,7 @@ import {
 import type { ProviderDriverKind, ProviderModel } from "@shared/providers.ts";
 
 export type { CatalogModel, InstallMethod, LiveModel, MaintenanceKind, MaintenanceStatus, ModelSource, ProviderDriverKind, ProviderModel };
-export { PROVIDER_MAINTENANCE, canRequestMaintenance, formatAgentMention, installMethodLabel, mergeModelCatalog, modelDisplayName, modelsCommandLabel, resolveModelSlug, supportsLiveModels };
+export { PROVIDER_MAINTENANCE, STALE_RUNNING_MS, canRequestMaintenance, formatAgentMention, installMethodLabel, mergeModelCatalog, modelDisplayName, modelsCommandLabel, resolveModelSlug, supportsLiveModels };
 
 export const PROVIDER_KINDS = PROVIDER_CATALOG.map((entry) => entry.kind);
 
@@ -174,9 +175,16 @@ export function modelCatalogFor(kind: ProviderDriverKind, runtimes: readonly Run
   };
 }
 
+/** Button labels (imperative). */
 export const MAINTENANCE_LABEL: Record<MaintenanceKind, string> = {
   updateCli: "CLI を更新",
   refreshModels: "モデルを再取得",
+};
+
+/** Noun form for sentences: 「CLI の更新を実行中」「モデルの再取得が完了しました」. */
+export const MAINTENANCE_NOUN: Record<MaintenanceKind, string> = {
+  updateCli: "CLI の更新",
+  refreshModels: "モデルの再取得",
 };
 
 export const MAINTENANCE_STATUS_LABEL: Record<MaintenanceStatus, string> = {
