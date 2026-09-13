@@ -1,13 +1,13 @@
 import { Paperclip } from "lucide-react";
 import type { ReactNode } from "react";
 import { Monogram } from "@/components/atoms/EntityChip";
+import { MentionText } from "@/components/atoms/MentionText";
 import { clockTime, colorFor, monogram } from "@/lib/format";
 
 /* the harness user bubble: right-aligned, soft field, hairline ring;
  * in shared chats the author sits above it so a room reads as a room */
 
 const LINK = /📎?\s*\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
-const MENTION = /(^|\s)(@[a-zA-Z0-9_./-]+)/g;
 
 function renderInline(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
@@ -15,7 +15,7 @@ function renderInline(text: string): ReactNode[] {
   let key = 0;
   for (const match of text.matchAll(LINK)) {
     const index = match.index ?? 0;
-    if (index > last) parts.push(...renderMentions(text.slice(last, index), key++));
+    if (index > last) parts.push(<MentionText key={`m${key++}`} text={text.slice(last, index)} />);
     parts.push(
       <a
         key={`l${key++}`}
@@ -30,25 +30,7 @@ function renderInline(text: string): ReactNode[] {
     );
     last = index + match[0].length;
   }
-  if (last < text.length) parts.push(...renderMentions(text.slice(last), key++));
-  return parts;
-}
-
-function renderMentions(text: string, seed: number): ReactNode[] {
-  const parts: ReactNode[] = [];
-  let last = 0;
-  let key = 0;
-  for (const match of text.matchAll(MENTION)) {
-    const index = (match.index ?? 0) + (match[1]?.length ?? 0);
-    if (index > last) parts.push(<span key={`t${seed}-${key++}`}>{text.slice(last, index)}</span>);
-    parts.push(
-      <span key={`m${seed}-${key++}`} className="rounded-[4px] bg-accent-tint px-1 py-px font-medium text-accent-ink">
-        {match[2]}
-      </span>,
-    );
-    last = index + (match[2]?.length ?? 0);
-  }
-  if (last < text.length) parts.push(<span key={`t${seed}-${key++}`}>{text.slice(last)}</span>);
+  if (last < text.length) parts.push(<MentionText key={`m${key++}`} text={text.slice(last)} />);
   return parts;
 }
 
