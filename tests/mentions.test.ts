@@ -198,12 +198,14 @@ describe(headlessArgs, () => {
   it("adds the CLI model flag only when a model is set", () => {
     expect(headlessArgs("cursor", "hi")).toStrictEqual([
       "-p",
+      "--trust",
       "--output-format",
       "stream-json",
       "hi",
     ]);
     expect(headlessArgs("cursor", "hi", "muse-spark-1.3")).toStrictEqual([
       "-p",
+      "--trust",
       "--model",
       "muse-spark-1.3",
       "--output-format",
@@ -294,6 +296,7 @@ describe(headlessArgs, () => {
       ])
     ).toStrictEqual([
       "-p",
+      "--trust",
       "--model",
       "muse-spark-1.3",
       "--output-format",
