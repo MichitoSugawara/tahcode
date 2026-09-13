@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 
 import {
   DEEP_LINK_SCHEME,
+  DEFAULT_AUTO_UPDATE_ENABLED,
   DESKTOP_OAUTH_CALLBACK,
 } from "@tahcode/core/desktop";
 import type { OAuthStrategy } from "@tahcode/core/desktop";
@@ -56,8 +57,9 @@ export interface WindowBounds {
 }
 
 export interface PersistedSettings {
-  preset?: ServerPreset;
+  autoUpdateEnabled?: boolean;
   bounds?: WindowBounds;
+  preset?: ServerPreset;
 }
 
 function isPreset(value: string | undefined): value is ServerPreset {
@@ -98,26 +100,52 @@ export function settingsPath(userDataDir: string): string {
   return join(userDataDir, "settings.json");
 }
 
+export function parsePersistedSettings(raw: unknown): PersistedSettings {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+  const record = raw as {
+    autoUpdateEnabled?: unknown;
+    bounds?: unknown;
+    preset?: unknown;
+  };
+  const settings: PersistedSettings = {};
+  const presetValue =
+    typeof record.preset === "string" ? record.preset : undefined;
+  if (isPreset(presetValue)) {
+    settings.preset = presetValue;
+  }
+  if (isBounds(record.bounds)) {
+    settings.bounds = record.bounds;
+  }
+  if (typeof record.autoUpdateEnabled === "boolean") {
+    settings.autoUpdateEnabled = record.autoUpdateEnabled;
+  }
+  return settings;
+}
+
+export function readAutoUpdateEnabled(userDataDir: string): boolean {
+  return (
+    readSettings(userDataDir).autoUpdateEnabled ?? DEFAULT_AUTO_UPDATE_ENABLED
+  );
+}
+
+export function writeAutoUpdateEnabled(
+  userDataDir: string,
+  enabled: boolean
+): void {
+  writeSettings(userDataDir, {
+    ...readSettings(userDataDir),
+    autoUpdateEnabled: enabled,
+  });
+}
+
 export function readSettings(userDataDir: string): PersistedSettings {
   try {
     const parsed: unknown = JSON.parse(
       readFileSync(settingsPath(userDataDir), "utf-8")
     );
-    if (parsed && typeof parsed === "object") {
-      const { preset, bounds } = parsed as {
-        preset?: unknown;
-        bounds?: unknown;
-      };
-      const settings: PersistedSettings = {};
-      const presetValue = typeof preset === "string" ? preset : undefined;
-      if (isPreset(presetValue)) {
-        settings.preset = presetValue;
-      }
-      if (isBounds(bounds)) {
-        settings.bounds = bounds;
-      }
-      return settings;
-    }
+    return parsePersistedSettings(parsed);
   } catch {
     /* first run or unreadable file */
   }

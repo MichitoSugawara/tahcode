@@ -60,12 +60,14 @@ apps/desktop/                       # @tahcode/desktop（Multica の apps/deskto
 ├── src/main/index.ts               # app ライフサイクル、BrowserWindow、ナビゲーション境界、deep link、smoke モード
 ├── src/main/config.ts              # 接続先の解決（--url / env / settings.json / production）
 ├── src/main/deepLink.ts            # @tahcode/core/desktop の re-export（parse / loginReturnUrl）
-├── src/main/ipc.ts                 # allow-list IPC（hostname / CLI status / registerLocalRuntime）
+├── src/main/ipc.ts                 # allow-list IPC（hostname / CLI / register / アップデート）
 ├── src/main/localRuntime.ts        # main が tahcode CLI を探して link + start（任意シェルは不可）
-├── src/main/menu.ts                # macOS メニュー（Edit/View/Server/Window/Help）
+├── src/main/menu.ts                # macOS メニュー（Edit/View/Server/Window/Help + 更新）
+├── src/main/updateService.ts       # GitHub Releases の確認 / .dmg ダウンロード（Electron 非依存）
+├── src/main/updater.ts             # 自動確認、ネイティブダイアログ、IPC 通知
 ├── src/main/fallback.ts            # オフライン時の data: URL ページ（再接続ボタン）
 ├── src/preload/index.ts            # contextBridge → window.tahcodeDesktop（TahcodeDesktopBridge 型を実装）
-├── electron-builder.yml            # appId, protocols(tahcode), mac dmg/zip, entitlements, identity: null
+├── electron-builder.yml            # appId, protocols(tahcode), mac dmg/zip, entitlements, GitHub publish
 ├── build/                          # icon.png（scripts/make-icon.mjs が生成）, entitlements.mac.plist
 └── scripts/smoke.mjs               # 起動 → 描画 → PNG 保存 → 終了（CI / VM 用）
 out/                                # electron-vite の出力（main/index.js, preload/index.js。CJS）
@@ -102,7 +104,7 @@ Web / Convex 側（同じ PR）:
 
 ### セキュリティ境界
 
-- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で OAuth 用の読み取り値と、allow-list の 3 invoke（`getHostname` / `getCliStatus` / `registerLocalRuntime`）と登録進捗イベントだけ公開。任意のシェルは無い。
+- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で OAuth 用の読み取り値と、allow-list の invoke（`getHostname` / `getCliStatus` / `registerLocalRuntime` / アップデート一式）と進捗イベントだけ公開。任意のシェルは無い。ダウンロード URL は GitHub 系ホストに限定。
 - IPC の送信元 URL は `isAppOrigin` で検証する（アプリのオリジン以外は拒否）。
 - `will-navigate` / `will-redirect` / `setWindowOpenHandler`: **アプリのオリジン以外へは一切遷移しない**。http(s) は `shell.openExternal`（システムブラウザ）、それ以外はブロック。
 - `setPermissionRequestHandler`: notifications / clipboard / fullscreen 以外の権限要求は拒否。
@@ -153,11 +155,22 @@ production / staging の Convex に `callbacks.redirect` が入っていない�
 `.github/workflows/desktop.yml`:
 
 - `linux-check`（PR / push で `apps/desktop/**` / `packages/core/**` / lockfile が変わったとき）: ルートの `npm ci`（共通 setup action）→ `packages/core` と shell の typecheck → `npm test` → `electron-vite build` → **xvfb 上で 3 回起動** （production 読み込み / `tahcode://` 疑似コールバック / オフラインフォールバック）→ スクリーンショットを artifact に → `electron-builder --linux dir --projectDir apps/desktop` で packaging 設定を検証。
-- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で **未署名** の arm64 `.dmg` / `.zip` を artifact に。
+- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で **未署名** の arm64 `.dmg` / `.zip` を artifact に。`desktop-v*` タグは `apps/desktop` の version と一致必須で、GitHub Releases にも同じ成果物 + `latest-mac.yml` を publish する。
 
 ローカルの同等コマンド: `npm run desktop:smoke -- /tmp/shell.png`（`DISPLAY` がなければ `xvfb-run` を自動使用）。
 
 Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と macOS 固有のバンドル処理が必要）。上の「Mac でビルドして動かす」か、`mac-dmg` ジョブを手動実行してください。
+
+## アップデート（TAH-22）
+
+配布ソースは GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.0`）。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。
+
+- **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。
+- **自動アップデート**: `~/Library/Application Support/tahcode/settings.json` の `autoUpdateEnabled`。**既定オフ**（未署名のため安全側）。オンなら起動約 20 秒後と 4 時間ごとに確認し、更新があればトースト / ダイアログ。適用はユーザー確認のまま。
+- **未署名の制約**: Gatekeeper 下ではアプリ内差し替え（electron-updater の `quitAndInstall`）が信頼できない。ダウンロードした `.dmg` を開き、tahcode を Applications にコピーする。初回は **右クリック → 開く**（または `xattr -dr com.apple.quarantine`）。
+- **開発ビルド**（`npm run desktop:dev`）: 確認とダウンロードはできるが、実行中の Electron には適用しない。
+- **Windows / Linux 配布**は対象外。手動で Releases を開く導線だけ出す。
+- 新しいシェルを出すとき: `apps/desktop/package.json` の version を上げ、`desktop-v<その version>` タグを push する。
 
 ## フォローアップ: 署名と公証（Developer ID）
 
@@ -165,11 +178,11 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 2. `electron-builder.yml` の `mac.identity: null` を削除し、`mac.notarize: true` を追加。
 3. 環境変数 `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` を設定して `npm run dist:mac`。electron-builder が署名 → 公証 → staple まで行う。
 4. `hardenedRuntime: true` と `build/entitlements.mac.plist`（JIT / unsigned-executable-memory / network.client）は既に公証要件に合わせてある。
-5. 自動更新を入れる場合は `electron-updater` + `publish`（GitHub Releases など）を追加。現在は `publish: null`。
+5. 署名と公証が揃ったら `TAHCODE_DESKTOP_SIGNED=1` を配布ビルドに渡し、アプリ内差し替え（`quitAndInstall` / electron-updater）を有効化する。未署名の間は GitHub Releases の `.dmg` をダウンロードして手動で置き換える。
 
 ## その他の既知事項
 
-- ウィンドウの位置・サイズと Server の選択は `settings.json` に保存。macOS では赤ボタンで閉じると Dock に残る（⌘Q で終了）。
+- ウィンドウの位置・サイズ、Server の選択、自動アップデートの on/off は `settings.json` に保存。macOS では赤ボタンで閉じると Dock に残る（⌘Q で終了）。
 - 外部リンク（チャット内 Markdown の `target=_blank` など）はすべてシステムブラウザで開く。
 - タイトルバーは標準（`hiddenInset` は Web 側サイドバーと traffic light の位置調整が必要になるため見送り）。
 - アイコンは `scripts/make-icon.mjs` が生成する 1024px PNG（electron-builder が .icns に変換）。差し替えは `build/icon.png` を上書き。

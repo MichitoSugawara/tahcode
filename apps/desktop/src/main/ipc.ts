@@ -1,6 +1,7 @@
 import { DESKTOP_IPC } from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
+  DesktopUpdateState,
   RegisterLocalRuntimeResult,
   RegisterProgressStep,
 } from "@tahcode/core/desktop";
@@ -14,6 +15,7 @@ import {
   getCliStatus,
   registerLocalRuntime,
 } from "./localRuntime";
+import type { DesktopUpdateService } from "./updateService";
 
 const UNAVAILABLE_CLI: DesktopCliStatus = {
   available: false,
@@ -24,8 +26,8 @@ const UNAVAILABLE_CLI: DesktopCliStatus = {
 
 /**
  * Allow-listed IPC for the web app. The renderer cannot run an arbitrary
- * command — only hostname, CLI status, and the fixed register sequence
- * (plus progress events on that sequence).
+ * command — only hostname, CLI status, the fixed register sequence
+ * (plus progress events), and desktop update invoke/events.
  */
 export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
   ipcMain.handle(DESKTOP_IPC.getHostname, (event) => {
@@ -60,6 +62,71 @@ export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
       });
     }
   );
+}
+
+export function installUpdaterIpc(
+  getConfig: () => ShellConfig,
+  updater: DesktopUpdateService
+): void {
+  ipcMain.handle(
+    DESKTOP_IPC.getUpdateState,
+    (event): DesktopUpdateState | null => {
+      if (!isTrustedSender(event, getConfig())) {
+        return null;
+      }
+      return updater.getState();
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.checkForUpdates,
+    async (event): Promise<DesktopUpdateState | null> => {
+      if (!isTrustedSender(event, getConfig())) {
+        return null;
+      }
+      return await updater.check("user");
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.downloadUpdate,
+    async (event): Promise<DesktopUpdateState | null> => {
+      if (!isTrustedSender(event, getConfig())) {
+        return null;
+      }
+      return await updater.download();
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.applyUpdate,
+    async (event): Promise<DesktopUpdateState | null> => {
+      if (!isTrustedSender(event, getConfig())) {
+        return null;
+      }
+      return await updater.apply();
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.setAutoUpdate,
+    (event, enabled: unknown): DesktopUpdateState | null => {
+      if (
+        !isTrustedSender(event, getConfig()) ||
+        typeof enabled !== "boolean"
+      ) {
+        return null;
+      }
+      return updater.setAutoUpdate(enabled);
+    }
+  );
+
+  ipcMain.handle(DESKTOP_IPC.openLatestRelease, async (event) => {
+    if (!isTrustedSender(event, getConfig())) {
+      return;
+    }
+    await updater.openLatestRelease();
+  });
 }
 
 function sendRegisterProgress(

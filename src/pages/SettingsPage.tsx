@@ -1,14 +1,20 @@
-import { BookOpen, Building2, Cpu, Users } from "lucide-react";
+import { ArrowUpCircle, BookOpen, Building2, Cpu, Users } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { TextRow } from "@/components/atoms/TextRow";
+import {
+  DesktopUpdateFallback,
+  DesktopUpdatePanel,
+} from "@/harness/desktop/DesktopUpdatePanel";
+import { useDesktopUpdate } from "@/harness/desktop/useDesktopUpdate";
 import { useOrg } from "@/harness/OrgContext";
 import { RuntimePane } from "@/harness/rail/RuntimePane";
 import { SkillsPane } from "@/harness/rail/SkillsPane";
 import { TeamPane } from "@/harness/rail/TeamPane";
 import { CopyButton } from "@/harness/ui/CopyButton";
+import { isDesktopShell } from "@/lib/desktop";
 import { roleLabel } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/title";
 
@@ -20,6 +26,8 @@ import { useDocumentTitle } from "@/lib/title";
 export default function SettingsPage() {
   const { org, role, projects, chats } = useOrg();
   const location = useLocation();
+  const desktop = isDesktopShell();
+  const desktopUpdate = useDesktopUpdate();
   useDocumentTitle("設定", org.name);
   useEffect(() => {
     if (location.hash) {
@@ -123,6 +131,39 @@ export default function SettingsPage() {
             <RuntimePane />
           </section>
         </div>
+
+        {desktop && (
+          <section
+            id="desktop"
+            className="scroll-mt-4"
+            style={{
+              animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 220ms both",
+            }}
+          >
+            <div className="text-ink-3 mb-3 flex items-center gap-2 text-[12px]">
+              <ArrowUpCircle size={13} /> デスクトップ
+            </div>
+            <div className="rounded-card bg-surface shadow-card">
+              <div className="primitive-card-bar border-line text-ink border-b text-[13px] font-medium">
+                アプリの更新
+              </div>
+              <div className="px-3 py-2">
+                {desktopUpdate.supported && desktopUpdate.state ? (
+                  <DesktopUpdatePanel
+                    apply={desktopUpdate.apply}
+                    check={desktopUpdate.check}
+                    download={desktopUpdate.download}
+                    openRelease={desktopUpdate.openRelease}
+                    setAutoUpdate={desktopUpdate.setAutoUpdate}
+                    state={desktopUpdate.state}
+                  />
+                ) : (
+                  <DesktopUpdateFallback />
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section
           id="skills"

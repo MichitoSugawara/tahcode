@@ -68,4 +68,13 @@ linux:
   target:
     - dir
 
-publish: null
+# GitHub Releases are the feed for desktop-v* tags. CI publishes only on those
+# tags (see .github/workflows/desktop.yml). workflow_dispatch stays artifact-only.
+# In-app replace still waits for Developer ID + notarization; unsigned builds
+# download the .dmg and ask the user to copy it into Applications.
+publish:
+  provider: github
+  owner: MichitoSugawara
+  repo: tahcode
+  releaseType: release
+  vPrefixedTagName: false

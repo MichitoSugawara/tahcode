@@ -14,6 +14,7 @@ import type {
   RegisterLocalRuntimeResult,
   RegisterProgressStep,
 } from "./register";
+import type { DesktopUpdateCheckReason, DesktopUpdateState } from "./update";
 
 export const DEEP_LINK_SCHEME = "tahcode";
 
@@ -46,6 +47,20 @@ export interface TahcodeDesktopBridge {
     request: RegisterLocalRuntimeRequest,
     onProgress?: (step: RegisterProgressStep) => void
   ) => Promise<RegisterLocalRuntimeResult>;
+  /**
+   * Optional: older shells shipped before TAH-22 do not expose these.
+   * The web app must feature-detect (`supportsDesktopUpdater`).
+   */
+  applyUpdate?: () => Promise<DesktopUpdateState>;
+  checkForUpdates?: (
+    reason?: DesktopUpdateCheckReason
+  ) => Promise<DesktopUpdateState>;
+  downloadUpdate?: () => Promise<DesktopUpdateState>;
+  getUpdateState?: () => Promise<DesktopUpdateState>;
+  onOpenUpdateUi?: (listener: () => void) => () => void;
+  onUpdateState?: (listener: (state: DesktopUpdateState) => void) => () => void;
+  openLatestRelease?: () => Promise<void>;
+  setAutoUpdate?: (enabled: boolean) => Promise<DesktopUpdateState>;
 }
 
 export interface AuthCallback {
@@ -167,6 +182,37 @@ export {
   posixShellQuote,
   redactSecrets,
 } from "./register";
+export {
+  AUTO_UPDATE_FIRST_CHECK_MS,
+  AUTO_UPDATE_INTERVAL_MS,
+  DEFAULT_AUTO_UPDATE_ENABLED,
+  DESKTOP_GITHUB_API_RELEASES,
+  DESKTOP_GITHUB_OWNER,
+  DESKTOP_GITHUB_REPO,
+  DESKTOP_RELEASES_URL,
+  DESKTOP_RELEASE_TAG_PREFIX,
+  DESKTOP_UPDATE_PHASES,
+  UPDATE_UI,
+  compareSemver,
+  describeUpdateState,
+  desktopCanInstallInApp,
+  desktopReleaseTag,
+  formatSemver,
+  isAllowedUpdateDownloadUrl,
+  isDesktopUpdateCheckReason,
+  isDesktopUpdateState,
+  isMacInstallerName,
+  isNewerVersion,
+  parseDesktopReleaseTag,
+  parseGithubRelease,
+  parseGithubReleases,
+  parseSemver,
+  selectLatestDesktopRelease,
+  selectMacInstallerAsset,
+  supportsDesktopUpdater,
+  updateErrorMessage,
+  withUpdateMessage,
+} from "./update";
 export type {
   DesktopCliStatus,
   DesktopDoctorGuidance,
@@ -177,3 +223,11 @@ export type {
   RegisterLocalRuntimeResult,
   RegisterProgressStep,
 } from "./register";
+export type {
+  DesktopGithubAsset,
+  DesktopGithubRelease,
+  DesktopUpdateCheckReason,
+  DesktopUpdateErrorCode,
+  DesktopUpdatePhase,
+  DesktopUpdateState,
+} from "./update";

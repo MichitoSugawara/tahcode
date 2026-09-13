@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import LoadingState from "@/components/primitives/LoadingState";
+import { DesktopUpdateHost } from "@/harness/desktop/DesktopUpdateHost";
 import { useTheme } from "@/lib/theme";
 
 import { api } from "../convex/_generated/api";
@@ -62,20 +63,25 @@ export default function App() {
     isAuthenticated ? element : <Navigate to="/login" replace />;
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/invite/:token" element={<InvitePage />} />
-      <Route path="/welcome" element={guard(<WelcomePage />)} />
-      <Route
-        path="/o/:orgSlug"
-        element={guard(<OrgLayout theme={theme} onToggleTheme={toggleTheme} />)}
-      >
-        <Route index element={<HomePage />} />
-        <Route path="c/:chatId" element={<ChatPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-      </Route>
-      <Route path="/" element={guard(<RootRedirect />)} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <DesktopUpdateHost />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/invite/:token" element={<InvitePage />} />
+        <Route path="/welcome" element={guard(<WelcomePage />)} />
+        <Route
+          path="/o/:orgSlug"
+          element={guard(
+            <OrgLayout theme={theme} onToggleTheme={toggleTheme} />
+          )}
+        >
+          <Route index element={<HomePage />} />
+          <Route path="c/:chatId" element={<ChatPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+        <Route path="/" element={guard(<RootRedirect />)} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

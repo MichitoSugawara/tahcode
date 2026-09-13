@@ -9,10 +9,18 @@
 
 /** ipcMain.handle / ipcRenderer.invoke channel names. */
 export const DESKTOP_IPC = {
+  applyUpdate: "tahcode:desktop:applyUpdate",
+  checkForUpdates: "tahcode:desktop:checkForUpdates",
+  downloadUpdate: "tahcode:desktop:downloadUpdate",
   getCliStatus: "tahcode:desktop:getCliStatus",
   getHostname: "tahcode:desktop:getHostname",
+  getUpdateState: "tahcode:desktop:getUpdateState",
+  openLatestRelease: "tahcode:desktop:openLatestRelease",
+  openUpdateUi: "tahcode:desktop:openUpdateUi",
   registerLocalRuntime: "tahcode:desktop:registerLocalRuntime",
   registerProgress: "tahcode:desktop:registerProgress",
+  setAutoUpdate: "tahcode:desktop:setAutoUpdate",
+  updateState: "tahcode:desktop:updateState",
 } as const;
 
 /** Allow-listed progress steps sent on `DESKTOP_IPC.registerProgress`. */

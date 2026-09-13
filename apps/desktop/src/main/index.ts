@@ -14,8 +14,14 @@ import {
 import type { ServerPreset, ShellConfig } from "./config";
 import { findDeepLink, loginReturnUrl, parseAuthCallback } from "./deepLink";
 import { fallbackPage } from "./fallback";
-import { installLocalRuntimeIpc } from "./ipc";
+import { installLocalRuntimeIpc, installUpdaterIpc } from "./ipc";
 import { installMenu } from "./menu";
+import type { MenuHandlers } from "./menu";
+import {
+  createDesktopUpdater,
+  runMenuUpdateCheck,
+  startAutoUpdateChecks,
+} from "./updater";
 
 /* ─────────────────────────────────────────────────────────
  * tahcode desktop — a hardened BrowserWindow around the web app.
@@ -43,6 +49,7 @@ try {
 let win: BrowserWindow | null = null;
 let pendingDeepLink: string | null = findDeepLink(process.argv);
 let quitting = false;
+let menuHandlers: MenuHandlers | null = null;
 
 const gotLock = app.requestSingleInstanceLock();
 if (gotLock) {
@@ -95,8 +102,31 @@ if (gotLock) {
 
   void app.whenReady().then(() => {
     hardenSession();
+    const updater = createDesktopUpdater(
+      userData,
+      () => config,
+      () => win
+    );
+    menuHandlers = {
+      checkForUpdates: () => {
+        void runMenuUpdateCheck(
+          updater,
+          () => config,
+          () => win
+        );
+      },
+      getAutoUpdateEnabled: () => updater.getState().autoUpdateEnabled,
+      reload,
+      setAutoUpdateEnabled: (enabled) => {
+        updater.setAutoUpdate(enabled);
+        refreshMenu();
+      },
+      switchServer,
+    };
     installLocalRuntimeIpc(() => config);
-    installMenu(config, () => win, { reload, switchServer });
+    installUpdaterIpc(() => config, updater);
+    refreshMenu();
+    startAutoUpdateChecks(updater, Boolean(config.smokeScreenshotPath));
     createWindow();
     if (pendingDeepLink) {
       const link = pendingDeepLink;
@@ -303,8 +333,15 @@ function switchServer(preset: ServerPreset): void {
   }
   config = { ...config, preset, appUrl: SERVER_PRESETS[preset].url };
   writeSettings(userData, { ...readSettings(userData), preset });
-  installMenu(config, () => win, { reload, switchServer });
+  refreshMenu();
   void win?.loadURL(config.appUrl);
+}
+
+function refreshMenu(): void {
+  if (!menuHandlers) {
+    return;
+  }
+  installMenu(config, () => win, menuHandlers);
 }
 
 /* CI / VM check: render whatever the shell shows (the app or the offline

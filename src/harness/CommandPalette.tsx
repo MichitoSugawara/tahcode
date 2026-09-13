@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
+  ArrowUpCircle,
   BookOpen,
   Cpu,
   Folder,
@@ -158,6 +159,18 @@ export function CommandPalette({
         label: "スキルライブラリ",
         onSelect: run(() => org.goSettings("skills")),
       },
+      ...(isDesktopShell()
+        ? [
+            {
+              hint: "desktop",
+              icon: <ArrowUpCircle size={14} />,
+              key: "desktop-update",
+              keywords: "update アップデート 更新 desktop デスクトップ",
+              label: "デスクトップの更新",
+              onSelect: run(() => org.goSettings("desktop")),
+            },
+          ]
+        : []),
     ];
     return [...chats, ...projects, ...actions];
     // eslint-disable-next-line react-hooks/exhaustive-deps

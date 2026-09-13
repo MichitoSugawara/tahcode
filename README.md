@@ -220,7 +220,7 @@ npm run desktop:pack             # 未署名 .app（apps/desktop/release/mac-arm
 npm run desktop:build            # Apple Silicon 向け .dmg / .zip（apps/desktop/release/）
 ```
 
-Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `electron-vite build` → xvfb で起動 → スクリーンショット → `electron-builder --linux dir` まで、macOS の `.dmg` は `workflow_dispatch` / `desktop-v*` タグで `macos-latest` が作る（未署名）。スクリーンショットは `docs/desktop-screenshots/`。
+Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `electron-vite build` → xvfb で起動 → スクリーンショット → `electron-builder --linux dir` まで、macOS の `.dmg` は `workflow_dispatch` / `desktop-v*` タグで `macos-latest` が作る（未署名）。`desktop-v*` タグは GitHub Releases にも載り、デスクトップの「アップデートを確認」がそれを見る。スクリーンショットは `docs/desktop-screenshots/`。詳細は [`apps/desktop/README.md`](apps/desktop/README.md) の「アップデート」。
 
 ## 受け入れ基準の対応
 
