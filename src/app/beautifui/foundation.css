@@ -280,7 +280,8 @@ a {
     -webkit-touch-callout: none;
   }
 
-  .primitive-showcase :is(input, textarea, [contenteditable="true"], pre, code) {
+  .primitive-showcase
+    :is(input, textarea, [contenteditable="true"], pre, code) {
     -webkit-user-select: text;
     user-select: text;
     -webkit-touch-callout: default;
@@ -311,7 +312,6 @@ label:has(input),
 a {
   cursor: pointer;
 }
-
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -557,7 +557,11 @@ a:focus-visible .animated-underline::after {
  * ══════════════════════════════════════════════════════════ */
 .stream-tail {
   filter: blur(1.6px);
-  -webkit-mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
+  -webkit-mask-image: linear-gradient(
+    to right,
+    oklch(0 0 0) 20%,
+    oklch(0 0 0 / 0.2)
+  );
   mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
 }
 
@@ -617,10 +621,12 @@ a:focus-visible .animated-underline::after {
 
 /* pixel-grid loader — brighten plateau, staggered per cell */
 @keyframes pixel-on {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.15;
   }
-  18%, 42% {
+  18%,
+  42% {
     opacity: 1;
   }
   62% {

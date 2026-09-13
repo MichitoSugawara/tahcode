@@ -1,68 +1,96 @@
 import { Check } from "lucide-react";
 import type { ComponentProps, ReactNode, TextareaHTMLAttributes } from "react";
+
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { cn } from "@/lib/utils";
 
 /* Form primitives in Beautiful UI's field grammar: recessed field
  * surface, hairline ring, strong ring on focus, 13px ink. */
 
-export function Label({ children, hint, htmlFor }: { children: ReactNode; hint?: ReactNode; htmlFor?: string }) {
+export function Label({
+  children,
+  hint,
+  htmlFor,
+}: {
+  children: ReactNode;
+  hint?: ReactNode;
+  htmlFor?: string;
+}) {
   const Tag = htmlFor ? "label" : "span";
   return (
     <div className="mb-1.5 flex items-baseline justify-between gap-3">
-      <Tag htmlFor={htmlFor} className="text-[12.5px] font-medium text-ink-2">
+      <Tag htmlFor={htmlFor} className="text-ink-2 text-[12.5px] font-medium">
         {children}
       </Tag>
-      {hint && <span className="text-[11.5px] text-ink-3">{hint}</span>}
+      {hint && <span className="text-ink-3 text-[11.5px]">{hint}</span>}
     </div>
   );
 }
 
 /* `ComponentProps` (not `InputHTMLAttributes`) so callers can pass `ref` —
  * React 19 forwards it as a regular prop. */
-export function Input({ className, invalid, ...props }: ComponentProps<"input"> & { invalid?: boolean }) {
+export function Input({
+  className,
+  invalid,
+  ...props
+}: ComponentProps<"input"> & { invalid?: boolean }) {
   return (
     <input
       {...props}
       aria-invalid={invalid || props["aria-invalid"]}
       className={cn(
-        "h-9 w-full rounded-control bg-field px-3 text-[13px] text-ink shadow-hairline outline-none transition-[box-shadow] duration-150 placeholder:text-ink-3 focus:shadow-[0_0_0_1px_var(--line-strong)] disabled:opacity-60",
-        invalid && "shadow-[0_0_0_1px_var(--red)] focus:shadow-[0_0_0_1px_var(--red)]",
-        className,
+        "rounded-control bg-field text-ink shadow-hairline placeholder:text-ink-3 h-9 w-full px-3 text-[13px] transition-[box-shadow] duration-150 outline-none focus:shadow-[0_0_0_1px_var(--line-strong)] disabled:opacity-60",
+        invalid &&
+          "shadow-[0_0_0_1px_var(--red)] focus:shadow-[0_0_0_1px_var(--red)]",
+        className
       )}
     />
   );
 }
 
 /** Per-field validation message; pair with `aria-describedby` on the input. */
-export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
+export function FieldError({
+  id,
+  children,
+}: {
+  id?: string;
+  children: ReactNode;
+}) {
   return (
-    <p id={id} role="alert" className="mt-1.5 text-[12px] leading-snug text-red" style={{ animation: "fade-in 150ms ease-out both" }}>
+    <p
+      id={id}
+      role="alert"
+      className="text-red mt-1.5 text-[12px] leading-snug"
+      style={{ animation: "fade-in 150ms ease-out both" }}
+    >
       {children}
     </p>
   );
 }
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
       className={cn(
-        "w-full resize-none rounded-control bg-field px-3 py-2 text-[13px] leading-relaxed text-ink shadow-hairline outline-none transition-[box-shadow] duration-150 placeholder:text-ink-3 focus:shadow-[0_0_0_1px_var(--line-strong)]",
-        className,
+        "rounded-control bg-field text-ink shadow-hairline placeholder:text-ink-3 w-full resize-none px-3 py-2 text-[13px] leading-relaxed transition-[box-shadow] duration-150 outline-none focus:shadow-[0_0_0_1px_var(--line-strong)]",
+        className
       )}
     />
   );
 }
 
-export type Choice<T extends string> = {
+export interface Choice<T extends string> {
   value: T;
   label: ReactNode;
   desc?: ReactNode;
   icon?: ReactNode;
   disabled?: boolean;
   disabledReason?: string;
-};
+}
 
 /** ApprovalCard's option rows as a reusable single-choice list. */
 export function ChoiceList<T extends string>({
@@ -77,7 +105,10 @@ export function ChoiceList<T extends string>({
   mode?: "radio" | "check";
 }) {
   return (
-    <GlideMenu className="flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
+    <GlideMenu
+      className="flex flex-col gap-1"
+      highlightClassName="inset-x-0 rounded-control bg-hover"
+    >
       {options.map((option) => {
         const on = option.value === value;
         return (
@@ -89,7 +120,7 @@ export function ChoiceList<T extends string>({
             disabled={option.disabled}
             title={option.disabled ? option.disabledReason : undefined}
             onClick={() => onChange(option.value)}
-            className="relative z-10 flex items-start gap-2.5 rounded-control py-1.5 pr-2 pl-1.5 text-left transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-control relative z-10 flex items-start gap-2.5 py-1.5 pr-2 pl-1.5 text-left transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span
               className={`mt-0.5 flex size-4 shrink-0 items-center justify-center transition-colors duration-200 ${
@@ -97,15 +128,30 @@ export function ChoiceList<T extends string>({
               } ${on ? "bg-ink text-canvas" : "text-transparent shadow-[inset_0_0_0_1.5px_var(--line-strong)]"}`}
             >
               {mode === "radio" ? (
-                <span className="size-1.5 rounded-full bg-canvas transition-transform duration-200" style={{ transform: on ? "scale(1)" : "scale(0)" }} />
+                <span
+                  className="bg-canvas size-1.5 rounded-full transition-transform duration-200"
+                  style={{ transform: on ? "scale(1)" : "scale(0)" }}
+                />
               ) : (
                 <Check size={11} strokeWidth={3} />
               )}
             </span>
-            {option.icon && <span className="mt-0.5 flex shrink-0 text-ink-3">{option.icon}</span>}
+            {option.icon && (
+              <span className="text-ink-3 mt-0.5 flex shrink-0">
+                {option.icon}
+              </span>
+            )}
             <span className="min-w-0 flex-1">
-              <span className={`block text-[13px] leading-[1.35] transition-colors duration-200 ${on ? "text-ink" : "text-ink-2"}`}>{option.label}</span>
-              {option.desc && <span className="mt-0.5 block text-[12px] leading-[1.45] text-ink-3">{option.desc}</span>}
+              <span
+                className={`block text-[13px] leading-[1.35] transition-colors duration-200 ${on ? "text-ink" : "text-ink-2"}`}
+              >
+                {option.label}
+              </span>
+              {option.desc && (
+                <span className="text-ink-3 mt-0.5 block text-[12px] leading-[1.45]">
+                  {option.desc}
+                </span>
+              )}
             </span>
           </button>
         );
@@ -116,7 +162,10 @@ export function ChoiceList<T extends string>({
 
 export function InlineError({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-2 rounded-control bg-red-tint px-3 py-2 text-[12.5px] leading-relaxed text-red" style={{ animation: "fade-in 150ms ease-out both" }}>
+    <div
+      className="rounded-control bg-red-tint text-red mt-2 px-3 py-2 text-[12.5px] leading-relaxed"
+      style={{ animation: "fade-in 150ms ease-out both" }}
+    >
       {children}
     </div>
   );

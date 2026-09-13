@@ -15,6 +15,9 @@ dist-ssr
 # Research scratch (fetched API dumps, not part of the build)
 agent-tools/
 
+# Eve / skills CLI copies skills here; canonical copies live in .agents/skills/
+/agent/
+
 # Wrangler local state
 .wrangler/
 .dev.vars
@@ -35,6 +38,9 @@ convex/_generated/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+.lefthook-local.yml
+.lefthook-local.yaml
 .idea
 .DS_Store
 *.suo

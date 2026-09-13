@@ -1,10 +1,12 @@
 import { useMutation } from "convex/react";
 import { useState } from "react";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+
 import { Button } from "@/components/atoms/Button";
 import { Dialog } from "@/harness/ui/Dialog";
 import { InlineError, Input, Label } from "@/harness/ui/Field";
+
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 /** Multica-style workspace creation: one name, the creator becomes owner. */
 export function CreateOrgForm({
@@ -26,14 +28,18 @@ export function CreateOrgForm({
       className="flex flex-col gap-3"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!name.trim() || busy) return;
+        if (!name.trim() || busy) {
+          return;
+        }
         setBusy(true);
         setError(null);
         try {
           const id = await createOrg({ name: name.trim() });
           onCreated(id);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "作成に失敗しました");
+        } catch (error) {
+          setError(
+            error instanceof Error ? error.message : "作成に失敗しました"
+          );
         } finally {
           setBusy(false);
         }
@@ -49,12 +55,18 @@ export function CreateOrgForm({
           maxLength={80}
         />
       </div>
-      <p className="text-[12px] leading-relaxed text-ink-3">
-        作成した人が <span className="font-medium text-ink-2">Owner</span> になります。Owner は招待・権限・ランタイム許可のすべてを管理できます。
+      <p className="text-ink-3 text-[12px] leading-relaxed">
+        作成した人が <span className="text-ink-2 font-medium">Owner</span>{" "}
+        になります。Owner は招待・権限・ランタイム許可のすべてを管理できます。
       </p>
       {error && <InlineError>{error}</InlineError>}
       <div className="flex justify-end">
-        <Button type="submit" variant="accent" size="md" disabled={!name.trim() || busy}>
+        <Button
+          type="submit"
+          variant="accent"
+          size="md"
+          disabled={!name.trim() || busy}
+        >
           {busy ? "作成中…" : submitLabel}
         </Button>
       </div>

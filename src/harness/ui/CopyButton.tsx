@@ -1,6 +1,8 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { Button, type ButtonVariant } from "@/components/atoms/Button";
+
+import { Button } from "@/components/atoms/Button";
+import type { ButtonVariant } from "@/components/atoms/Button";
 import { copyText } from "@/lib/format";
 
 /** CodeBlock's copy affordance as a standalone pill. */
@@ -25,7 +27,9 @@ export function CopyButton({
       size={size}
       onClick={() => {
         void copyText(text).then((ok) => {
-          if (!ok) return;
+          if (!ok) {
+            return;
+          }
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         });

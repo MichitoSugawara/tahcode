@@ -16,4 +16,8 @@ export {
   modelDisplayName,
   resolveModelSlug,
 } from "../../shared/providers.ts";
-export type { ProviderCatalogEntry, ProviderDriverKind, ProviderModel } from "../../shared/providers.ts";
+export type {
+  ProviderCatalogEntry,
+  ProviderDriverKind,
+  ProviderModel,
+} from "../../shared/providers.ts";

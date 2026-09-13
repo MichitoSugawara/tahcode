@@ -1,6 +1,6 @@
 # tahcode
 
-Machine CLI for [tahcode](../../README.md) (ターコード — *team agent harness*): link this computer to a tahcode org and run coding agents on it through the **Multica daemon**.
+Machine CLI for [tahcode](../../README.md) (ターコード — _team agent harness_): link this computer to a tahcode org and run coding agents on it through the **Multica daemon**.
 
 > Renamed from the `dalecode` npm package (last release `dalecode@0.1.1`). See [Migrating from dalecode](#migrating-from-dalecode).
 

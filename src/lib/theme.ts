@@ -20,7 +20,9 @@ export function applyTheme(theme: Theme) {
   root.classList.add("theme-switching");
   root.classList.toggle("dark", theme === "dark");
   root.style.colorScheme = theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0b140b" : "#f1f2f3");
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", theme === "dark" ? "#0b140b" : "#f1f2f3");
   requestAnimationFrame(() => root.classList.remove("theme-switching"));
 }
 
@@ -34,6 +36,9 @@ export function useTheme(): [Theme, () => void] {
       /* private mode */
     }
   }, [theme]);
-  const toggle = useCallback(() => setTheme((current) => (current === "dark" ? "light" : "dark")), []);
+  const toggle = useCallback(
+    () => setTheme((current) => (current === "dark" ? "light" : "dark")),
+    []
+  );
   return [theme, toggle];
 }

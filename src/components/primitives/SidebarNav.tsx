@@ -11,8 +11,10 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
+
 import GlideMenu from "@/components/primitives/GlideMenu";
 
 /* ─────────────────────────────────────────────────────────
@@ -26,15 +28,15 @@ import GlideMenu from "@/components/primitives/GlideMenu";
  * The 52↔224px collapse choreography lives in sidebar-nav.css.
  * ───────────────────────────────────────────────────────── */
 
-export type SidebarWorkspace = {
+export interface SidebarWorkspace {
   id: string;
   name: string;
   monogram: string;
   meta?: string;
   current?: boolean;
-};
+}
 
-export type SidebarRailItem = {
+export interface SidebarRailItem {
   key: string;
   label: string;
   icon: ReactNode;
@@ -43,16 +45,16 @@ export type SidebarRailItem = {
   disabled?: boolean;
   hint?: string;
   onClick?: () => void;
-};
+}
 
-export type SidebarItem = {
+export interface SidebarItem {
   id: string;
   label: string;
   meta?: string;
   icon?: ReactNode;
-};
+}
 
-export type SidebarGroup = {
+export interface SidebarGroup {
   id: string;
   label: string;
   icon?: ReactNode;
@@ -60,9 +62,9 @@ export type SidebarGroup = {
   emptyHint?: string;
   addLabel?: string;
   onAdd?: () => void;
-};
+}
 
-type SidebarNavProps = {
+interface SidebarNavProps {
   /** product wordmark rendered above the workspace switcher */
   brand?: { mark: ReactNode; name: string; badge?: string };
   workspace: SidebarWorkspace;
@@ -89,15 +91,15 @@ type SidebarNavProps = {
   className?: string;
   fill?: boolean;
   collapsible?: boolean;
-};
+}
 
 const SIDEBAR_MOTION = {
-  expandedWidth: 224,
   collapsedWidth: 52,
-  duration: 280,
   copyDuration: 180,
   copyOffset: 8,
+  duration: 280,
   easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+  expandedWidth: 224,
 };
 
 /* ─────────────────────────────────────────────────────────
@@ -108,8 +110,8 @@ const SIDEBAR_MOTION = {
  * 180ms   field fills the row; cursor is focused and ready
  * ───────────────────────────────────────────────────────── */
 const CHAT_SEARCH_MOTION = {
-  duration: 180,
   closedWidth: 28,
+  duration: 180,
   easing: "cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
@@ -149,19 +151,22 @@ function RailButton({
       onClick={onClick}
       disabled={disabled}
       title={hint ?? label}
-      className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left
-        transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]
-        disabled:opacity-45 disabled:active:scale-100
-        ${active ? "bg-active text-active-ink group-hover/glide:bg-transparent" : ""}`}
+      className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] disabled:opacity-45 disabled:active:scale-100 ${active ? "bg-active text-active-ink group-hover/glide:bg-transparent" : ""}`}
     >
-      <span className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-2"}`}>
+      <span
+        className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-2"}`}
+      >
         {icon}
       </span>
-      <span className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}>
+      <span
+        className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
+      >
         {label}
       </span>
       {count && (
-        <span className={`sidebar-copy mr-1 shrink-0 text-[12px] font-medium tabular-nums ${active ? "text-active-ink/80" : "text-ink-3"}`}>
+        <span
+          className={`sidebar-copy mr-1 shrink-0 text-[12px] font-medium tabular-nums ${active ? "text-active-ink/80" : "text-ink-3"}`}
+        >
           {count}
         </span>
       )}
@@ -201,23 +206,42 @@ function WorkspaceMenu({
     fn?.();
   };
   const rows = [
-    onNewWorkspace && { label: "新しい Org を作成", icon: <Plus size={16} />, onClick: onNewWorkspace },
-    onWorkspaceSettings && { label: "Org 設定", icon: <Settings size={16} />, onClick: onWorkspaceSettings },
-    onInvite && { label: "メンバーを招待", icon: <UserPlus size={16} />, onClick: onInvite },
-  ].filter(Boolean) as { label: string; icon: ReactNode; onClick: () => void }[];
+    onNewWorkspace && {
+      icon: <Plus size={16} />,
+      label: "新しい Org を作成",
+      onClick: onNewWorkspace,
+    },
+    onWorkspaceSettings && {
+      icon: <Settings size={16} />,
+      label: "Org 設定",
+      onClick: onWorkspaceSettings,
+    },
+    onInvite && {
+      icon: <UserPlus size={16} />,
+      label: "メンバーを招待",
+      onClick: onInvite,
+    },
+  ].filter(Boolean) as {
+    label: string;
+    icon: ReactNode;
+    onClick: () => void;
+  }[];
 
   return createPortal(
     <div
       data-workspace-menu
-      className="fixed z-50 w-64 rounded-[14px] bg-surface p-1.5 shadow-overlay"
+      className="bg-surface shadow-overlay fixed z-50 w-64 rounded-[14px] p-1.5"
       style={{
-        top: position.top,
-        left: position.left,
         animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both",
+        left: position.left,
+        top: position.top,
         transformOrigin: "top left",
       }}
     >
-      <GlideMenu className="flex flex-col gap-px" highlightClassName="inset-x-0 rounded-[8px] bg-hover-2">
+      <GlideMenu
+        className="flex flex-col gap-px"
+        highlightClassName="inset-x-0 rounded-[8px] bg-hover-2"
+      >
         {workspaces.map((item) => (
           <button
             key={item.id}
@@ -226,21 +250,25 @@ function WorkspaceMenu({
             onClick={run(() => onSwitchWorkspace?.(item.id))}
             className="relative z-10 flex h-10 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
           >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent text-[11px] font-semibold text-white">
+            <span className="bg-accent flex size-6 shrink-0 items-center justify-center rounded-[7px] text-[11px] font-semibold text-white">
               {item.monogram}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px] font-medium">
               {item.name}
-              {item.meta && <span className="ml-1.5 text-[11.5px] font-normal text-ink-3">{item.meta}</span>}
+              {item.meta && (
+                <span className="text-ink-3 ml-1.5 text-[11.5px] font-normal">
+                  {item.meta}
+                </span>
+              )}
             </span>
             {item.id === workspace.id && (
-              <span className="shrink-0 text-ink">
+              <span className="text-ink shrink-0">
                 <Check size={16} />
               </span>
             )}
           </button>
         ))}
-        {rows.length > 0 && <div className="my-1 h-px bg-line" />}
+        {rows.length > 0 && <div className="bg-line my-1 h-px" />}
         {rows.map((item) => (
           <button
             key={item.label}
@@ -249,11 +277,15 @@ function WorkspaceMenu({
             onClick={run(item.onClick)}
             className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
           >
-            <span className="flex size-5 shrink-0 items-center justify-center text-ink-2">{item.icon}</span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">{item.label}</span>
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
+              {item.icon}
+            </span>
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
+              {item.label}
+            </span>
           </button>
         ))}
-        <div className="my-1 h-px bg-line" />
+        <div className="bg-line my-1 h-px" />
         {onToggleTheme && (
           <button
             data-menu-row
@@ -261,10 +293,10 @@ function WorkspaceMenu({
             onClick={run(onToggleTheme)}
             className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
           >
-            <span className="flex size-5 shrink-0 items-center justify-center text-ink-2">
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
               {theme === "dark" ? "ライトテーマに切替" : "ダークテーマに切替"}
             </span>
           </button>
@@ -276,15 +308,17 @@ function WorkspaceMenu({
             onClick={run(onSignOut)}
             className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
           >
-            <span className="flex size-5 shrink-0 items-center justify-center text-ink-2">
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
               <LogOut size={16} />
             </span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">サインアウト</span>
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
+              サインアウト
+            </span>
           </button>
         )}
       </GlideMenu>
     </div>,
-    document.body,
+    document.body
   );
 }
 
@@ -316,7 +350,10 @@ export default function SidebarNav({
 }: SidebarNavProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [workspacePosition, setWorkspacePosition] = useState({ top: 0, left: 0 });
+  const [workspacePosition, setWorkspacePosition] = useState({
+    left: 0,
+    top: 0,
+  });
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const workspaceButtonRef = useRef<HTMLButtonElement>(null);
@@ -326,16 +363,25 @@ export default function SidebarNav({
   const visibleGroups = groups
     .map((group) => ({
       ...group,
-      items: needle ? group.items.filter((item) => item.label.toLowerCase().includes(needle)) : group.items,
+      items: needle
+        ? group.items.filter((item) =>
+            item.label.toLowerCase().includes(needle)
+          )
+        : group.items,
     }))
     .filter((group) => !needle || group.items.length > 0);
   const nothingFound = needle.length > 0 && visibleGroups.length === 0;
 
   useEffect(() => {
-    if (!workspaceOpen) return;
+    if (!workspaceOpen) {
+      return;
+    }
     const close = (event: PointerEvent) => {
       const target = event.target as Element;
-      if (!target.closest("[data-workspace-trigger]") && !target.closest("[data-workspace-menu]")) {
+      if (
+        !target.closest("[data-workspace-trigger]") &&
+        !target.closest("[data-workspace-menu]")
+      ) {
         setWorkspaceOpen(false);
       }
     };
@@ -344,7 +390,9 @@ export default function SidebarNav({
   }, [workspaceOpen]);
 
   useEffect(() => {
-    if (searchOpen) searchRef.current?.focus();
+    if (searchOpen) {
+      searchRef.current?.focus();
+    }
   }, [searchOpen]);
 
   const collapse = () => {
@@ -361,21 +409,31 @@ export default function SidebarNav({
       className={`relative flex shrink-0 overflow-hidden transition-[width] ${fill ? "h-full" : "h-[600px]"} ${className}`}
       style={
         {
-          width: collapsed ? SIDEBAR_MOTION.collapsedWidth : SIDEBAR_MOTION.expandedWidth,
-          transitionDuration: `${SIDEBAR_MOTION.duration}ms`,
-          transitionTimingFunction: SIDEBAR_MOTION.easing,
           "--sidebar-copy-duration": `${SIDEBAR_MOTION.copyDuration}ms`,
           "--sidebar-copy-offset": `${SIDEBAR_MOTION.copyOffset}px`,
           "--sidebar-easing": SIDEBAR_MOTION.easing,
+          transitionDuration: `${SIDEBAR_MOTION.duration}ms`,
+          transitionTimingFunction: SIDEBAR_MOTION.easing,
+          width: collapsed
+            ? SIDEBAR_MOTION.collapsedWidth
+            : SIDEBAR_MOTION.expandedWidth,
         } as CSSProperties
       }
     >
       <div className="flex min-h-0 w-[224px] shrink-0 flex-col">
         {brand && (
           <div className="relative mb-1 flex h-7 shrink-0 items-center pl-4">
-            <span className="flex size-5 shrink-0 items-center justify-center">{brand.mark}</span>
-            <span className="sidebar-copy ml-2 text-[13px] font-semibold tracking-[-0.02em] text-ink">{brand.name}</span>
-            {brand.badge && <span className="sidebar-copy ml-1.5 rounded-full bg-accent-tint px-1.5 py-px text-[10px] font-medium text-accent-ink">{brand.badge}</span>}
+            <span className="flex size-5 shrink-0 items-center justify-center">
+              {brand.mark}
+            </span>
+            <span className="sidebar-copy text-ink ml-2 text-[13px] font-semibold tracking-[-0.02em]">
+              {brand.name}
+            </span>
+            {brand.badge && (
+              <span className="sidebar-copy bg-accent-tint text-accent-ink ml-1.5 rounded-full px-1.5 py-px text-[10px] font-medium">
+                {brand.badge}
+              </span>
+            )}
           </div>
         )}
         {/* workspace switcher + collapse */}
@@ -390,19 +448,19 @@ export default function SidebarNav({
             onClick={() => {
               if (!workspaceOpen && workspaceButtonRef.current) {
                 const rect = workspaceButtonRef.current.getBoundingClientRect();
-                setWorkspacePosition({ top: rect.bottom + 6, left: rect.left });
+                setWorkspacePosition({ left: rect.left, top: rect.bottom + 6 });
               }
               setWorkspaceOpen((open) => !open);
             }}
-            className="sidebar-workspace-control absolute left-2 top-1 flex h-8 w-[164px] items-center rounded-[8px] px-1.5 text-left transition-[background-color,transform] duration-100 hover:bg-hover-2 active:scale-[0.99]"
+            className="sidebar-workspace-control hover:bg-hover-2 absolute top-1 left-2 flex h-8 w-[164px] items-center rounded-[8px] px-1.5 text-left transition-[background-color,transform] duration-100 active:scale-[0.99]"
           >
-            <span className="sidebar-logo flex size-5 shrink-0 items-center justify-center rounded-[6px] bg-accent text-[10.5px] font-semibold text-white">
+            <span className="sidebar-logo bg-accent flex size-5 shrink-0 items-center justify-center rounded-[6px] text-[10.5px] font-semibold text-white">
               {workspace.monogram}
             </span>
-            <span className="sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium text-ink">
+            <span className="sidebar-copy text-ink ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
               {workspace.name}
             </span>
-            <span className="sidebar-copy ml-1 flex shrink-0 text-ink-3">
+            <span className="sidebar-copy text-ink-3 ml-1 flex shrink-0">
               <ChevronDown size={15} />
             </span>
           </button>
@@ -431,7 +489,7 @@ export default function SidebarNav({
                 aria-hidden={collapsed}
                 tabIndex={collapsed ? -1 : 0}
                 onClick={collapse}
-                className="sidebar-collapse-control absolute right-2 top-1 flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
+                className="sidebar-collapse-control text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-2 flex size-8 items-center justify-center rounded-[8px] transition-[opacity,background-color,color] duration-150"
               >
                 <PanelLeft size={17} />
               </button>
@@ -441,7 +499,7 @@ export default function SidebarNav({
                 aria-hidden={!collapsed}
                 tabIndex={collapsed ? 0 : -1}
                 onClick={() => setCollapsed(false)}
-                className="sidebar-expand-control absolute left-2 top-0.5 flex size-9 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
+                className="sidebar-expand-control text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-0.5 left-2 flex size-9 items-center justify-center rounded-[8px] transition-[opacity,background-color,color] duration-150"
               >
                 <PanelLeft size={17} />
               </button>
@@ -470,8 +528,11 @@ export default function SidebarNav({
           <div className="sidebar-copy relative mx-2 mb-1 h-8">
             <div
               aria-hidden={searchOpen}
-              className={`absolute inset-0 flex items-center gap-1.5 px-2 text-[12.5px] font-medium text-ink-3 transition-[opacity,transform] ${searchOpen ? "pointer-events-none -translate-x-1 opacity-0" : "translate-x-0 opacity-100"}`}
-              style={{ transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`, transitionTimingFunction: CHAT_SEARCH_MOTION.easing }}
+              className={`text-ink-3 absolute inset-0 flex items-center gap-1.5 px-2 text-[12.5px] font-medium transition-[opacity,transform] ${searchOpen ? "pointer-events-none -translate-x-1 opacity-0" : "translate-x-0 opacity-100"}`}
+              style={{
+                transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
+                transitionTimingFunction: CHAT_SEARCH_MOTION.easing,
+              }}
             >
               <ChevronDown size={15} />
               <span>{groupsLabel}</span>
@@ -483,8 +544,10 @@ export default function SidebarNav({
                 aria-label={addGroupLabel}
                 title={addGroupLabel}
                 onClick={onAddGroup}
-                className={`absolute right-8 top-0 z-10 flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color,transform] hover:bg-hover-2 hover:text-ink active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
-                style={{ transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms` }}
+                className={`text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-0 right-8 z-10 flex size-8 items-center justify-center rounded-[8px] transition-[opacity,background-color,color,transform] active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
+                style={{
+                  transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
+                }}
               >
                 <Plus size={15} />
               </button>
@@ -494,18 +557,18 @@ export default function SidebarNav({
               aria-label="チャットを検索"
               aria-expanded={searchOpen}
               onClick={() => setSearchOpen(true)}
-              className={`absolute right-0 top-0 z-10 flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color,transform] hover:bg-hover-2 hover:text-ink active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
+              className={`text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-0 right-0 z-10 flex size-8 items-center justify-center rounded-[8px] transition-[opacity,background-color,color,transform] active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
               style={{ transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms` }}
             >
               <Search size={15} />
             </button>
 
             <div
-              className={`absolute right-0 top-0 z-20 flex h-8 items-center overflow-hidden rounded-[8px] bg-field text-ink-3 shadow-hairline transition-[width,opacity] focus-within:text-ink-2 ${searchOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+              className={`bg-field text-ink-3 shadow-hairline focus-within:text-ink-2 absolute top-0 right-0 z-20 flex h-8 items-center overflow-hidden rounded-[8px] transition-[width,opacity] ${searchOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
               style={{
-                width: searchOpen ? "100%" : CHAT_SEARCH_MOTION.closedWidth,
                 transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
                 transitionTimingFunction: CHAT_SEARCH_MOTION.easing,
+                width: searchOpen ? "100%" : CHAT_SEARCH_MOTION.closedWidth,
               }}
             >
               <span className="ml-2 flex shrink-0 items-center justify-center">
@@ -523,7 +586,7 @@ export default function SidebarNav({
                 }}
                 placeholder="チャットを検索"
                 aria-label="チャット履歴を検索"
-                className="ml-1.5 min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink outline-none placeholder:text-ink-3"
+                className="text-ink placeholder:text-ink-3 ml-1.5 min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
               />
               <button
                 type="button"
@@ -532,7 +595,7 @@ export default function SidebarNav({
                   setSearchOpen(false);
                   setQuery("");
                 }}
-                className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover-2 hover:text-ink active:scale-[0.96]"
+                className="text-ink-3 hover:bg-hover-2 hover:text-ink flex size-8 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-150 active:scale-[0.96]"
               >
                 <X size={15} />
               </button>
@@ -542,8 +605,10 @@ export default function SidebarNav({
           {visibleGroups.map((group) => (
             <div key={group.id} className="mb-2">
               <div className="sidebar-copy mx-2 flex h-7 items-center gap-1.5 px-2">
-                {group.icon && <span className="flex shrink-0 text-ink-3">{group.icon}</span>}
-                <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                {group.icon && (
+                  <span className="text-ink-3 flex shrink-0">{group.icon}</span>
+                )}
+                <span className="text-ink-3 min-w-0 flex-1 truncate text-[11.5px] font-semibold tracking-[0.08em] uppercase">
                   {group.label}
                 </span>
                 {group.onAdd && (
@@ -552,7 +617,7 @@ export default function SidebarNav({
                     aria-label={group.addLabel ?? "追加"}
                     title={group.addLabel ?? "追加"}
                     onClick={group.onAdd}
-                    className="-mr-1.5 flex size-6 items-center justify-center rounded-[6px] text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover-2 hover:text-ink active:scale-[0.94]"
+                    className="text-ink-3 hover:bg-hover-2 hover:text-ink -mr-1.5 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
                   >
                     <Plus size={14} />
                   </button>
@@ -569,17 +634,25 @@ export default function SidebarNav({
                       title={item.label}
                       onClick={() => onPick?.(item.id)}
                       className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
-                        active ? "bg-active text-active-ink group-hover/glide:bg-transparent" : ""
+                        active
+                          ? "bg-active text-active-ink group-hover/glide:bg-transparent"
+                          : ""
                       }`}
                     >
-                      <span className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}>
+                      <span
+                        className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}
+                      >
                         {item.icon}
                       </span>
-                      <span className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}>
+                      <span
+                        className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
+                      >
                         {item.label}
                       </span>
                       {item.meta && (
-                        <span className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}>
+                        <span
+                          className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}
+                        >
                           {item.meta}
                         </span>
                       )}
@@ -587,24 +660,28 @@ export default function SidebarNav({
                   );
                 })}
                 {group.items.length === 0 && group.emptyHint && (
-                  <div className="sidebar-copy mx-2 px-2 py-1.5 text-[12px] leading-[1.5] text-ink-3">{group.emptyHint}</div>
+                  <div className="sidebar-copy text-ink-3 mx-2 px-2 py-1.5 text-[12px] leading-[1.5]">
+                    {group.emptyHint}
+                  </div>
                 )}
               </GlideGroup>
             </div>
           ))}
           {nothingFound && (
-            <div className="sidebar-copy mx-2 px-2 py-2 text-[12.5px] text-ink-3">「{query}」に一致するチャットはありません</div>
+            <div className="sidebar-copy text-ink-3 mx-2 px-2 py-2 text-[12.5px]">
+              「{query}」に一致するチャットはありません
+            </div>
           )}
         </div>
 
         {footerLabel && (
-          <div className="sidebar-copy mx-2 mt-3 w-[208px] border-t border-line pt-3">
+          <div className="sidebar-copy border-line mx-2 mt-3 w-[208px] border-t pt-3">
             <button
               type="button"
               onClick={onFooterClick}
-              className={`flex h-8 w-full items-center justify-center gap-1.5 rounded-control text-[12.5px] font-medium transition-[background-color,transform] duration-150 active:scale-[0.98] ${
+              className={`rounded-control flex h-8 w-full items-center justify-center gap-1.5 text-[12.5px] font-medium transition-[background-color,transform] duration-150 active:scale-[0.98] ${
                 footerTone === "accent"
-                  ? "bg-btn text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-btn-hover"
+                  ? "bg-btn hover:bg-btn-hover text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
                   : "bg-hover-2 text-ink hover:bg-line-strong"
               }`}
             >

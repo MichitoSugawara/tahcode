@@ -29,7 +29,10 @@ const openedAs = new Map<string, string>();
 const fresh = new Set<string>();
 
 /** Bind `placeholder` to the mutation minting its real id. Returns the same promise for chaining. */
-export function trackPlaceholder<T extends TableNames>(placeholder: Id<T>, created: Promise<Id<T>>): Promise<Id<T>> {
+export function trackPlaceholder<T extends TableNames>(
+  placeholder: Id<T>,
+  created: Promise<Id<T>>
+): Promise<Id<T>> {
   const key = String(placeholder);
   const tracked = created.then(
     (id) => {
@@ -40,10 +43,10 @@ export function trackPlaceholder<T extends TableNames>(placeholder: Id<T>, creat
     (error: unknown) => {
       creates.delete(key);
       throw error;
-    },
+    }
   );
   creates.set(key, tracked as Promise<string>);
-  tracked.catch(() => undefined);
+  tracked.catch(() => {});
   return tracked;
 }
 
@@ -53,15 +56,23 @@ export function hasPlaceholder(id: string | null | undefined): boolean {
 }
 
 /** The server id for `id`, waiting on the create if `id` is still a placeholder. */
-export async function resolveId<T extends TableNames>(id: Id<T>): Promise<Id<T>> {
-  if (!isPlaceholderId(id)) return id;
+export async function resolveId<T extends TableNames>(
+  id: Id<T>
+): Promise<Id<T>> {
+  if (!isPlaceholderId(id)) {
+    return id;
+  }
   const created = creates.get(String(id));
-  if (!created) throw new Error("作成が完了していません。もう一度お試しください");
+  if (!created) {
+    throw new Error("作成が完了していません。もう一度お試しください");
+  }
   return (await created) as Id<T>;
 }
 
 /** Placeholder a freshly created `id` was first shown under, if any. */
-export function placeholderOf(id: string | null | undefined): string | undefined {
+export function placeholderOf(
+  id: string | null | undefined
+): string | undefined {
   return id ? openedAs.get(id) : undefined;
 }
 

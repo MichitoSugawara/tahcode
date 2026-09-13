@@ -23,7 +23,7 @@ export const PROVIDER_DRIVER_KINDS = [
 
 export type ProviderDriverKind = (typeof PROVIDER_DRIVER_KINDS)[number];
 
-export type ProviderModel = {
+export interface ProviderModel {
   /** Exact value handed to the CLI's model flag, and the `@provider/<slug>` mention suffix. */
   slug: string;
   name: string;
@@ -31,9 +31,9 @@ export type ProviderModel = {
   legacy?: boolean;
   /** Short spellings that resolve to this slug (Claude CLI aliases such as `opus`). */
   aliases?: readonly string[];
-};
+}
 
-export type ProviderCatalogEntry = {
+export interface ProviderCatalogEntry {
   kind: ProviderDriverKind;
   displayName: string;
   binaryNames: readonly string[];
@@ -49,15 +49,15 @@ export type ProviderCatalogEntry = {
   modelFlag: string | null;
   /** Where the list comes from, shown as a hint in pickers. */
   modelSource: string;
-};
+}
 
 export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
-    kind: "codex",
-    displayName: "Codex",
     binaryNames: ["codex"],
-    mentionHandles: ["codex"],
+    displayName: "Codex",
     headlessSummary: "codex exec --json (t3code CodexDriver / app-server)",
+    kind: "codex",
+    mentionHandles: ["codex"],
     modelFlag: "--model",
     modelSource: "t3code model-manifest (codex) + Multica codexStaticModels",
     models: [
@@ -71,31 +71,66 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     ],
   },
   {
-    kind: "claudeAgent",
-    displayName: "Claude",
     binaryNames: ["claude"],
+    displayName: "Claude",
+    headlessSummary:
+      "claude -p --output-format stream-json (t3code ClaudeDriver / Agent SDK)",
+    kind: "claudeAgent",
     mentionHandles: ["claude", "claudeagent"],
-    headlessSummary: "claude -p --output-format stream-json (t3code ClaudeDriver / Agent SDK)",
     modelFlag: "--model",
     modelSource: "t3code model-manifest (claudeAgent)",
     models: [
-      { slug: "claude-fable-5-1", name: "Claude Fable 5.1", aliases: ["fable", "fable-5.1", "claude-fable-5.1"] },
-      { slug: "claude-opus-5", name: "Claude Opus 5", aliases: ["opus", "opus-5"] },
-      { slug: "claude-sonnet-5", name: "Claude Sonnet 5", aliases: ["sonnet", "sonnet-5"] },
-      { slug: "claude-opus-4-8", name: "Claude Opus 4.8", legacy: true, aliases: ["opus-4.8"] },
-      { slug: "claude-opus-4-7", name: "Claude Opus 4.7", legacy: true, aliases: ["opus-4.7"] },
-      { slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", legacy: true, aliases: ["sonnet-4.6"] },
-      { slug: "claude-haiku-4-5", name: "Claude Haiku 4.5", legacy: true, aliases: ["haiku", "haiku-4.5"] },
+      {
+        slug: "claude-fable-5-1",
+        name: "Claude Fable 5.1",
+        aliases: ["fable", "fable-5.1", "claude-fable-5.1"],
+      },
+      {
+        slug: "claude-opus-5",
+        name: "Claude Opus 5",
+        aliases: ["opus", "opus-5"],
+      },
+      {
+        slug: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        aliases: ["sonnet", "sonnet-5"],
+      },
+      {
+        slug: "claude-opus-4-8",
+        name: "Claude Opus 4.8",
+        legacy: true,
+        aliases: ["opus-4.8"],
+      },
+      {
+        slug: "claude-opus-4-7",
+        name: "Claude Opus 4.7",
+        legacy: true,
+        aliases: ["opus-4.7"],
+      },
+      {
+        slug: "claude-sonnet-4-6",
+        name: "Claude Sonnet 4.6",
+        legacy: true,
+        aliases: ["sonnet-4.6"],
+      },
+      {
+        slug: "claude-haiku-4-5",
+        name: "Claude Haiku 4.5",
+        legacy: true,
+        aliases: ["haiku", "haiku-4.5"],
+      },
     ],
   },
   {
-    kind: "cursor",
-    displayName: "Cursor",
     binaryNames: ["agent", "cursor-agent"],
+    displayName: "Cursor",
+    headlessSummary:
+      "agent -p --output-format stream-json (t3code CursorDriver / ACP)",
+    kind: "cursor",
     mentionHandles: ["cursor", "agent"],
-    headlessSummary: "agent -p --output-format stream-json (t3code CursorDriver / ACP)",
     modelFlag: "--model",
-    modelSource: "Cursor model docs · agent models lists the account's full catalog",
+    modelSource:
+      "Cursor model docs · agent models lists the account's full catalog",
     models: [
       { slug: "auto", name: "Auto（Cursor が選択）" },
       { slug: "composer-2.5", name: "Composer 2.5" },
@@ -113,13 +148,14 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     ],
   },
   {
-    kind: "grok",
-    displayName: "Grok",
     binaryNames: ["grok"],
-    mentionHandles: ["grok"],
+    displayName: "Grok",
     headlessSummary: "grok --prompt (t3code GrokDriver)",
+    kind: "grok",
+    mentionHandles: ["grok"],
     modelFlag: "--model",
-    modelSource: "Multica grokStaticModels · grok models lists the signed-in catalog",
+    modelSource:
+      "Multica grokStaticModels · grok models lists the signed-in catalog",
     models: [
       { slug: "grok-4.6", name: "Grok 4.6" },
       { slug: "grok-4.5", name: "Grok 4.5" },
@@ -127,28 +163,36 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     ],
   },
   {
-    kind: "opencode",
-    displayName: "OpenCode",
     binaryNames: ["opencode"],
-    mentionHandles: ["opencode"],
+    displayName: "OpenCode",
     headlessSummary: "opencode run (t3code OpenCodeDriver)",
+    kind: "opencode",
+    mentionHandles: ["opencode"],
     modelFlag: "--model",
-    modelSource: "opencode resolves provider/model only · opencode models lists the configured ones",
+    modelSource:
+      "opencode resolves provider/model only · opencode models lists the configured ones",
     models: [
-      { slug: "anthropic/claude-fable-5-1", name: "Claude Fable 5.1 (Anthropic)" },
+      {
+        slug: "anthropic/claude-fable-5-1",
+        name: "Claude Fable 5.1 (Anthropic)",
+      },
       { slug: "anthropic/claude-opus-5", name: "Claude Opus 5 (Anthropic)" },
-      { slug: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5 (Anthropic)" },
+      {
+        slug: "anthropic/claude-sonnet-5",
+        name: "Claude Sonnet 5 (Anthropic)",
+      },
       { slug: "openai/gpt-6-astra", name: "GPT-6 Astra (OpenAI)" },
       { slug: "openai/gpt-5.6-sol", name: "GPT-5.6 Sol (OpenAI)" },
       { slug: "google/gemini-3.8-flash", name: "Gemini 3.8 Flash (Google)" },
     ],
   },
   {
-    kind: "antigravity",
-    displayName: "Antigravity",
     binaryNames: ["antigravity", "agy"],
+    displayName: "Antigravity",
+    headlessSummary:
+      "native installer / Sign in with Google (t3code AntigravityDriver)",
+    kind: "antigravity",
     mentionHandles: ["antigravity", "agy"],
-    headlessSummary: "native installer / Sign in with Google (t3code AntigravityDriver)",
     modelFlag: null,
     modelSource: "t3code model-manifest (antigravity)",
     models: [
@@ -159,13 +203,16 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   },
 ] as const;
 
-export const MENTION_TO_PROVIDER: Record<string, ProviderDriverKind> = Object.fromEntries(
-  PROVIDER_CATALOG.flatMap((entry) =>
-    entry.mentionHandles.map((handle) => [handle, entry.kind] as const),
-  ),
-) as Record<string, ProviderDriverKind>;
+export const MENTION_TO_PROVIDER: Record<string, ProviderDriverKind> =
+  Object.fromEntries(
+    PROVIDER_CATALOG.flatMap((entry) =>
+      entry.mentionHandles.map((handle) => [handle, entry.kind] as const)
+    )
+  ) as Record<string, ProviderDriverKind>;
 
-export function isProviderDriverKind(value: string): value is ProviderDriverKind {
+export function isProviderDriverKind(
+  value: string
+): value is ProviderDriverKind {
   return (PROVIDER_DRIVER_KINDS as readonly string[]).includes(value);
 }
 
@@ -206,25 +253,44 @@ export function isValidModelSlug(value: string): boolean {
  * request so callers fall back to the CLI default. Unknown slugs pass through
  * untouched — the CLI's own catalog is the authority, not this snapshot.
  */
-export function resolveModelSlug(kind: ProviderDriverKind, requested: string | undefined | null): string | undefined {
+export function resolveModelSlug(
+  kind: ProviderDriverKind,
+  requested: string | undefined | null
+): string | undefined {
   const trimmed = requested?.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) {
+    return undefined;
+  }
   const lower = trimmed.toLowerCase();
   for (const model of catalogFor(kind).models) {
-    if (model.slug.toLowerCase() === lower) return model.slug;
-    if (model.aliases?.some((alias) => alias.toLowerCase() === lower)) return model.slug;
+    if (model.slug.toLowerCase() === lower) {
+      return model.slug;
+    }
+    if (model.aliases?.some((alias) => alias.toLowerCase() === lower)) {
+      return model.slug;
+    }
   }
   return trimmed;
 }
 
 /** Display name for a model slug, falling back to the slug itself. */
-export function modelDisplayName(kind: ProviderDriverKind, slug: string | undefined | null): string | undefined {
-  if (!slug) return undefined;
-  return catalogFor(kind).models.find((model) => model.slug === slug)?.name ?? slug;
+export function modelDisplayName(
+  kind: ProviderDriverKind,
+  slug: string | undefined | null
+): string | undefined {
+  if (!slug) {
+    return undefined;
+  }
+  return (
+    catalogFor(kind).models.find((model) => model.slug === slug)?.name ?? slug
+  );
 }
 
 /** `@cursor/muse-spark-1.3`, or `@cursor` when no model is set. */
-export function formatAgentMention(kind: ProviderDriverKind, model?: string | null): string {
+export function formatAgentMention(
+  kind: ProviderDriverKind,
+  model?: string | null
+): string {
   const handle = mentionHandleFor(kind);
   return model ? `@${handle}/${model}` : `@${handle}`;
 }

@@ -1,7 +1,9 @@
 import { Cpu, Folder, MessageSquare, Sparkles, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
+
 import { Composer, useSendMessage } from "@/harness/Composer";
-import { EmptyHero, type Suggestion } from "@/harness/EmptyHero";
+import { EmptyHero } from "@/harness/EmptyHero";
+import type { Suggestion } from "@/harness/EmptyHero";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { displayName } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/title";
@@ -23,12 +25,20 @@ export default function HomePage() {
   const org = useOrg();
   const [offset, setOffset] = useState(0);
   useDocumentTitle(org.org.name);
-  const dm = org.chats?.find((chat) => chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)) ?? null;
-  const liveRuntimes = (org.runtimes ?? []).filter((runtime) => isLive(runtime, org.now));
+  const dm =
+    org.chats?.find(
+      (chat) =>
+        chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)
+    ) ?? null;
+  const liveRuntimes = (org.runtimes ?? []).filter((runtime) =>
+    isLive(runtime, org.now)
+  );
   const { send } = useSendMessage(dm);
   /* jump to the DM as the message leaves; its bubble lands there optimistically */
   const ask = (text: string) => {
-    if (!dm) return;
+    if (!dm) {
+      return;
+    }
     org.goChat(dm._id);
     void send(text);
   };
@@ -36,24 +46,57 @@ export default function HomePage() {
   const suggestions = useMemo<Suggestion[]>(() => {
     const steps: Suggestion[] = [];
     if ((org.projects ?? []).length === 0) {
-      steps.push({ key: "project", icon: <Folder size={15} />, label: "最初のプロジェクトを作る", onClick: () => org.openDialog({ kind: "createProject" }) });
+      steps.push({
+        icon: <Folder size={15} />,
+        key: "project",
+        label: "最初のプロジェクトを作る",
+        onClick: () => org.openDialog({ kind: "createProject" }),
+      });
     }
     if ((org.runtimes ?? []).length === 0) {
-      steps.push({ key: "runtime", icon: <Cpu size={15} />, label: "このマシンをランタイムとして登録する", onClick: () => org.openDialog({ kind: "registerRuntime" }) });
+      steps.push({
+        icon: <Cpu size={15} />,
+        key: "runtime",
+        label: "このマシンをランタイムとして登録する",
+        onClick: () => org.openDialog({ kind: "registerRuntime" }),
+      });
     } else if (liveRuntimes.length === 0) {
-      steps.push({ key: "runtime-off", icon: <Cpu size={15} />, label: "ランタイムがオフラインです — 起動状況を確認", onClick: org.goSettings });
+      steps.push({
+        icon: <Cpu size={15} />,
+        key: "runtime-off",
+        label: "ランタイムがオフラインです — 起動状況を確認",
+        onClick: org.goSettings,
+      });
     }
     if (org.isAdmin && (org.members ?? []).length <= 1) {
-      steps.push({ key: "invite", icon: <UserPlus size={15} />, label: "メンバーを招待する", onClick: () => org.openDialog({ kind: "invite" }) });
+      steps.push({
+        icon: <UserPlus size={15} />,
+        key: "invite",
+        label: "メンバーを招待する",
+        onClick: () => org.openDialog({ kind: "invite" }),
+      });
     }
     const prompts: Suggestion[] = [];
     for (let i = 0; i < 3 - Math.min(steps.length, 2); i += 1) {
       const text = PROMPTS[(offset + i) % PROMPTS.length]!;
-      prompts.push({ key: `p${i}`, icon: <MessageSquare size={15} />, label: text, onClick: () => ask(text) });
+      prompts.push({
+        icon: <MessageSquare size={15} />,
+        key: `p${i}`,
+        label: text,
+        onClick: () => ask(text),
+      });
     }
     return [...steps.slice(0, 2), ...prompts].slice(0, 4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org.projects, org.runtimes, org.members, org.isAdmin, liveRuntimes.length, offset, dm]);
+  }, [
+    org.projects,
+    org.runtimes,
+    org.members,
+    org.isAdmin,
+    liveRuntimes.length,
+    offset,
+    dm,
+  ]);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -72,9 +115,18 @@ export default function HomePage() {
         }
         suggestions={suggestions}
         onShuffle={() => setOffset((current) => (current + 3) % PROMPTS.length)}
-        link={{ label: (org.runtimes ?? []).length === 0 ? "ランタイムを接続してエージェントを動かす" : "Personal DM を開く", onClick: () => ((org.runtimes ?? []).length === 0 ? org.openDialog({ kind: "registerRuntime" }) : dm && org.goChat(dm._id)) }}
+        link={{
+          label:
+            (org.runtimes ?? []).length === 0
+              ? "ランタイムを接続してエージェントを動かす"
+              : "Personal DM を開く",
+          onClick: () =>
+            (org.runtimes ?? []).length === 0
+              ? org.openDialog({ kind: "registerRuntime" })
+              : dm && org.goChat(dm._id),
+        }}
       />
-      <div className="pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] text-ink-3 xl:flex">
+      <div className="text-ink-3 pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] xl:flex">
         <Sparkles size={11} /> tahcode · Beautiful UI harness · Dark Green+
       </div>
     </div>

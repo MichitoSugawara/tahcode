@@ -1,27 +1,27 @@
 import { v } from "convex/values";
-import {
-  assertProjectVisible,
-  getMembership,
-  requireRole,
-} from "./lib/access";
+
+import { assertProjectVisible, getMembership, requireRole } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { slugify } from "./lib/ids";
 import { projectSummary, userSummary, visibility } from "./lib/validators";
 
 export const create = authedMutation({
   args: {
-    orgId: v.id("orgs"),
-    name: v.string(),
-    visibility: visibility,
     cwd: v.optional(v.string()),
+    name: v.string(),
+    orgId: v.id("orgs"),
     repoUrl: v.optional(v.string()),
+    visibility,
   },
-  returns: v.id("projects"),
   handler: async (ctx, args) => {
     const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const name = args.name.trim().slice(0, 80);
-    if (name.length < 1) throw new Error("Project name is required");
+    if (name.length < 1) {
+      throw new Error("Project name is required");
+    }
     const projectId = await ctx.db.insert("projects", {
       orgId: args.orgId,
       name,
@@ -37,14 +37,16 @@ export const create = authedMutation({
     });
     return projectId;
   },
+  returns: v.id("projects"),
 });
 
 export const list = authedQuery({
   args: { orgId: v.id("orgs") },
-  returns: v.array(projectSummary),
   handler: async (ctx, args) => {
     const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const projects = await ctx.db
       .query("projects")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -62,7 +64,7 @@ export const list = authedQuery({
       const member = await ctx.db
         .query("projectMembers")
         .withIndex("by_project_and_user", (q) =>
-          q.eq("projectId", project._id).eq("userId", ctx.user._id),
+          q.eq("projectId", project._id).eq("userId", ctx.user._id)
         )
         .unique();
       if (member || String(project.createdBy) === String(ctx.user._id)) {
@@ -79,16 +81,20 @@ export const list = authedQuery({
       repoUrl: project.repoUrl,
     }));
   },
+  returns: v.array(projectSummary),
 });
 
 export const get = authedQuery({
   args: { projectId: v.id("projects") },
-  returns: v.union(projectSummary, v.null()),
   handler: async (ctx, args) => {
     const project = await ctx.db.get("projects", args.projectId);
-    if (!project) return null;
+    if (!project) {
+      return null;
+    }
     const membership = await getMembership(ctx, project.orgId, ctx.user._id);
-    if (!membership) return null;
+    if (!membership) {
+      return null;
+    }
     try {
       await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
     } catch {
@@ -104,16 +110,20 @@ export const get = authedQuery({
       repoUrl: project.repoUrl,
     };
   },
+  returns: v.union(projectSummary, v.null()),
 });
 
 export const members = authedQuery({
   args: { projectId: v.id("projects") },
-  returns: v.array(userSummary),
   handler: async (ctx, args) => {
     const project = await ctx.db.get("projects", args.projectId);
-    if (!project) throw new Error("Project not found");
+    if (!project) {
+      throw new Error("Project not found");
+    }
     const membership = await getMembership(ctx, project.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
     const rows = await ctx.db
       .query("projectMembers")
@@ -122,7 +132,9 @@ export const members = authedQuery({
     const users = [];
     for (const row of rows) {
       const user = await ctx.db.get("users", row.userId);
-      if (!user) continue;
+      if (!user) {
+        continue;
+      }
       users.push({
         _id: user._id,
         name: user.name,
@@ -133,6 +145,7 @@ export const members = authedQuery({
     }
     return users;
   },
+  returns: v.array(userSummary),
 });
 
 export const addMember = authedMutation({
@@ -140,17 +153,24 @@ export const addMember = authedMutation({
     projectId: v.id("projects"),
     userId: v.id("users"),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const project = await ctx.db.get("projects", args.projectId);
-    if (!project) throw new Error("Project not found");
+    if (!project) {
+      throw new Error("Project not found");
+    }
     await requireRole(ctx, project.orgId, ctx.user._id, "admin");
-    const targetMembership = await getMembership(ctx, project.orgId, args.userId);
-    if (!targetMembership) throw new Error("Target is not in this organization");
+    const targetMembership = await getMembership(
+      ctx,
+      project.orgId,
+      args.userId
+    );
+    if (!targetMembership) {
+      throw new Error("Target is not in this organization");
+    }
     const existing = await ctx.db
       .query("projectMembers")
       .withIndex("by_project_and_user", (q) =>
-        q.eq("projectId", args.projectId).eq("userId", args.userId),
+        q.eq("projectId", args.projectId).eq("userId", args.userId)
       )
       .unique();
     if (!existing) {
@@ -161,4 +181,5 @@ export const addMember = authedMutation({
     }
     return null;
   },
+  returns: v.null(),
 });

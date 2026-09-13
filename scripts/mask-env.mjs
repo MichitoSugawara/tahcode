@@ -14,7 +14,7 @@ if (!file) {
   process.exit(1);
 }
 
-for (const line of readFileSync(file, "utf8").split("\n")) {
+for (const line of readFileSync(file, "utf-8").split("\n")) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
     continue;
@@ -24,7 +24,7 @@ for (const line of readFileSync(file, "utf8").split("\n")) {
   if (!SECRET_KEYS.has(key)) {
     continue;
   }
-  const value = trimmed.slice(index + 1).replace(/^["']|["']$/g, "");
+  const value = trimmed.slice(index + 1).replaceAll(/^["']|["']$/g, "");
   if (value.length > 8) {
     console.log(`::add-mask::${value}`);
   }

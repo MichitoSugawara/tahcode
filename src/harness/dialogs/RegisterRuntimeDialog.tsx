@@ -1,18 +1,20 @@
 import { useMutation } from "convex/react";
 import { Check, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+
 import { Button } from "@/components/atoms/Button";
 import { Shimmer } from "@/components/atoms/Shimmer";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import CodeBlock from "@/components/primitives/CodeBlock";
 import LoadingState from "@/components/primitives/LoadingState";
-import { PROVIDERS } from "@/lib/providers";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { Dialog, SectionLabel } from "@/harness/ui/Dialog";
 import { InlineError, Input, Label } from "@/harness/ui/Field";
 import { Notice } from "@/harness/ui/Notice";
+import { PROVIDERS } from "@/lib/providers";
+
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 /* ─────────────────────────────────────────────────────────
  * REGISTER RUNTIME — name this machine, receive a one-time
@@ -23,17 +25,32 @@ import { Notice } from "@/harness/ui/Notice";
 
 function guessMachineName(): string {
   const ua = navigator.userAgent;
-  const os = /Mac/.test(ua) ? "mac" : /Windows/.test(ua) ? "win" : /Linux/.test(ua) ? "linux" : "machine";
+  const os = /Mac/.test(ua)
+    ? "mac"
+    : /Windows/.test(ua)
+      ? "win"
+      : /Linux/.test(ua)
+        ? "linux"
+        : "machine";
   return `${os}-${new Date().toISOString().slice(5, 10).replace("-", "")}`;
 }
 
-export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RegisterRuntimeDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { org, runtimes, now, setRuntimeId, openDialog } = useOrg();
   const register = useMutation(api.runtimes.register);
   const [name, setName] = useState(guessMachineName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [issued, setIssued] = useState<{ runtimeId: Id<"runtimes">; token: string } | null>(null);
+  const [issued, setIssued] = useState<{
+    runtimeId: Id<"runtimes">;
+    token: string;
+  } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -43,10 +60,15 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
     }
   }, [open]);
 
-  const convexUrl = (import.meta.env.VITE_CONVEX_URL as string | undefined) ?? "<VITE_CONVEX_URL>";
-  const runtime = issued ? runtimes?.find((item) => item._id === issued.runtimeId) : undefined;
+  const convexUrl =
+    (import.meta.env.VITE_CONVEX_URL as string | undefined) ??
+    "<VITE_CONVEX_URL>";
+  const runtime = issued
+    ? runtimes?.find((item) => item._id === issued.runtimeId)
+    : undefined;
   const live = runtime ? isLive(runtime, now) : false;
-  const detected = runtime?.providers.filter((provider) => provider.available) ?? [];
+  const detected =
+    runtime?.providers.filter((provider) => provider.available) ?? [];
 
   const lines = useMemo(
     () =>
@@ -57,7 +79,7 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
             "tahcode start",
           ]
         : [],
-    [issued, convexUrl, name],
+    [issued, convexUrl, name]
   );
 
   return (
@@ -74,9 +96,16 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
       footer={
         issued ? (
           <>
-            <span className="text-[12px] text-ink-3">既定は default deny — 他のメンバーは許可されるまで使えません</span>
+            <span className="text-ink-3 text-[12px]">
+              既定は default deny — 他のメンバーは許可されるまで使えません
+            </span>
             <div className="flex items-center gap-1.5">
-              <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+              >
                 閉じる
               </Button>
               <Button
@@ -94,12 +123,25 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           </>
         ) : (
           <>
-            <span className="text-[12px] text-ink-3">{org.name} に登録されます</span>
+            <span className="text-ink-3 text-[12px]">
+              {org.name} に登録されます
+            </span>
             <div className="flex items-center gap-1.5">
-              <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+              >
                 キャンセル
               </Button>
-              <Button type="submit" form="register-runtime" variant="accent" size="sm" disabled={!name.trim() || busy}>
+              <Button
+                type="submit"
+                form="register-runtime"
+                variant="accent"
+                size="sm"
+                disabled={!name.trim() || busy}
+              >
                 {busy ? "発行中…" : "トークンを発行"}
               </Button>
             </div>
@@ -107,21 +149,116 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
         )
       }
     >
-      {!issued ? (
+      {issued ? (
+        <div
+          className="flex flex-col gap-4"
+          style={{
+            animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both",
+          }}
+        >
+          <Notice
+            tone="warn"
+            title="トークンはこの画面を閉じると二度と表示されません"
+          >
+            紛失した場合はランタイムを削除して登録し直してください。
+          </Notice>
+
+          <div>
+            <SectionLabel>
+              ターミナルで実行（tahcode CLI → Multica daemon）
+            </SectionLabel>
+            <CodeBlock
+              fill
+              variant="Code"
+              filename="install-and-start.sh"
+              lines={lines}
+              code={lines.join("\n")}
+              labels={{ copy: "コピー", copied: "コピーしました" }}
+            />
+            <p className="text-ink-3 mt-1.5 text-[12px] leading-relaxed">
+              困ったら{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                tahcode doctor
+              </code>
+              。状態は{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                tahcode status
+              </code>{" "}
+              /{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                tahcode logs -f
+              </code>
+              。
+            </p>
+          </div>
+
+          <div className="rounded-card bg-inset shadow-hairline flex min-h-9 items-center gap-3 px-3 py-2.5">
+            {live ? (
+              <>
+                <span
+                  className="bg-green flex size-5 items-center justify-center rounded-full text-white"
+                  style={{
+                    animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both",
+                  }}
+                >
+                  <Check size={12} strokeWidth={3} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-ink text-[13px] font-medium">
+                    {runtime?.name} が接続されました
+                  </div>
+                  <div className="text-ink-3 mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+                    {detected.length > 0 ? (
+                      detected.map((provider) => (
+                        <StatusPill
+                          key={provider.driverKind}
+                          tone="green"
+                          className="h-5 text-[11.5px]"
+                        >
+                          {PROVIDERS[provider.driverKind]?.label ??
+                            provider.driverKind}
+                          {provider.version ? ` ${provider.version}` : ""}
+                        </StatusPill>
+                      ))
+                    ) : (
+                      <Shimmer className="text-[12px]">
+                        エージェント CLI を検出しています
+                      </Shimmer>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <LoadingState
+                label="最初のハートビートを待っています"
+                variant="Dots"
+              />
+            )}
+          </div>
+        </div>
+      ) : (
         <form
           id="register-runtime"
           className="flex flex-col gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (!name.trim() || busy) return;
+            if (!name.trim() || busy) {
+              return;
+            }
             setBusy(true);
             setError(null);
             try {
-              const result = await register({ orgId: org._id, name: name.trim(), hostname: window.location.hostname });
+              const result = await register({
+                orgId: org._id,
+                name: name.trim(),
+                hostname: window.location.hostname,
+              });
               setIssued(result);
               setRuntimeId(result.runtimeId);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "登録に失敗しました");
+            } catch (error) {
+              setError(
+                error instanceof Error ? error.message : "登録に失敗しました"
+              );
             } finally {
               setBusy(false);
             }
@@ -129,14 +266,29 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
         >
           <div>
             <Label hint="チームに見える名前">マシン名</Label>
-            <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="例: office-mac" maxLength={60} />
+            <Input
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="例: office-mac"
+              maxLength={60}
+            />
           </div>
-          <div className="rounded-card bg-inset p-3 shadow-hairline">
+          <div className="rounded-card bg-inset shadow-hairline p-3">
             <SectionLabel className="mb-1.5">起動前に必要なもの</SectionLabel>
-            <ul className="flex flex-col gap-1 text-[12.5px] leading-relaxed text-ink-2">
-              <li>· Node 20+ と <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">npm i -g tahcode</code></li>
+            <ul className="text-ink-2 flex flex-col gap-1 text-[12.5px] leading-relaxed">
               <li>
-                · Multica CLI（未導入なら <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">tahcode install-multica</code> が案内）
+                · Node 20+ と{" "}
+                <code className="bg-field rounded-[4px] px-1 font-mono text-[11.5px]">
+                  npm i -g tahcode
+                </code>
+              </li>
+              <li>
+                · Multica CLI（未導入なら{" "}
+                <code className="bg-field rounded-[4px] px-1 font-mono text-[11.5px]">
+                  tahcode install-multica
+                </code>{" "}
+                が案内）
               </li>
               <li>
                 · いずれかのエージェント CLI にログイン済み:{" "}
@@ -148,47 +300,6 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           </div>
           {error && <InlineError>{error}</InlineError>}
         </form>
-      ) : (
-        <div className="flex flex-col gap-4" style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
-          <Notice tone="warn" title="トークンはこの画面を閉じると二度と表示されません">
-            紛失した場合はランタイムを削除して登録し直してください。
-          </Notice>
-
-          <div>
-            <SectionLabel>ターミナルで実行（tahcode CLI → Multica daemon）</SectionLabel>
-            <CodeBlock fill variant="Code" filename="install-and-start.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
-            <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-              困ったら <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode doctor</code>。状態は <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode status</code> / <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode logs -f</code>。
-            </p>
-          </div>
-
-          <div className="flex min-h-9 items-center gap-3 rounded-card bg-inset px-3 py-2.5 shadow-hairline">
-            {live ? (
-              <>
-                <span className="flex size-5 items-center justify-center rounded-full bg-green text-white" style={{ animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
-                  <Check size={12} strokeWidth={3} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-medium text-ink">{runtime?.name} が接続されました</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
-                    {detected.length > 0 ? (
-                      detected.map((provider) => (
-                        <StatusPill key={provider.driverKind} tone="green" className="h-5 text-[11.5px]">
-                          {PROVIDERS[provider.driverKind]?.label ?? provider.driverKind}
-                          {provider.version ? ` ${provider.version}` : ""}
-                        </StatusPill>
-                      ))
-                    ) : (
-                      <Shimmer className="text-[12px]">エージェント CLI を検出しています</Shimmer>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <LoadingState label="最初のハートビートを待っています" variant="Dots" />
-            )}
-          </div>
-        </div>
       )}
     </Dialog>
   );

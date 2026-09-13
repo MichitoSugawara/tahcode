@@ -2,26 +2,26 @@ import {
   MENTION_TO_PROVIDER,
   isValidModelSlug,
   resolveModelSlug,
-  type ProviderDriverKind,
 } from "./providers.ts";
+import type { ProviderDriverKind } from "./providers.ts";
 
 export type MentionKind = "user" | "runtime" | "provider" | "agent";
 
-export type ParsedMention = {
+export interface ParsedMention {
   kind: MentionKind;
   handle: string;
   raw: string;
   providerKind?: ProviderDriverKind;
   /** `@provider/model` — the model slug after the first slash, alias-resolved. */
   model?: string;
-};
+}
 
 /** Provider + optional model a message should run with. */
-export type AgentTarget = {
+export interface AgentTarget {
   driverKind: ProviderDriverKind;
   /** `undefined` = the CLI's own default model (no model flag). */
   model?: string;
-};
+}
 
 const MENTION_RE = /@([a-zA-Z0-9_./-]+)/g;
 
@@ -32,9 +32,13 @@ export function parseMentions(text: string): ParsedMention[] {
     // Sentence punctuation right after a handle ("@claude." / "@cursor/") is
     // not part of it.
     const handle = match[1]?.replace(/[./]+$/, "");
-    if (!handle) continue;
+    if (!handle) {
+      continue;
+    }
     const key = handle.toLowerCase();
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     found.push(classifyMention(handle));
   }
@@ -49,23 +53,29 @@ export function parseMentions(text: string): ParsedMention[] {
  * `@agent` / `@harness` mean "whatever this chat runs by default"; `@rt-<slug>`
  * targets a machine. Anything else is a person.
  */
-export function classifyMention(handle: string, raw = `@${handle}`): ParsedMention {
+export function classifyMention(
+  handle: string,
+  raw = `@${handle}`
+): ParsedMention {
   const slash = handle.indexOf("/");
   const head = (slash === -1 ? handle : handle.slice(0, slash)).toLowerCase();
   const tail = slash === -1 ? "" : handle.slice(slash + 1);
   if (head === "agent" || head === "harness") {
-    return { kind: "agent", handle: head, raw };
+    return { handle: head, kind: "agent", raw };
   }
   const providerKind = MENTION_TO_PROVIDER[head];
   if (providerKind) {
-    const model = tail && isValidModelSlug(tail) ? resolveModelSlug(providerKind, tail) : undefined;
-    return { kind: "provider", handle: head, raw, providerKind, model };
+    const model =
+      tail && isValidModelSlug(tail)
+        ? resolveModelSlug(providerKind, tail)
+        : undefined;
+    return { handle: head, kind: "provider", model, providerKind, raw };
   }
   const key = handle.toLowerCase();
   if (key.startsWith("rt-") || key.startsWith("runtime-")) {
-    return { kind: "runtime", handle: key.replace(/^(rt|runtime)-/, ""), raw };
+    return { handle: key.replace(/^(rt|runtime)-/, ""), kind: "runtime", raw };
   }
-  return { kind: "user", handle: key, raw };
+  return { handle: key, kind: "user", raw };
 }
 
 export type ChatKind = "dm" | "project";
@@ -79,18 +89,20 @@ export function shouldDispatchAgent(input: {
   chatKind: ChatKind;
   mentions: readonly ParsedMention[];
 }): boolean {
-  if (input.chatKind === "dm") return true;
+  if (input.chatKind === "dm") {
+    return true;
+  }
   return input.mentions.some(
     (mention) =>
       mention.kind === "agent" ||
       mention.kind === "provider" ||
-      mention.kind === "runtime",
+      mention.kind === "runtime"
   );
 }
 
 export function preferredProvider(
   mentions: readonly ParsedMention[],
-  fallback: ProviderDriverKind,
+  fallback: ProviderDriverKind
 ): ProviderDriverKind {
   const mentioned = mentions.find((mention) => mention.providerKind);
   return mentioned?.providerKind ?? fallback;
@@ -105,11 +117,15 @@ export function preferredProvider(
  */
 export function preferredTarget(
   mentions: readonly ParsedMention[],
-  fallback: AgentTarget,
+  fallback: AgentTarget
 ): AgentTarget {
   const mentioned = mentions.find((mention) => mention.providerKind);
-  if (!mentioned?.providerKind) return { driverKind: fallback.driverKind, model: fallback.model };
-  if (mentioned.model) return { driverKind: mentioned.providerKind, model: mentioned.model };
+  if (!mentioned?.providerKind) {
+    return { driverKind: fallback.driverKind, model: fallback.model };
+  }
+  if (mentioned.model) {
+    return { driverKind: mentioned.providerKind, model: mentioned.model };
+  }
   if (mentioned.providerKind === fallback.driverKind) {
     return { driverKind: fallback.driverKind, model: fallback.model };
   }

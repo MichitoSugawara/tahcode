@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+
+import { headlessArgs } from "../runtime/src/providers.ts";
 import {
   classifyMention,
   parseMentions,
@@ -6,29 +8,39 @@ import {
   preferredTarget,
   shouldDispatchAgent,
 } from "../shared/mentions.ts";
-import { formatAgentMention, isValidModelSlug, resolveModelSlug } from "../shared/providers.ts";
-import { headlessArgs } from "../runtime/src/providers.ts";
+import {
+  formatAgentMention,
+  isValidModelSlug,
+  resolveModelSlug,
+} from "../shared/providers.ts";
 
-describe("parseMentions", () => {
+describe(parseMentions, () => {
   it("classifies provider, agent, runtime, and user handles", () => {
-    const mentions = parseMentions("hey @claude and @rt-office plus @mai, also @agent");
-    expect(mentions.map((m) => m.kind)).toEqual(["provider", "runtime", "user", "agent"]);
+    const mentions = parseMentions(
+      "hey @claude and @rt-office plus @mai, also @agent"
+    );
+    expect(mentions.map((m) => m.kind)).toStrictEqual([
+      "provider",
+      "runtime",
+      "user",
+      "agent",
+    ]);
     expect(mentions[0]?.providerKind).toBe("claudeAgent");
     expect(mentions[0]?.model).toBeUndefined();
     expect(mentions[1]?.handle).toBe("office");
   });
 
   it("dedupes case-insensitively", () => {
-    expect(parseMentions("@Claude @claude").length).toBe(1);
+    expect(parseMentions("@Claude @claude")).toHaveLength(1);
   });
 
   it("reads @provider/model", () => {
     const [mention] = parseMentions("@cursor/muse-spark-1.3 review this");
     expect(mention).toMatchObject({
-      kind: "provider",
       handle: "cursor",
-      providerKind: "cursor",
+      kind: "provider",
       model: "muse-spark-1.3",
+      providerKind: "cursor",
       raw: "@cursor/muse-spark-1.3",
     });
   });
@@ -41,12 +53,21 @@ describe("parseMentions", () => {
 
   it("resolves catalog aliases and preserves unknown slugs", () => {
     expect(parseMentions("@claude/opus")[0]?.model).toBe("claude-opus-5");
-    expect(parseMentions("@cursor/gpt-5.6-sol-high")[0]?.model).toBe("gpt-5.6-sol-high");
+    expect(parseMentions("@cursor/gpt-5.6-sol-high")[0]?.model).toBe(
+      "gpt-5.6-sol-high"
+    );
   });
 
   it("ignores trailing punctuation after a handle", () => {
-    expect(parseMentions("ask @claude.")[0]).toMatchObject({ kind: "provider", raw: "@claude" });
-    expect(parseMentions("ask @cursor/")[0]).toMatchObject({ kind: "provider", providerKind: "cursor", model: undefined });
+    expect(parseMentions("ask @claude.")[0]).toMatchObject({
+      kind: "provider",
+      raw: "@claude",
+    });
+    expect(parseMentions("ask @cursor/")[0]).toMatchObject({
+      kind: "provider",
+      model: undefined,
+      providerKind: "cursor",
+    });
   });
 
   it("treats @agent/anything as the chat agent", () => {
@@ -54,9 +75,9 @@ describe("parseMentions", () => {
   });
 });
 
-describe("shouldDispatchAgent", () => {
+describe(shouldDispatchAgent, () => {
   it("always dispatches in DMs", () => {
-    expect(shouldDispatchAgent({ chatKind: "dm", mentions: [] })).toBe(true);
+    expect(shouldDispatchAgent({ chatKind: "dm", mentions: [] })).toBeTruthy();
   });
 
   it("requires an agent-like mention in project chats", () => {
@@ -64,76 +85,126 @@ describe("shouldDispatchAgent", () => {
       shouldDispatchAgent({
         chatKind: "project",
         mentions: parseMentions("hello team"),
-      }),
-    ).toBe(false);
+      })
+    ).toBeFalsy();
     expect(
       shouldDispatchAgent({
         chatKind: "project",
         mentions: parseMentions("please look @codex"),
-      }),
-    ).toBe(true);
+      })
+    ).toBeTruthy();
     expect(
       shouldDispatchAgent({
         chatKind: "project",
         mentions: parseMentions("please look @cursor/muse-spark-1.3"),
-      }),
-    ).toBe(true);
+      })
+    ).toBeTruthy();
   });
 });
 
-describe("preferredProvider", () => {
+describe(preferredProvider, () => {
   it("uses the first mentioned provider, else fallback", () => {
-    expect(preferredProvider(parseMentions("@grok later @claude"), "codex")).toBe("grok");
-    expect(preferredProvider(parseMentions("no agent"), "cursor")).toBe("cursor");
+    expect(
+      preferredProvider(parseMentions("@grok later @claude"), "codex")
+    ).toBe("grok");
+    expect(preferredProvider(parseMentions("no agent"), "cursor")).toBe(
+      "cursor"
+    );
   });
 });
 
-describe("preferredTarget", () => {
+describe(preferredTarget, () => {
   const bound = { driverKind: "cursor" as const, model: "muse-spark-1.3" };
 
   it("takes provider and model from the mention", () => {
-    expect(preferredTarget(parseMentions("@codex/gpt-5.6-sol do it"), bound)).toEqual({ driverKind: "codex", model: "gpt-5.6-sol" });
+    expect(
+      preferredTarget(parseMentions("@codex/gpt-5.6-sol do it"), bound)
+    ).toStrictEqual({ driverKind: "codex", model: "gpt-5.6-sol" });
   });
 
   it("keeps the chat's model for a bare mention of the same provider", () => {
-    expect(preferredTarget(parseMentions("@cursor do it"), bound)).toEqual(bound);
+    expect(
+      preferredTarget(parseMentions("@cursor do it"), bound)
+    ).toStrictEqual(bound);
   });
 
   it("uses the CLI default for a bare mention of another provider", () => {
-    expect(preferredTarget(parseMentions("@claude do it"), bound)).toEqual({ driverKind: "claudeAgent", model: undefined });
+    expect(
+      preferredTarget(parseMentions("@claude do it"), bound)
+    ).toStrictEqual({ driverKind: "claudeAgent", model: undefined });
   });
 
   it("falls back to the binding when nothing is mentioned", () => {
-    expect(preferredTarget(parseMentions("hello @agent"), bound)).toEqual(bound);
-    expect(preferredTarget([], { driverKind: "codex" })).toEqual({ driverKind: "codex", model: undefined });
+    expect(preferredTarget(parseMentions("hello @agent"), bound)).toStrictEqual(
+      bound
+    );
+    expect(preferredTarget([], { driverKind: "codex" })).toStrictEqual({
+      driverKind: "codex",
+      model: undefined,
+    });
   });
 });
 
 describe("model slugs", () => {
   it("validates the mention character set", () => {
-    expect(isValidModelSlug("muse-spark-1.3")).toBe(true);
-    expect(isValidModelSlug("anthropic/claude-sonnet-5")).toBe(true);
-    expect(isValidModelSlug("")).toBe(false);
-    expect(isValidModelSlug("bad slug")).toBe(false);
-    expect(isValidModelSlug("trailing/")).toBe(false);
-    expect(isValidModelSlug("x".repeat(81))).toBe(false);
+    expect(isValidModelSlug("muse-spark-1.3")).toBeTruthy();
+    expect(isValidModelSlug("anthropic/claude-sonnet-5")).toBeTruthy();
+    expect(isValidModelSlug("")).toBeFalsy();
+    expect(isValidModelSlug("bad slug")).toBeFalsy();
+    expect(isValidModelSlug("trailing/")).toBeFalsy();
+  });
+
+  it("rejects model slugs longer than 80 characters", () => {
+    expect(isValidModelSlug("x".repeat(81))).toBeFalsy();
   });
 
   it("resolves aliases per provider and formats mentions", () => {
     expect(resolveModelSlug("claudeAgent", "Sonnet")).toBe("claude-sonnet-5");
     expect(resolveModelSlug("cursor", "  ")).toBeUndefined();
-    expect(formatAgentMention("cursor", "muse-spark-1.3")).toBe("@cursor/muse-spark-1.3");
+    expect(formatAgentMention("cursor", "muse-spark-1.3")).toBe(
+      "@cursor/muse-spark-1.3"
+    );
     expect(formatAgentMention("claudeAgent")).toBe("@claude");
   });
 });
 
-describe("headlessArgs", () => {
+describe(headlessArgs, () => {
   it("adds the CLI model flag only when a model is set", () => {
-    expect(headlessArgs("cursor", "hi")).toEqual(["-p", "--output-format", "stream-json", "hi"]);
-    expect(headlessArgs("cursor", "hi", "muse-spark-1.3")).toEqual(["-p", "--model", "muse-spark-1.3", "--output-format", "stream-json", "hi"]);
-    expect(headlessArgs("codex", "hi", "gpt-5.6-sol")).toEqual(["exec", "--model", "gpt-5.6-sol", "--json", "hi"]);
-    expect(headlessArgs("claudeAgent", "hi", "claude-opus-5").slice(0, 3)).toEqual(["-p", "--model", "claude-opus-5"]);
-    expect(headlessArgs("opencode", "hi", "anthropic/claude-sonnet-5")).toEqual(["run", "--model", "anthropic/claude-sonnet-5", "hi"]);
-    expect(headlessArgs("grok", "hi", "grok-4.6")).toEqual(["--model", "grok-4.6", "--prompt", "hi"]);
+    expect(headlessArgs("cursor", "hi")).toStrictEqual([
+      "-p",
+      "--output-format",
+      "stream-json",
+      "hi",
+    ]);
+    expect(headlessArgs("cursor", "hi", "muse-spark-1.3")).toStrictEqual([
+      "-p",
+      "--model",
+      "muse-spark-1.3",
+      "--output-format",
+      "stream-json",
+      "hi",
+    ]);
+    expect(headlessArgs("codex", "hi", "gpt-5.6-sol")).toStrictEqual([
+      "exec",
+      "--model",
+      "gpt-5.6-sol",
+      "--json",
+      "hi",
+    ]);
+    expect(
+      headlessArgs("claudeAgent", "hi", "claude-opus-5").slice(0, 3)
+    ).toStrictEqual(["-p", "--model", "claude-opus-5"]);
+    expect(
+      headlessArgs("opencode", "hi", "anthropic/claude-sonnet-5")
+    ).toStrictEqual(["run", "--model", "anthropic/claude-sonnet-5", "hi"]);
+  });
+
+  it("adds Grok's model flag when a model is set", () => {
+    expect(headlessArgs("grok", "hi", "grok-4.6")).toStrictEqual([
+      "--model",
+      "grok-4.6",
+      "--prompt",
+      "hi",
+    ]);
   });
 });

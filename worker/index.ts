@@ -8,20 +8,20 @@ const MAX_BYTES = 20 * 1024 * 1024;
 function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get("Origin") ?? "*";
   return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Max-Age": "86400",
   };
 }
 
 function json(request: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status,
     headers: {
       "Content-Type": "application/json",
       ...corsHeaders(request),
     },
+    status,
   });
 }
 
@@ -30,11 +30,12 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(request) });
+      return new Response(null, { headers: corsHeaders(request), status: 204 });
     }
 
     if (url.pathname === "/api/files" && request.method === "POST") {
-      const contentType = request.headers.get("Content-Type") ?? "application/octet-stream";
+      const contentType =
+        request.headers.get("Content-Type") ?? "application/octet-stream";
       const fileName = request.headers.get("X-File-Name") ?? "upload.bin";
       const bytes = await request.arrayBuffer();
       if (bytes.byteLength === 0) {
@@ -45,13 +46,13 @@ export default {
       }
       const key = `${crypto.randomUUID()}/${sanitizeName(fileName)}`;
       await env.FILES.put(key, bytes, {
-        httpMetadata: { contentType },
         customMetadata: { fileName },
+        httpMetadata: { contentType },
       });
       return json(request, {
+        contentType,
         key,
         name: fileName,
-        contentType,
         size: bytes.byteLength,
         url: `/api/files/${encodeURIComponent(key)}`,
       });
@@ -66,11 +67,11 @@ export default {
       const headers = new Headers(corsHeaders(request));
       headers.set(
         "Content-Type",
-        object.httpMetadata?.contentType ?? "application/octet-stream",
+        object.httpMetadata?.contentType ?? "application/octet-stream"
       );
       headers.set(
         "Content-Disposition",
-        `inline; filename="${object.customMetadata?.fileName ?? "file"}"`,
+        `inline; filename="${object.customMetadata?.fileName ?? "file"}"`
       );
       return new Response(object.body, { headers });
     }
@@ -84,5 +85,5 @@ export default {
 };
 
 function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload.bin";
+  return name.replaceAll(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload.bin";
 }

@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import {
@@ -6,16 +7,17 @@ import {
   assertChatVisible,
   getMembership,
 } from "./lib/access";
-import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { buildAgentContext } from "./lib/context";
+import { authedMutation, authedQuery } from "./lib/customFunctions";
 import {
   parseMentions,
   preferredProvider,
   preferredTarget,
   shouldDispatchAgent,
-  type AgentTarget,
 } from "./lib/mentions";
-import { isValidModelSlug, resolveModelSlug, type ProviderDriverKind } from "./lib/providers";
+import type { AgentTarget } from "./lib/mentions";
+import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
+import type { ProviderDriverKind } from "./lib/providers";
 import { messageDoc, providerKind } from "./lib/validators";
 
 export const list = authedQuery({
@@ -23,12 +25,15 @@ export const list = authedQuery({
     chatId: v.id("chats"),
     limit: v.optional(v.number()),
   },
-  returns: v.array(messageDoc),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     const limit = Math.min(Math.max(args.limit ?? 100, 1), 200);
     const rows = await ctx.db
@@ -49,6 +54,7 @@ export const list = authedQuery({
     }
     return out;
   },
+  returns: v.array(messageDoc),
 });
 
 export const send = authedMutation({
@@ -60,24 +66,24 @@ export const send = authedMutation({
     driverKind: v.optional(providerKind),
     model: v.optional(v.string()),
   },
-  returns: v.object({
-    messageId: v.id("messages"),
-    dispatched: v.boolean(),
-    assistantMessageId: v.optional(v.id("messages")),
-    jobId: v.optional(v.id("jobs")),
-    driverKind: v.optional(providerKind),
-    model: v.optional(v.string()),
-  }),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
 
     const body = args.body.trim();
-    if (body.length < 1) throw new Error("Message is required");
-    if (body.length > 20000) throw new Error("Message is too long");
+    if (body.length < 1) {
+      throw new Error("Message is required");
+    }
+    if (body.length > 20_000) {
+      throw new Error("Message is too long");
+    }
     const explicit = explicitTarget(args);
 
     const mentions = parseMentions(body);
@@ -112,8 +118,14 @@ export const send = authedMutation({
     // Fallback when nothing is @mentioned: composer pick > chat binding >
     // whatever the runtime has installed (legacy DMs / `@agent`).
     const bound: AgentTarget | undefined =
-      explicit ?? (chat.driverKind ? { driverKind: chat.driverKind, model: chat.model } : undefined);
-    const wantedKind = preferredProvider(mentions, bound?.driverKind ?? "codex");
+      explicit ??
+      (chat.driverKind
+        ? { driverKind: chat.driverKind, model: chat.model }
+        : undefined);
+    const wantedKind = preferredProvider(
+      mentions,
+      bound?.driverKind ?? "codex"
+    );
     const runtime = await pickRuntime(ctx, {
       orgId: chat.orgId,
       userId: ctx.user._id,
@@ -123,7 +135,7 @@ export const send = authedMutation({
     });
     const target = preferredTarget(
       mentions,
-      bound ?? { driverKind: runtime?.installedDriver ?? "codex" },
+      bound ?? { driverKind: runtime?.installedDriver ?? "codex" }
     );
     const { driverKind, model } = target;
 
@@ -137,7 +149,13 @@ export const send = authedMutation({
         driverKind,
         model,
       });
-      return { messageId, dispatched: true, assistantMessageId, driverKind, model };
+      return {
+        messageId,
+        dispatched: true,
+        assistantMessageId,
+        driverKind,
+        model,
+      };
     }
 
     const assistantMessageId = await ctx.db.insert("messages", {
@@ -164,17 +182,42 @@ export const send = authedMutation({
       contextJson: JSON.stringify(context),
     });
     await ctx.db.patch("messages", assistantMessageId, { jobId });
-    return { messageId, dispatched: true, assistantMessageId, jobId, driverKind, model };
+    return {
+      messageId,
+      dispatched: true,
+      assistantMessageId,
+      jobId,
+      driverKind,
+      model,
+    };
   },
+  returns: v.object({
+    messageId: v.id("messages"),
+    dispatched: v.boolean(),
+    assistantMessageId: v.optional(v.id("messages")),
+    jobId: v.optional(v.id("jobs")),
+    driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
+  }),
 });
 
-function explicitTarget(args: { driverKind?: ProviderDriverKind; model?: string }): AgentTarget | undefined {
-  if (!args.driverKind) return undefined;
+function explicitTarget(args: {
+  driverKind?: ProviderDriverKind;
+  model?: string;
+}): AgentTarget | undefined {
+  if (!args.driverKind) {
+    return undefined;
+  }
   const trimmed = args.model?.trim();
   if (trimmed && !isValidModelSlug(trimmed)) {
-    throw new Error("Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes");
+    throw new Error(
+      "Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes"
+    );
   }
-  return { driverKind: args.driverKind, model: resolveModelSlug(args.driverKind, trimmed) };
+  return {
+    driverKind: args.driverKind,
+    model: resolveModelSlug(args.driverKind, trimmed),
+  };
 }
 
 type RuntimePick = {
@@ -202,7 +245,7 @@ async function pickRuntime(
     role: "owner" | "admin" | "member";
     hint?: Id<"runtimes">;
     wantedKind: ProviderDriverKind;
-  },
+  }
 ): Promise<RuntimePick> {
   const candidates = await ctx.db
     .query("runtimes")
@@ -216,9 +259,13 @@ async function pickRuntime(
     (runtime) =>
       runtime.status === "online" &&
       runtime.lastSeenAt !== undefined &&
-      runtime.lastSeenAt > staleBefore,
+      runtime.lastSeenAt > staleBefore
   );
-  const usable: { doc: (typeof online)[number]; hasWanted: boolean; installed: ProviderDriverKind | undefined }[] = [];
+  const usable: {
+    doc: (typeof online)[number];
+    hasWanted: boolean;
+    installed: ProviderDriverKind | undefined;
+  }[] = [];
   for (const runtime of online) {
     try {
       await assertCanUseRuntime(ctx, runtime, input.userId, input.role);
@@ -232,13 +279,19 @@ async function pickRuntime(
     const available = providers.filter((provider) => provider.available);
     usable.push({
       doc: runtime,
-      hasWanted: available.some((provider) => provider.driverKind === input.wantedKind),
+      hasWanted: available.some(
+        (provider) => provider.driverKind === input.wantedKind
+      ),
       installed: available[0]?.driverKind,
     });
   }
-  const hinted = input.hint ? usable.find((item) => String(item.doc._id) === String(input.hint)) : undefined;
+  const hinted = input.hint
+    ? usable.find((item) => String(item.doc._id) === String(input.hint))
+    : undefined;
   const pick = hinted ?? usable.find((item) => item.hasWanted) ?? usable[0];
-  if (!pick) return null;
+  if (!pick) {
+    return null;
+  }
   return {
     doc: pick.doc,
     installedDriver: pick.hasWanted ? input.wantedKind : pick.installed,

@@ -18,7 +18,10 @@ export function writeJson(key: string, value: unknown) {
 }
 
 /** useState mirrored to localStorage. */
-export function useStoredState<T>(key: string, fallback: T): [T, (next: T | ((current: T) => T)) => void] {
+export function useStoredState<T>(
+  key: string,
+  fallback: T
+): [T, (next: T | ((current: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => readJson(key, fallback));
   useEffect(() => {
     setValue(readJson(key, fallback));
@@ -27,12 +30,15 @@ export function useStoredState<T>(key: string, fallback: T): [T, (next: T | ((cu
   const set = useCallback(
     (next: T | ((current: T) => T)) => {
       setValue((current) => {
-        const resolved = typeof next === "function" ? (next as (current: T) => T)(current) : next;
+        const resolved =
+          typeof next === "function"
+            ? (next as (current: T) => T)(current)
+            : next;
         writeJson(key, resolved);
         return resolved;
       });
     },
-    [key],
+    [key]
   );
   return [value, set];
 }
