@@ -21,6 +21,7 @@ import {
   nextDeployAction,
   parseCloudflareUrl,
   previewSkipReason,
+  productionSiteUrlError,
   readEnvPresence,
   resolvePublicSiteUrl,
   toConvexSiteUrl,
@@ -172,6 +173,13 @@ function succeed(name, output) {
     name,
     override: process.env.PUBLIC_SITE_URL,
   });
+  if (name === "production") {
+    const siteError = productionSiteUrlError(publicSiteUrl);
+    if (siteError) {
+      console.error(`::error::${siteError}`);
+      process.exit(1);
+    }
+  }
   writeOutputs({
     cloudflare_url: url,
     public_site_url: publicSiteUrl,

@@ -269,7 +269,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth の署名鍵（本番・staging・preview deploy ごとに設定される） |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | （任意）Google OAuth のクライアント ID / シークレット。設定時のみ Google ログインが有効 |
 
-`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` は CI が公開サイトの origin を設定するため保存不要（本番は `https://tahcode.com`。staging / preview は wrangler が返す workers.dev / preview-alias URL。`tahcode.gawara.workers.dev` は Worker hostname として残す）。
+`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` は CI が公開サイトの origin を設定するため保存不要（本番は `https://tahcode.com`。staging / preview は wrangler が返す workers.dev / preview-alias URL。`tahcode.gawara.workers.dev` は Worker hostname として残す）。本番デプロイは `SITE_URL` が workers.dev なら fail-close する。
 
 ### Convex Auth の署名鍵（重要）
 
