@@ -23,6 +23,7 @@ import type {
 import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
+import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
 import {
   MENTION_BOUNDARY,
@@ -463,7 +464,9 @@ export function Composer({
     },
     {
       action: () => org.openDialog({ kind: "registerRuntime" }),
-      desc: "マシンランタイムを登録",
+      desc: isDesktopShell()
+        ? registerRuntimeCtaLabel()
+        : "マシンランタイムを登録",
       icon: <Cpu size={14} />,
       key: "runtime",
       name: "/runtime",
@@ -560,7 +563,9 @@ export function Composer({
       emptyHint: "ランタイムがありません",
       footer:
         (org.runtimes ?? []).length === 0
-          ? "「/runtime」でこのマシンを登録（npm i -g tahcode）"
+          ? isDesktopShell()
+            ? `「/runtime」で${registerRuntimeCtaLabel()}`
+            : "「/runtime」でこのマシンを登録（npm i -g tahcode）"
           : "default deny — 許可のないマシンは選べません",
       icon: <Cpu size={12} />,
       id: "runtime",

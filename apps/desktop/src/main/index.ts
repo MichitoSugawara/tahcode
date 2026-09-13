@@ -14,6 +14,7 @@ import {
 import type { ServerPreset, ShellConfig } from "./config";
 import { findDeepLink, loginReturnUrl, parseAuthCallback } from "./deepLink";
 import { fallbackPage } from "./fallback";
+import { installLocalRuntimeIpc } from "./ipc";
 import { installMenu } from "./menu";
 
 /* ─────────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ if (gotLock) {
 
   void app.whenReady().then(() => {
     hardenSession();
+    installLocalRuntimeIpc(() => config);
     installMenu(config, () => win, { reload, switchServer });
     createWindow();
     if (pendingDeepLink) {

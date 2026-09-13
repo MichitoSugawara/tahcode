@@ -10,7 +10,7 @@ tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token 
 tahcode start
 ```
 
-The `link` line is issued by the tahcode web UI (Runtime タブ →「このマシンを登録」); the token is shown once.
+The `link` line is issued by the tahcode web UI (Runtime タブ →「このマシンを登録」); the token is shown once. The desktop app can run `link` + `start` itself via **この Mac を登録** (see [`apps/desktop/README.md`](../../apps/desktop/README.md)).
 
 ## What it does
 

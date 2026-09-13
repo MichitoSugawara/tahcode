@@ -18,6 +18,7 @@ import ToolChips from "@/components/primitives/ToolChips";
 import type { ToolStep } from "@/components/primitives/ToolChips";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
+import { registerRuntimeCtaLabel } from "@/lib/desktop";
 import { copyText, clockTime } from "@/lib/format";
 import { providerColor, providerLabel } from "@/lib/providers";
 
@@ -270,7 +271,7 @@ export function AgentReply({
                 variant="accent"
                 onClick={() => openDialog({ kind: "registerRuntime" })}
               >
-                <Cpu size={12} /> このマシンを登録
+                <Cpu size={12} /> {registerRuntimeCtaLabel()}
               </Button>
               <span className="text-ink-3 self-center text-[11.5px]">
                 登録済みなら <code className="font-mono">tahcode start</code>{" "}

@@ -5,6 +5,7 @@ import { Composer, useSendMessage } from "@/harness/Composer";
 import { EmptyHero } from "@/harness/EmptyHero";
 import type { Suggestion } from "@/harness/EmptyHero";
 import { isLive, useOrg } from "@/harness/OrgContext";
+import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { displayName } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/title";
 
@@ -57,7 +58,9 @@ export default function HomePage() {
       steps.push({
         icon: <Cpu size={15} />,
         key: "runtime",
-        label: "このマシンをランタイムとして登録する",
+        label: isDesktopShell()
+          ? registerRuntimeCtaLabel()
+          : "このマシンをランタイムとして登録する",
         onClick: () => org.openDialog({ kind: "registerRuntime" }),
       });
     } else if (liveRuntimes.length === 0) {

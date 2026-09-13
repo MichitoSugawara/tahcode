@@ -1,5 +1,8 @@
 import { DESKTOP_BRIDGE_KEY } from "@tahcode/core/desktop";
-import type { TahcodeDesktopBridge } from "@tahcode/core/desktop";
+import type {
+  DesktopCliStatus,
+  TahcodeDesktopBridge,
+} from "@tahcode/core/desktop";
 
 /* ─────────────────────────────────────────────────────────
  * Bridge to the desktop shell (apps/desktop, Electron).
@@ -45,4 +48,38 @@ export function oauthRedirectTo(safeNext: string): string {
 /** True when the shell hands Google off to the system browser. */
 export function oauthLeavesApp(): boolean {
   return getDesktopBridge()?.oauthStrategy === "system-browser";
+}
+
+/** Primary CTA for Register Runtime / empty states. */
+export function registerRuntimeCtaLabel(): string {
+  return isDesktopShell() ? "この Mac を登録" : "このマシンを登録";
+}
+
+export function registerRuntimeHint(): string {
+  return isDesktopShell() ? "ワンクリック" : "npm i -g tahcode";
+}
+
+export async function desktopHostnameOrNull(): Promise<string | null> {
+  const bridge = getDesktopBridge();
+  if (!bridge) {
+    return null;
+  }
+  try {
+    const hostname = await bridge.getHostname();
+    return hostname.trim().length > 0 ? hostname : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function desktopCliStatusOrNull(): Promise<DesktopCliStatus | null> {
+  const bridge = getDesktopBridge();
+  if (!bridge) {
+    return null;
+  }
+  try {
+    return await bridge.getCliStatus();
+  } catch {
+    return null;
+  }
 }

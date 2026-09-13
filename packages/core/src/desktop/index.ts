@@ -8,6 +8,12 @@
  *   desktop apps/desktop/src/main + preload  parses the deep link, exposes the bridge
  * ───────────────────────────────────────────────────────── */
 
+import type {
+  DesktopCliStatus,
+  RegisterLocalRuntimeRequest,
+  RegisterLocalRuntimeResult,
+} from "./register";
+
 export const DEEP_LINK_SCHEME = "tahcode";
 
 /** Where Convex Auth sends the browser after Google when the shell started the flow. */
@@ -18,7 +24,7 @@ export const DESKTOP_BRIDGE_KEY = "tahcodeDesktop";
 
 export type OAuthStrategy = "system-browser" | "in-app";
 
-/** The only surface the web app sees inside the shell (read-only, contextBridge). */
+/** The only surface the web app sees inside the shell (contextBridge). */
 export interface TahcodeDesktopBridge {
   /** apps/desktop/package.json version */
   version: string;
@@ -26,6 +32,17 @@ export interface TahcodeDesktopBridge {
   oauthStrategy: OAuthStrategy;
   /** `redirectTo` for `signIn("google", …)`, or null to keep the browser default. */
   oauthRedirectTo: (next: string) => string | null;
+  /** OS hostname (Bonjour `.local` still attached; UI may strip it). */
+  getHostname: () => Promise<string>;
+  /** Whether `tahcode` / `npm` are on the augmented PATH. */
+  getCliStatus: () => Promise<DesktopCliStatus>;
+  /**
+   * Main process: ensure the CLI, then `tahcode link` + `tahcode start`.
+   * The renderer must not pass a command string — only the Convex-issued fields.
+   */
+  registerLocalRuntime: (
+    request: RegisterLocalRuntimeRequest
+  ) => Promise<RegisterLocalRuntimeResult>;
 }
 
 export interface AuthCallback {
@@ -125,3 +142,29 @@ export function resolveRedirectTo(redirectTo: string, siteUrl: string): string {
     `Invalid redirectTo ${redirectTo} for configured SITE_URL: ${base}`
   );
 }
+
+export {
+  DESKTOP_IPC,
+  MACHINE_NAME_MAX,
+  displayHostname,
+  fallbackRegisterCommands,
+  guessBrowserMachineName,
+  isAllowedConvexUrl,
+  isAllowedMachineName,
+  isAllowedRuntimeId,
+  isAllowedRuntimeToken,
+  looksLikeElevationError,
+  mergePath,
+  parseRegisterLocalRuntimeRequest,
+  posixShellQuote,
+  redactSecrets,
+} from "./register";
+export type {
+  DesktopCliStatus,
+  DesktopDoctorGuidance,
+  DesktopRegisterErrorCode,
+  RegisterLocalRuntimeErr,
+  RegisterLocalRuntimeOk,
+  RegisterLocalRuntimeRequest,
+  RegisterLocalRuntimeResult,
+} from "./register";

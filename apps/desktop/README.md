@@ -50,7 +50,7 @@ open apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg
 | 配布サイズ | ~200 MB（Chromium 込み） | ~10 MB |
 | 署名 / 公証 | electron-builder に `notarize` 内蔵 | tauri-bundler でも可能 |
 
-判断: このシェルは**「Web アプリを 1 枚のウィンドウに載せて OAuth と deep link を正しく扱う」**ことだけが仕事で、Rust で書くネイティブ機能がない。Chromium との描画一致と、Linux CI で実機相当の起動確認（本 PR のスクリーンショットはすべて Ubuntu の xvfb 上で撮影）ができる点を優先し、サイズの不利は許容した。将来、ネイティブ機能（メニューバー常駐、ローカル CLI の直接起動など）が増えても Electron の main プロセスで足りる想定。
+判断: このシェルは**「Web アプリを 1 枚のウィンドウに載せて OAuth / deep link / この Mac の登録を正しく扱う」**ことが仕事で、Rust で書くネイティブ機能がない。Chromium との描画一致と、Linux CI で実機相当の起動確認（本 PR のスクリーンショットはすべて Ubuntu の xvfb 上で撮影）ができる点を優先し、サイズの不利は許容した。ローカル CLI の起動は Electron の main プロセス（下記）で行う。
 
 ## アーキテクチャ
 
@@ -60,6 +60,8 @@ apps/desktop/                       # @tahcode/desktop（Multica の apps/deskto
 ├── src/main/index.ts               # app ライフサイクル、BrowserWindow、ナビゲーション境界、deep link、smoke モード
 ├── src/main/config.ts              # 接続先の解決（--url / env / settings.json / production）
 ├── src/main/deepLink.ts            # @tahcode/core/desktop の re-export（parse / loginReturnUrl）
+├── src/main/ipc.ts                 # allow-list IPC（hostname / CLI status / registerLocalRuntime）
+├── src/main/localRuntime.ts        # main が tahcode CLI を探して link + start（任意シェルは不可）
 ├── src/main/menu.ts                # macOS メニュー（Edit/View/Server/Window/Help）
 ├── src/main/fallback.ts            # オフライン時の data: URL ページ（再接続ボタン）
 ├── src/preload/index.ts            # contextBridge → window.tahcodeDesktop（TahcodeDesktopBridge 型を実装）
@@ -70,20 +72,38 @@ out/                                # electron-vite の出力（main/index.js, p
 
 packages/core/src/desktop/index.ts  # @tahcode/core/desktop — Web / Convex / Desktop が共有する契約:
                                     #   DEEP_LINK_SCHEME, DESKTOP_OAUTH_CALLBACK, TahcodeDesktopBridge,
-                                    #   desktopOAuthRedirectTo, parseAuthCallback, loginReturnUrl, resolveRedirectTo
+                                    #   desktopOAuthRedirectTo, parseAuthCallback, loginReturnUrl, resolveRedirectTo,
+                                    #   DESKTOP_IPC + registerLocalRuntime の引数検証
 ```
 
 `@tahcode/core` は TS ソースをそのまま `exports` する（Multica の `@multica/core` と同じ、ビルド工程なし）。Vite / Convex のバンドラ / electron-vite がそれぞれ取り込む。preload は sandbox で `require("electron")` 以外を読めないため、 `externalizeDepsPlugin({ exclude: ["@tahcode/core"] })` で単一 CJS にインライン化している。
 
 Web / Convex 側（同じ PR）:
 
-- `src/lib/desktop.ts` — `window.tahcodeDesktop` を読む薄いアクセサ。型は `@tahcode/core/desktop`。ブラウザでは undefined → 従来動作。
+- `src/lib/desktop.ts` — `window.tahcodeDesktop` を読む薄いアクセサ。型は `@tahcode/core/desktop`。ブラウザでは undefined → 従来動作（コピペ 3 行）。デスクトップでは「この Mac を登録」。
 - `src/pages/LoginPage.tsx` — 「Google で続ける」が `redirectTo` にシェル用アドレスを渡す。待機中のラベルとキャンセル。
 - `convex/lib/authRedirect.ts`（`@tahcode/core/desktop` の re-export）+ `convex/auth.ts` — Convex Auth の `callbacks.redirect` で `tahcode://auth/callback` を**厳密一致**で許可（それ以外は既定ルール = 相対パス / `SITE_URL` のまま。`tests/authRedirect.test.ts`）。
 
+### この Mac を登録（ワンクリック）
+
+`window.tahcodeDesktop` があるときだけ、Register Runtime と空状態 CTA の主ボタンは **この Mac を登録** になる。流れ:
+
+1. マシン名の初期値は OS の hostname（末尾 `.local` は除く）。取れなければ従来の `guessMachineName`。
+2. レンダラが Convex `runtimes.register` を呼び、`runtimeId` + ワンタイムトークンを受け取る（ブラウザと同じ mutation）。
+3. preload が `registerLocalRuntime({ convexUrl, runtimeId, token, name })` を **invoke するだけ**。コマンド文字列は渡せない。
+4. main（`localRuntime.ts`）が引数を `@tahcode/core/desktop` で検証し、`tahcode` を探す。無ければ `npm install --global tahcode --prefix ~/.tahcode/npm`（管理者権限不要のユーザ prefix）。`TAHCODE_CLI` でバイナリを上書きできる。
+5. 同じプロセスが `tahcode link --url … --runtime … --token … --name …` → `tahcode start` を **argv 配列で spawn**（shell なし）。トークンはログに出さない。
+6. UI は 登録中 → CLI 準備 → 接続待ち。既存のハートビート検出でオンラインに切り替わる。
+7. Multica 未導入 / 未ログイン / daemon 未起動なら doctor 相当の案内を出し、黙って成功にはしない。失敗時はブラウザと同じ 3 行をフォールバック表示。
+
+ブラウザ（橋なし）のコピペ 3 行は従来どおり。default deny の「他のメンバーに許可」もそのまま。
+
+インストールに `EACCES` が出たとき（グローバル prefix が書けない等）は、手動コマンドを案内して止める。
+
 ### セキュリティ境界
 
-- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で読み取り専用の 4 プロパティだけ公開。
+- `contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`。preload は `contextBridge` で OAuth 用の読み取り値と、allow-list の 3 invoke（`getHostname` / `getCliStatus` / `registerLocalRuntime`）だけ公開。任意のシェルは無い。
+- IPC の送信元 URL は `isAppOrigin` で検証する（アプリのオリジン以外は拒否）。
 - `will-navigate` / `will-redirect` / `setWindowOpenHandler`: **アプリのオリジン以外へは一切遷移しない**。http(s) は `shell.openExternal`（システムブラウザ）、それ以外はブロック。
 - `setPermissionRequestHandler`: notifications / clipboard / fullscreen 以外の権限要求は拒否。
 - 単一インスタンス（`requestSingleInstanceLock`）。2 つ目の起動は deep link を既存ウィンドウへ転送。

@@ -6,6 +6,7 @@ import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
+import { registerRuntimeCtaLabel } from "@/lib/desktop";
 import { displayName } from "@/lib/format";
 import { agentMention, isProviderKind } from "@/lib/providers";
 
@@ -258,7 +259,7 @@ export function Thread({
                   variant="accent"
                   onClick={() => org.openDialog({ kind: "registerRuntime" })}
                 >
-                  <Cpu size={12} /> このマシンを登録
+                  <Cpu size={12} /> {registerRuntimeCtaLabel()}
                 </Button>
               }
             >
