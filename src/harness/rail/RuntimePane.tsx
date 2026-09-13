@@ -15,6 +15,7 @@ import { StatusPill } from "@/components/atoms/StatusPill";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Runtime } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
+import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { displayName, relativeTime, roleLabel } from "@/lib/format";
 import { PROVIDERS, mergeModelCatalog } from "@/lib/providers";
 
@@ -279,24 +280,34 @@ export function RuntimePane() {
               variant="accent"
               onClick={() => openDialog({ kind: "registerRuntime" })}
             >
-              <Plus size={13} /> このマシンを登録
+              <Plus size={13} /> {registerRuntimeCtaLabel()}
             </Button>
           }
         >
-          エージェントはあなたの手元のマシンで Multica daemon
-          経由で動きます。登録すると{" "}
-          <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
-            npm i -g tahcode
-          </code>{" "}
-          →{" "}
-          <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
-            tahcode link
-          </code>{" "}
-          →{" "}
-          <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
-            tahcode start
-          </code>{" "}
-          のコマンドが発行されます。
+          {isDesktopShell() ? (
+            <>
+              エージェントはあなたの手元のマシンで Multica daemon
+              経由で動きます。「{registerRuntimeCtaLabel()}
+              」でこの Mac の tahcode CLI を接続します。
+            </>
+          ) : (
+            <>
+              エージェントはあなたの手元のマシンで Multica daemon
+              経由で動きます。登録すると{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                npm i -g tahcode
+              </code>{" "}
+              →{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                tahcode link
+              </code>{" "}
+              →{" "}
+              <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
+                tahcode start
+              </code>{" "}
+              のコマンドが発行されます。
+            </>
+          )}
         </Notice>
       ) : (
         <>
@@ -335,7 +346,8 @@ export function RuntimePane() {
             className="self-start"
             onClick={() => openDialog({ kind: "registerRuntime" })}
           >
-            <Plus size={13} /> 別のマシンを登録
+            <Plus size={13} />{" "}
+            {isDesktopShell() ? "別の Mac を登録" : "別のマシンを登録"}
           </Button>
         </>
       )}

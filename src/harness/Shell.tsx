@@ -27,6 +27,7 @@ import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { RightRail } from "@/harness/rail/RightRail";
 import type { RailTab } from "@/harness/rail/RightRail";
+import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { monogram, roleLabel, truncate } from "@/lib/format";
 import type { Theme } from "@/lib/theme";
 
@@ -220,7 +221,9 @@ function Sidebar({
       }}
       footerLabel={
         runtimeCount === 0
-          ? "ランタイムを登録"
+          ? isDesktopShell()
+            ? registerRuntimeCtaLabel()
+            : "ランタイムを登録"
           : liveCount === 0
             ? "ランタイムがオフライン"
             : `ランタイム ${liveCount} 台オンライン`

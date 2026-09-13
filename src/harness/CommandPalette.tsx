@@ -17,6 +17,11 @@ import { useEffect, useMemo, useState } from "react";
 import SearchList from "@/components/primitives/SearchList";
 import type { SearchItem } from "@/components/primitives/SearchList";
 import { useOrg } from "@/harness/OrgContext";
+import {
+  isDesktopShell,
+  registerRuntimeCtaLabel,
+  registerRuntimeHint,
+} from "@/lib/desktop";
 
 /* ─────────────────────────────────────────────────────────
  * COMMAND PALETTE — ⌘K / Ctrl+K. Beautiful UI's Search primitive
@@ -108,10 +113,12 @@ export function CommandPalette({
         onSelect: run(() => org.openDialog({ kind: "createProject" })),
       },
       {
-        hint: "npm i -g tahcode",
+        hint: registerRuntimeHint(),
         icon: <Cpu size={14} />,
         key: "runtime",
-        label: "このマシンをランタイムとして登録",
+        label: isDesktopShell()
+          ? registerRuntimeCtaLabel()
+          : "このマシンをランタイムとして登録",
         onSelect: run(() => org.openDialog({ kind: "registerRuntime" })),
       },
       ...(org.isAdmin
