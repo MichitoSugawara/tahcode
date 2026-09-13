@@ -130,7 +130,10 @@ function main() {
       console.log(`::notice::Convex preview ready: ${name}`);
       process.exit(0);
     }
-    if (isEnvChangedDuringPush(result.output) && envRetries < ENV_PUSH_RETRIES) {
+    if (
+      isEnvChangedDuringPush(result.output) &&
+      envRetries < ENV_PUSH_RETRIES
+    ) {
       envRetries += 1;
       console.log(
         `::warning::Convex env changed during push for "${name}". Retrying (${envRetries}/${ENV_PUSH_RETRIES}).`
