@@ -10,7 +10,7 @@ tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token 
 tahcode start
 ```
 
-The `link` line is issued by the tahcode web UI (Runtime タブ →「このマシンを登録」); the token is shown once. The desktop app can run `link` + `start` itself via **この Mac を登録** (see [`apps/desktop/README.md`](../../apps/desktop/README.md)).
+The `link` line is issued by the tahcode web UI (Runtime タブ →「このマシンを登録」); the token is shown once. The desktop app can run `link` and then restart/start the bridge itself via **この Mac を登録** (see [`apps/desktop/README.md`](../../apps/desktop/README.md)).
 
 ## What it does
 
@@ -26,7 +26,7 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 
 | Command | Description |
 | --- | --- |
-| `tahcode link --url … --runtime … --token … [--name …]` | Store the link in `~/.tahcode/config.json` (0600) after verifying it against the backend. Also accepts the env block on stdin. |
+| `tahcode link --url … --runtime … --token … [--name …] [--no-restart]` | Store the link in `~/.tahcode/config.json` (0600) after verifying it against the backend. If a bridge is already running, restart it against the new url/runtime/token (`--no-restart` skips that). Also accepts the env block on stdin. |
 | `tahcode start [--foreground] [--no-daemon] [--cwd dir] [--provider kind]` | Start the Multica daemon (device name = machine name), then start the tahcode bridge **in the background** and return. `--foreground` keeps the bridge in this terminal (Ctrl+C to stop). `--detach` is the explicit default. `run` is an alias. |
 | `tahcode status` | Link status, bridge status (pid / mode / uptime / log file, launchd registration on macOS) and `multica daemon status`. |
 | `tahcode stop [bridge\|multica\|all]` | Stop the bridge (SIGTERM → SIGKILL after 5 s) and/or `multica daemon stop`. Default `all`. |

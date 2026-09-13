@@ -1,13 +1,15 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import {
   fallbackRegisterCommands,
+  linkArgv,
   looksLikeElevationError,
   mergePath,
   parseRegisterLocalRuntimeRequest,
+  planRegisterAfterLink,
   redactSecrets,
 } from "@tahcode/core/desktop";
 import type {
@@ -15,13 +17,17 @@ import type {
   DesktopDoctorGuidance,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
+  RegisterProgressStep,
 } from "@tahcode/core/desktop";
 
 /* ─────────────────────────────────────────────────────────
  * Register this machine from the Electron main process.
  *
  * The renderer only sends { convexUrl, runtimeId, token, name }.
- * Every child is spawned with an argv array (never a shell).
+ * Every child is spawned with an argv array (never a shell):
+ *   tahcode link … --no-restart
+ *   tahcode restart bridge   (existing bridge)
+ *   tahcode start --no-daemon (first start; Multica is not required)
  * The raw token is never logged.
  * ───────────────────────────────────────────────────────── */
 
@@ -65,7 +71,8 @@ export async function getCliStatus(): Promise<DesktopCliStatus> {
 }
 
 export async function registerLocalRuntime(
-  raw: unknown
+  raw: unknown,
+  onProgress?: (step: RegisterProgressStep) => void
 ): Promise<RegisterLocalRuntimeResult> {
   const parsed = parseRegisterLocalRuntimeRequest(raw);
   if (!parsed.ok) {
@@ -82,7 +89,11 @@ export async function registerLocalRuntime(
   const request = parsed.value;
   const fallbackCommands = fallbackRegisterCommands(request);
   try {
-    return await registerLocalRuntimeUnchecked(request, fallbackCommands);
+    return await registerLocalRuntimeUnchecked(
+      request,
+      fallbackCommands,
+      onProgress
+    );
   } finally {
     registerInFlight = false;
   }
@@ -90,34 +101,31 @@ export async function registerLocalRuntime(
 
 async function registerLocalRuntimeUnchecked(
   request: RegisterLocalRuntimeRequest,
-  fallbackCommands: string[]
+  fallbackCommands: string[],
+  onProgress?: (step: RegisterProgressStep) => void
 ): Promise<RegisterLocalRuntimeResult> {
   const env = cliEnv();
+  const existingCli = findOnPath(CLI_NAMES, env.PATH ?? "");
+  if (!existingCli) {
+    onProgress?.("installing-cli");
+  }
   const ensured = await ensureCli(env, fallbackCommands, request.token);
   if (!ensured.ok) {
     return ensured;
   }
 
   const { cliPath, installedCli } = ensured;
+  const bridgeAlreadyRunning = bridgeLooksRunning();
+  const followup = planRegisterAfterLink(bridgeAlreadyRunning);
   console.log(
     `tahcode desktop: linking runtime ${request.runtimeId.slice(0, 8)}…`
   );
+  onProgress?.("linking");
 
-  const linked = await run(
-    cliPath,
-    [
-      "link",
-      "--url",
-      request.convexUrl,
-      "--runtime",
-      request.runtimeId,
-      "--token",
-      request.token,
-      "--name",
-      request.name,
-    ],
-    { env, timeoutMs: LINK_TIMEOUT_MS }
-  );
+  const linked = await run(cliPath, linkArgv(request), {
+    env,
+    timeoutMs: LINK_TIMEOUT_MS,
+  });
   if (linked.code !== 0) {
     return commandFailed(
       "link-failed",
@@ -128,22 +136,54 @@ async function registerLocalRuntimeUnchecked(
     );
   }
 
-  const started = await run(cliPath, ["start"], {
+  onProgress?.(followup.progress);
+  const headline = bridgeAlreadyRunning
+    ? "tahcode ブリッジの再起動に失敗しました。"
+    : "tahcode start に失敗しました。";
+  console.log(
+    bridgeAlreadyRunning
+      ? "tahcode desktop: restarting the existing bridge on the new link"
+      : "tahcode desktop: starting the bridge on the new link"
+  );
+  const followed = await run(cliPath, [...followup.args], {
     env,
     timeoutMs: START_TIMEOUT_MS,
   });
-  if (started.code !== 0) {
+  if (followed.code !== 0) {
     return commandFailed(
       "start-failed",
-      "tahcode start に失敗しました。",
-      started,
+      headline,
+      followed,
       request.token,
       fallbackCommands
     );
   }
 
   const guidance = await inspectMultica(env);
-  return { cliPath, guidance, installedCli, ok: true };
+  return {
+    cliPath,
+    guidance,
+    installedCli,
+    ok: true,
+    restartedBridge: bridgeAlreadyRunning,
+  };
+}
+
+/** Live pid in ~/.tahcode/bridge.json — used only to pick restart vs start + progress. */
+function bridgeLooksRunning(): boolean {
+  const statePath = path.join(os.homedir(), ".tahcode", "bridge.json");
+  try {
+    const parsed = JSON.parse(readFileSync(statePath, "utf-8")) as {
+      pid?: unknown;
+    };
+    if (typeof parsed.pid !== "number") {
+      return false;
+    }
+    process.kill(parsed.pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
 }
 
 async function ensureCli(

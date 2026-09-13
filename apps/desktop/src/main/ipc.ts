@@ -2,6 +2,7 @@ import { DESKTOP_IPC } from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
   RegisterLocalRuntimeResult,
+  RegisterProgressStep,
 } from "@tahcode/core/desktop";
 import { ipcMain } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
@@ -23,7 +24,8 @@ const UNAVAILABLE_CLI: DesktopCliStatus = {
 
 /**
  * Allow-listed IPC for the web app. The renderer cannot run an arbitrary
- * command — only hostname, CLI status, and the fixed register sequence.
+ * command — only hostname, CLI status, and the fixed register sequence
+ * (plus progress events on that sequence).
  */
 export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
   ipcMain.handle(DESKTOP_IPC.getHostname, (event) => {
@@ -53,9 +55,21 @@ export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
           ok: false,
         };
       }
-      return await registerLocalRuntime(request);
+      return await registerLocalRuntime(request, (step) => {
+        sendRegisterProgress(event, step);
+      });
     }
   );
+}
+
+function sendRegisterProgress(
+  event: IpcMainInvokeEvent,
+  step: RegisterProgressStep
+): void {
+  if (event.sender.isDestroyed()) {
+    return;
+  }
+  event.sender.send(DESKTOP_IPC.registerProgress, step);
 }
 
 function isTrustedSender(

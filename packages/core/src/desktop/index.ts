@@ -12,6 +12,7 @@ import type {
   DesktopCliStatus,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
+  RegisterProgressStep,
 } from "./register";
 
 export const DEEP_LINK_SCHEME = "tahcode";
@@ -37,11 +38,13 @@ export interface TahcodeDesktopBridge {
   /** Whether `tahcode` / `npm` are on the augmented PATH. */
   getCliStatus: () => Promise<DesktopCliStatus>;
   /**
-   * Main process: ensure the CLI, then `tahcode link` + `tahcode start`.
-   * The renderer must not pass a command string — only the Convex-issued fields.
+   * Main process: ensure the CLI, then `tahcode link` and restart/start the
+   * bridge against the new config. The renderer must not pass a command
+   * string — only the Convex-issued fields and an optional progress sink.
    */
   registerLocalRuntime: (
-    request: RegisterLocalRuntimeRequest
+    request: RegisterLocalRuntimeRequest,
+    onProgress?: (step: RegisterProgressStep) => void
   ) => Promise<RegisterLocalRuntimeResult>;
 }
 
@@ -145,7 +148,9 @@ export function resolveRedirectTo(redirectTo: string, siteUrl: string): string {
 
 export {
   DESKTOP_IPC,
+  LINK_NO_RESTART_FLAG,
   MACHINE_NAME_MAX,
+  REGISTER_PROGRESS_STEPS,
   displayHostname,
   fallbackRegisterCommands,
   guessBrowserMachineName,
@@ -153,9 +158,12 @@ export {
   isAllowedMachineName,
   isAllowedRuntimeId,
   isAllowedRuntimeToken,
+  isRegisterProgressStep,
+  linkArgv,
   looksLikeElevationError,
   mergePath,
   parseRegisterLocalRuntimeRequest,
+  planRegisterAfterLink,
   posixShellQuote,
   redactSecrets,
 } from "./register";
@@ -167,4 +175,5 @@ export type {
   RegisterLocalRuntimeOk,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
+  RegisterProgressStep,
 } from "./register";

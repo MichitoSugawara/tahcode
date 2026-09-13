@@ -4,7 +4,10 @@ import {
   fallbackRegisterCommands,
   guessBrowserMachineName,
 } from "@tahcode/core/desktop";
-import type { DesktopDoctorGuidance } from "@tahcode/core/desktop";
+import type {
+  DesktopDoctorGuidance,
+  RegisterProgressStep,
+} from "@tahcode/core/desktop";
 import { useMutation } from "convex/react";
 import { Check, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -34,11 +37,18 @@ import type { Id } from "../../../convex/_generated/dataModel";
 /* ─────────────────────────────────────────────────────────
  * REGISTER RUNTIME — name this machine, receive a one-time
  * token. In a browser the user copies 3 commands. In the
- * desktop shell, main runs tahcode link + start and this
- * dialog waits for the first heartbeat.
+ * desktop shell, main runs tahcode link and restarts a
+ * running bridge (or starts one) and this dialog waits
+ * for the first heartbeat.
  * ───────────────────────────────────────────────────────── */
 
-type Phase = "form" | "registering" | "cli" | "waiting";
+type Phase =
+  | "form"
+  | "registering"
+  | "cli"
+  | "restarting"
+  | "starting"
+  | "waiting";
 
 function guessMachineName(): string {
   return guessBrowserMachineName(navigator.userAgent);
@@ -58,6 +68,7 @@ export function RegisterRuntimeDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("form");
+  const [restartedBridge, setRestartedBridge] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [guidance, setGuidance] = useState<DesktopDoctorGuidance | null>(null);
   const [cliLabel, setCliLabel] = useState<string | null>(null);
@@ -75,6 +86,7 @@ export function RegisterRuntimeDialog({
     setGuidance(null);
     setShowFallback(false);
     setPhase("form");
+    setRestartedBridge(false);
     setBusy(false);
     setName(guessMachineName());
     if (!desktop) {
@@ -137,7 +149,11 @@ export function RegisterRuntimeDialog({
     ];
   }, [convexUrl, desktop, issued, name]);
 
-  const inProgress = phase === "registering" || phase === "cli";
+  const inProgress =
+    phase === "registering" ||
+    phase === "cli" ||
+    phase === "restarting" ||
+    phase === "starting";
   const showIssued = issued !== null && !inProgress;
 
   return (
@@ -224,7 +240,7 @@ export function RegisterRuntimeDialog({
       }
     >
       {inProgress ? (
-        <ProgressView phase={phase} />
+        <ProgressView phase={phase} restartedBridge={restartedBridge} />
       ) : showIssued ? (
         <IssuedView
           desktop={desktop}
@@ -233,6 +249,7 @@ export function RegisterRuntimeDialog({
           guidance={guidance}
           lines={lines}
           live={live}
+          restartedBridge={restartedBridge}
           runtimeName={runtime?.name}
           showCommands={!desktop || showFallback}
         />
@@ -275,12 +292,20 @@ export function RegisterRuntimeDialog({
                 return;
               }
               setPhase("cli");
-              const linked = await bridge.registerLocalRuntime({
-                convexUrl,
-                name: name.trim() || "machine",
-                runtimeId: String(result.runtimeId),
-                token: result.token,
-              });
+              const linked = await bridge.registerLocalRuntime(
+                {
+                  convexUrl,
+                  name: name.trim() || "machine",
+                  runtimeId: String(result.runtimeId),
+                  token: result.token,
+                },
+                (step) => {
+                  if (step === "restarting-bridge") {
+                    setRestartedBridge(true);
+                  }
+                  setPhase(phaseFromProgress(step));
+                }
+              );
               if (!linked.ok) {
                 setError(linked.message);
                 setGuidance(linked.guidance ?? null);
@@ -288,6 +313,7 @@ export function RegisterRuntimeDialog({
                 setPhase("waiting");
                 return;
               }
+              setRestartedBridge(linked.restartedBridge);
               setGuidance(linked.guidance ?? null);
               setPhase("waiting");
             } catch (caught) {
@@ -364,9 +390,25 @@ export function RegisterRuntimeDialog({
   );
 }
 
+function phaseFromProgress(step: RegisterProgressStep): Phase {
+  if (step === "restarting-bridge") {
+    return "restarting";
+  }
+  if (step === "starting-bridge") {
+    return "starting";
+  }
+  return "cli";
+}
+
 function phaseLabel(phase: Phase): string {
   if (phase === "cli") {
     return "CLI 準備…";
+  }
+  if (phase === "restarting") {
+    return "ブリッジ再起動…";
+  }
+  if (phase === "starting") {
+    return "ブリッジ起動…";
   }
   if (phase === "waiting") {
     return "接続待ち…";
@@ -374,23 +416,49 @@ function phaseLabel(phase: Phase): string {
   return "登録中…";
 }
 
-function ProgressView({ phase }: { phase: Phase }) {
+function ProgressView({
+  phase,
+  restartedBridge,
+}: {
+  phase: Phase;
+  restartedBridge: boolean;
+}) {
   return (
     <div className="flex flex-col gap-4">
-      <PhaseSteps current={phase} />
+      <PhaseSteps current={phase} restartedBridge={restartedBridge} />
       <LoadingState label={phaseLabel(phase)} variant="Dots" />
     </div>
   );
 }
 
-function PhaseSteps({ current }: { current: Phase }) {
+function stepIndex(current: Phase): number {
+  if (current === "registering") {
+    return 0;
+  }
+  if (current === "cli") {
+    return 1;
+  }
+  if (current === "restarting" || current === "starting") {
+    return 2;
+  }
+  return 3;
+}
+
+function PhaseSteps({
+  current,
+  restartedBridge,
+}: {
+  current: Phase;
+  restartedBridge: boolean;
+}) {
+  const bridgeLabel = restartedBridge ? "ブリッジ再起動" : "ブリッジ起動";
   const steps = [
     { id: "registering", label: "登録中" },
     { id: "cli", label: "CLI 準備" },
+    { id: "bridge", label: bridgeLabel },
     { id: "waiting", label: "接続待ち" },
   ] as const;
-  const order: Phase[] = ["registering", "cli", "waiting"];
-  const currentIndex = Math.max(order.indexOf(current), 0);
+  const currentIndex = stepIndex(current);
   return (
     <ol className="text-ink-3 flex flex-wrap items-center gap-1.5 text-[12px]">
       {steps.map((step, index) => (
@@ -420,6 +488,7 @@ function IssuedView({
   guidance,
   lines,
   live,
+  restartedBridge,
   runtimeName,
   showCommands,
 }: {
@@ -429,6 +498,7 @@ function IssuedView({
   guidance: DesktopDoctorGuidance | null;
   lines: string[];
   live: boolean;
+  restartedBridge: boolean;
   runtimeName: string | undefined;
   showCommands: boolean;
 }) {
@@ -439,7 +509,9 @@ function IssuedView({
         animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both",
       }}
     >
-      {desktop && <PhaseSteps current="waiting" />}
+      {desktop && (
+        <PhaseSteps current="waiting" restartedBridge={restartedBridge} />
+      )}
       {error && <InlineError>{error}</InlineError>}
       {guidance && (
         <Notice tone="warn" title={guidance.title}>

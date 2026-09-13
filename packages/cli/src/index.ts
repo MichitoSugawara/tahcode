@@ -145,8 +145,9 @@ function help(): void {
   console.log(`${BRAND} ${dim(`v${VERSION}`)} — このマシンを tahcode の Org につなぎ、Multica daemon でエージェントを動かす
 
 ${bold("使い方")}
-  ${code("tahcode link")} --url <convex-url> --runtime <id> --token <th_…> [--name <machine>]
-                        Web UI「このマシンを登録」で表示されたコマンド（~/.tahcode/config.json に保存）
+  ${code("tahcode link")} --url <convex-url> --runtime <id> --token <th_…> [--name <machine>] [--no-restart]
+                        Web UI「このマシンを登録」で表示されたコマンド（~/.tahcode/config.json に保存）。
+                        起動中のブリッジがあれば新しい接続先で再起動します（${code("--no-restart")} でスキップ）
   ${code("tahcode start")}      Multica daemon を起動し、tahcode のジョブブリッジをバックグラウンドで常駐させる
                         （${code("--foreground")} でこのターミナルで実行、Ctrl+C で停止）
   ${code("tahcode status")}     リンク状態・tahcode ブリッジ・Multica daemon の状態
@@ -168,6 +169,7 @@ ${bold("オプション")}
   --foreground        start: ブリッジをバックグラウンドにせず、このターミナルで実行（旧来の動作）
   --detach            start: バックグラウンドで実行（既定。明示したいとき用）
   --no-daemon         start / service install: Multica daemon を起動しない（ブリッジのみ）
+  --no-restart        link: 起動中のブリッジを再起動しない（デスクトップが一発登録後に自分で再起動する）
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
   --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
 
@@ -248,6 +250,18 @@ async function cmdLink(flags: Flags, positional: string[]): Promise<void> {
   }
   writeLink(link);
   ok(`保存しました: ${CONFIG_PATH}`);
+  if (!flags["no-restart"] && bridgeShouldRelink()) {
+    heading("既存のブリッジを新しい接続先で再起動します…");
+    const restarted = await restartBridgeFromCli(flags);
+    if (restarted) {
+      ok("既存のブリッジを新しい接続先で再起動しました");
+    } else {
+      warn(
+        `リンクは保存しましたが、ブリッジの再起動に失敗しました。${code("tahcode restart bridge")} を実行してください。`
+      );
+    }
+    return;
+  }
   console.log();
   info(
     `次: ${code("tahcode start")}（Multica CLI が未インストールなら ${code("tahcode install-multica")}）`
@@ -804,6 +818,47 @@ async function cmdStop(positional: string[]): Promise<void> {
   process.exit(exit);
 }
 
+function bridgeShouldRelink(): boolean {
+  return runningBridge() !== null || launchdStatus().loaded;
+}
+
+/** Restart (or start) only the tahcode bridge against the current link. */
+async function restartBridgeFromCli(flags: Flags): Promise<boolean> {
+  const previous = runningBridge();
+  if (previous?.mode === "launchd" || (!previous && launchdStatus().loaded)) {
+    const result = launchdRestart();
+    if (!result.ok) {
+      fail(`launchd で再起動できません: ${result.detail}`);
+      return false;
+    }
+    const state = await waitForBridge();
+    if (state) {
+      ok(`再起動しました（${describeBridge(state)}）`);
+    } else {
+      warn(
+        `再起動を要求しましたが、ブリッジの起動を確認できません。${code("tahcode logs")} を確認してください。`
+      );
+    }
+    return true;
+  }
+  if (previous) {
+    await stopBridgeProcess(previous);
+  }
+  requireLink();
+  // Reuse the previous cwd / provider unless overridden; a foreground bridge comes back detached.
+  const options: BridgeLaunchOptions = {
+    cwd: flagString(flags, "cwd")
+      ? path.resolve(flagString(flags, "cwd")!)
+      : (previous?.cwd ?? bridgeOptions(flags).cwd),
+    noDaemon: true,
+    provider: flagString(flags, "provider") ?? previous?.provider,
+  };
+  const state = await spawnDetachedBridge(options);
+  ok(`${previous ? "再起動" : "起動"}しました（${describeBridge(state)}）`);
+  info(`ログ: ${code("tahcode logs -f")}`);
+  return true;
+}
+
 async function cmdRestart(flags: Flags, positional: string[]): Promise<void> {
   const target = parseTarget(positional, "all");
   let exit = 0;
@@ -813,38 +868,10 @@ async function cmdRestart(flags: Flags, positional: string[]): Promise<void> {
   }
   if (target !== "multica") {
     heading("tahcode ブリッジ");
-    const previous = runningBridge();
-    if (previous?.mode === "launchd" || (!previous && launchdStatus().loaded)) {
-      const result = launchdRestart();
-      if (!result.ok) {
-        fail(`launchd で再起動できません: ${result.detail}`);
-        process.exit(1);
-      }
-      const state = await waitForBridge();
-      if (state) {
-        ok(`再起動しました（${describeBridge(state)}）`);
-      } else {
-        warn(
-          `再起動を要求しましたが、ブリッジの起動を確認できません。${code("tahcode logs")} を確認してください。`
-        );
-      }
-      process.exit(exit);
+    const restarted = await restartBridgeFromCli(flags);
+    if (!restarted) {
+      process.exit(1);
     }
-    if (previous) {
-      await stopBridgeProcess(previous);
-    }
-    requireLink();
-    // Reuse the previous cwd / provider unless overridden; a foreground bridge comes back detached.
-    const options: BridgeLaunchOptions = {
-      cwd: flagString(flags, "cwd")
-        ? path.resolve(flagString(flags, "cwd")!)
-        : (previous?.cwd ?? bridgeOptions(flags).cwd),
-      noDaemon: true,
-      provider: flagString(flags, "provider") ?? previous?.provider,
-    };
-    const state = await spawnDetachedBridge(options);
-    ok(`${previous ? "再起動" : "起動"}しました（${describeBridge(state)}）`);
-    info(`ログ: ${code("tahcode logs -f")}`);
   }
   process.exit(exit);
 }

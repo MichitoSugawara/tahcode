@@ -2,12 +2,14 @@ import {
   DESKTOP_BRIDGE_KEY,
   DESKTOP_IPC,
   desktopOAuthRedirectTo,
+  isRegisterProgressStep,
 } from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
   OAuthStrategy,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
+  RegisterProgressStep,
   TahcodeDesktopBridge,
 } from "@tahcode/core/desktop";
 import { contextBridge, ipcRenderer } from "electron";
@@ -20,8 +22,9 @@ import { contextBridge, ipcRenderer } from "electron";
  * the same bundle keeps working in a plain browser. The shape is
  * TahcodeDesktopBridge from @tahcode/core/desktop.
  *
- * IPC is invoke-only and allow-listed: hostname, CLI status, and the
- * fixed registerLocalRuntime sequence. No arbitrary shell.
+ * IPC is allow-listed: hostname, CLI status, the fixed
+ * registerLocalRuntime sequence, and progress events for that
+ * sequence. No arbitrary shell.
  * ───────────────────────────────────────────────────────── */
 
 function argValue(name: string): string | undefined {
@@ -43,11 +46,25 @@ const bridge: TahcodeDesktopBridge = {
     oauthStrategy === "system-browser" ? desktopOAuthRedirectTo(next) : null,
   oauthStrategy,
   platform: process.platform,
-  registerLocalRuntime: (request: RegisterLocalRuntimeRequest) =>
-    ipcRenderer.invoke(
-      DESKTOP_IPC.registerLocalRuntime,
-      request
-    ) as Promise<RegisterLocalRuntimeResult>,
+  registerLocalRuntime: (
+    request: RegisterLocalRuntimeRequest,
+    onProgress?: (step: RegisterProgressStep) => void
+  ) => {
+    const listener = (_event: unknown, step: unknown) => {
+      if (isRegisterProgressStep(step)) {
+        onProgress?.(step);
+      }
+    };
+    ipcRenderer.on(DESKTOP_IPC.registerProgress, listener);
+    return (
+      ipcRenderer.invoke(
+        DESKTOP_IPC.registerLocalRuntime,
+        request
+      ) as Promise<RegisterLocalRuntimeResult>
+    ).finally(() => {
+      ipcRenderer.off(DESKTOP_IPC.registerProgress, listener);
+    });
+  },
   version: process.env.TAHCODE_DESKTOP_VERSION ?? "0.0.0",
 };
 

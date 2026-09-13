@@ -1,11 +1,16 @@
 import {
+  DESKTOP_IPC,
+  LINK_NO_RESTART_FLAG,
   displayHostname,
   fallbackRegisterCommands,
   guessBrowserMachineName,
   isAllowedConvexUrl,
+  isRegisterProgressStep,
+  linkArgv,
   looksLikeElevationError,
   mergePath,
   parseRegisterLocalRuntimeRequest,
+  planRegisterAfterLink,
   redactSecrets,
 } from "@tahcode/core/desktop";
 import { describe, expect, it } from "vitest";
@@ -123,5 +128,37 @@ describe("register helpers", () => {
     expect(
       mergePath("/usr/bin:/bin", ["/opt/homebrew/bin", "/usr/bin"], ":")
     ).toBe("/opt/homebrew/bin:/usr/bin:/bin");
+  });
+});
+
+describe("register after re-link", () => {
+  it("builds a no-restart link argv so the desktop owns bridge recycle", () => {
+    const args = linkArgv(valid);
+    expect(args[0]).toBe("link");
+    expect(args).toContain(LINK_NO_RESTART_FLAG);
+    expect(args).toContain(valid.token);
+    expect(args.at(-1)).toBe(LINK_NO_RESTART_FLAG);
+    expect(linkArgv(valid, false)).not.toContain(LINK_NO_RESTART_FLAG);
+  });
+
+  it("restarts a running bridge and starts a missing one without Multica", () => {
+    expect(planRegisterAfterLink(true)).toStrictEqual({
+      args: ["restart", "bridge"],
+      progress: "restarting-bridge",
+    });
+    expect(planRegisterAfterLink(false)).toStrictEqual({
+      args: ["start", "--no-daemon"],
+      progress: "starting-bridge",
+    });
+  });
+
+  it("allow-lists progress steps and rejects free-form IPC payloads", () => {
+    expect(DESKTOP_IPC.registerProgress).toBe(
+      "tahcode:desktop:registerProgress"
+    );
+    expect(isRegisterProgressStep("restarting-bridge")).toBeTruthy();
+    expect(isRegisterProgressStep("starting-bridge")).toBeTruthy();
+    expect(isRegisterProgressStep("rm -rf /")).toBeFalsy();
+    expect(isRegisterProgressStep(null)).toBeFalsy();
   });
 });
