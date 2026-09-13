@@ -126,6 +126,10 @@ export function GrantAccessDialog({
     },
   ];
 
+  const canSubmit = segment === "メンバー" ? !!userId : !!role;
+  const showAdd = canManage && !(segment === "メンバー" && memberOptions.length === 0);
+  const skipLabel = (runtime?.grants.length ?? 0) === 0 ? "今は追加しない" : "閉じる";
+
   const submit = async () => {
     if (!runtime || busy) {
       return;
@@ -170,7 +174,7 @@ export function GrantAccessDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={runtime ? `${runtime.name} の利用許可` : "利用許可"}
-      description="ランタイムは default deny です。所有者以外がこのマシンでエージェントを動かすには、メンバー単位またはロール単位の許可が必要です。"
+      description="所有者のあなたは、許可を足さなくてもこのマシンを使えます。他のメンバーに使わせたいときだけ追加してください。今は追加せずに閉じても構いません。"
       width={520}
       footer={
         canManage ? (
@@ -181,21 +185,23 @@ export function GrantAccessDialog({
             <div className="flex items-center gap-1.5">
               <Button
                 type="button"
-                variant="ghost"
+                variant={canSubmit ? "ghost" : "accent"}
                 size="sm"
                 onClick={() => onOpenChange(false)}
               >
-                閉じる
+                {skipLabel}
               </Button>
-              <Button
-                type="button"
-                variant="accent"
-                size="sm"
-                disabled={busy || (segment === "メンバー" ? !userId : !role)}
-                onClick={() => void submit()}
-              >
-                {busy ? "付与中…" : "許可を追加"}
-              </Button>
+              {showAdd && (
+                <Button
+                  type="button"
+                  variant={canSubmit ? "accent" : "ghost"}
+                  size="sm"
+                  disabled={busy || !canSubmit}
+                  onClick={() => void submit()}
+                >
+                  {busy ? "付与中…" : "許可を追加"}
+                </Button>
+              )}
             </div>
           </>
         ) : (
@@ -220,8 +226,8 @@ export function GrantAccessDialog({
           <div>
             <SectionLabel>現在の許可</SectionLabel>
             {runtime.grants.length === 0 ? (
-              <Notice tone="locked" title="所有者だけが使えます">
-                まだ誰にも許可していません。下から追加すると、その相手はこのマシンでジョブを実行できます。
+              <Notice tone="locked" title="今は所有者だけが使えます">
+                共有しなくても、あなたはこのマシンでジョブを実行できます。他のメンバーが必要になったら、いつでも追加できます。
               </Notice>
             ) : (
               <div className="flex flex-wrap gap-1.5">

@@ -97,27 +97,22 @@ export function RegisterRuntimeDialog({
         issued ? (
           <>
             <span className="text-ink-3 text-[12px]">
-              既定は default deny — 他のメンバーは許可されるまで使えません
+              あなたはこのマシンを使えます。他のメンバーへの許可は任意です
             </span>
             <div className="flex items-center gap-1.5">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => onOpenChange(false)}
-              >
-                閉じる
-              </Button>
-              <Button
-                type="button"
-                variant="accent"
-                size="sm"
                 onClick={() => {
                   onOpenChange(false);
                   openDialog({ kind: "grant", runtimeId: issued.runtimeId });
                 }}
               >
-                <ShieldCheck size={13} /> アクセスを許可する
+                <ShieldCheck size={13} /> 他のメンバーに許可
+              </Button>
+              <Button type="button" variant="accent" size="sm" onClick={() => onOpenChange(false)}>
+                完了
               </Button>
             </div>
           </>

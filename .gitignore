@@ -50,3 +50,4 @@ convex/_generated/
 *.sw?
 artifacts/
 packages/cli/dist/
+.env.local

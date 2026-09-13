@@ -27,7 +27,6 @@ import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { RightRail } from "@/harness/rail/RightRail";
 import type { RailTab } from "@/harness/rail/RightRail";
-import { BrandMark } from "@/harness/ui/Brand";
 import { monogram, roleLabel, truncate } from "@/lib/format";
 import type { Theme } from "@/lib/theme";
 
@@ -182,7 +181,6 @@ function Sidebar({
       fill
       collapsible={collapsible}
       className="lg:pl-0"
-      brand={{ badge: "Phase 1", mark: <BrandMark />, name: "tahcode" }}
       workspace={{
         id: String(org.org._id),
         meta: roleLabel(org.role),

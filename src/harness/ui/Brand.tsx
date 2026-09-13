@@ -30,19 +30,3 @@ export function Brand({
     </span>
   );
 }
-
-/** Just the mark, for tight spots (sidebar rail, favicon-like uses). */
-export function BrandMark({
-  className = "size-5 rounded-[6px] text-[11px]",
-}: {
-  className?: string;
-}) {
-  return (
-    <span
-      className={`flex ${className} bg-accent items-center justify-center leading-none font-semibold text-white`}
-      aria-hidden
-    >
-      t
-    </span>
-  );
-}
