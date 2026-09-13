@@ -273,8 +273,10 @@ export function headlessArgs(
       ];
     }
     case "cursor": {
+      // Non-interactive bridge cannot answer the Workspace Trust prompt.
       return [
         "-p",
+        "--trust",
         ...modelFlag,
         "--output-format",
         "stream-json",
