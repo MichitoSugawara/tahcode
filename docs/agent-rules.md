@@ -34,6 +34,7 @@ Prefer **Japanese** for user-facing product copy (toasts, empty states, validati
 - Mentions / `@provider/model`: `shared/mentions.ts`
 - Headless CLI execution: `runtime/src/providers.ts`
 - Convex access + custom functions: `convex/lib/`
+- Test layers / CI gates / what to write next: [`docs/testing.md`](testing.md)
 
 Do not commit secrets, decrypted env files, `.tahcode/` tokens, or `.staging-deploy-key`. Encrypted env is `.env.<name>.enc` only.
 
