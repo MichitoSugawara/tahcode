@@ -49,6 +49,20 @@ describe("parseModelListOutput", () => {
     expect(parseModelListOutput("grok", JSON.stringify({ models: [{ name: "grok-4.6" }] }))).toEqual([{ slug: "grok-4.6" }]);
   });
 
+  it("reads `codex debug models --bundled` JSON and skips hidden entries (Multica's shape)", () => {
+    const out = JSON.stringify({
+      models: [
+        { slug: "gpt-6-astra", display_name: "GPT-6 Astra", visibility: "list", default_reasoning_level: "high" },
+        { slug: "gpt-5.6-sol", display_name: "GPT-5.6 Sol", visibility: "list" },
+        { slug: "gpt-5.3-codex", display_name: "GPT-5.3 Codex", visibility: "hide" },
+      ],
+    });
+    expect(parseModelListOutput("codex", out)).toEqual([
+      { slug: "gpt-6-astra", name: "GPT-6 Astra" },
+      { slug: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
+    ]);
+  });
+
   it("returns [] for error prose so callers fall back to the static catalog", () => {
     expect(parseModelListOutput("cursor", "Error: not logged in. Run agent login first.")).toEqual([]);
     expect(parseModelListOutput("opencode", "")).toEqual([]);
@@ -56,11 +70,12 @@ describe("parseModelListOutput", () => {
 });
 
 describe("live model discovery table", () => {
-  it("only Cursor, Grok and OpenCode have a models command; Codex / Claude / Antigravity are static", () => {
-    expect(PROVIDER_DRIVER_KINDS.filter(supportsLiveModels)).toEqual(["cursor", "grok", "opencode"]);
+  it("Codex, Cursor, Grok and OpenCode have a models command; Claude / Antigravity are static", () => {
+    expect(PROVIDER_DRIVER_KINDS.filter(supportsLiveModels)).toEqual(["codex", "cursor", "grok", "opencode"]);
     expect(modelsCommandLabel("cursor")).toBe("agent models");
+    expect(modelsCommandLabel("codex")).toBe("codex debug models --bundled");
     expect(modelsCommandLabel("opencode", "/usr/local/bin/opencode")).toBe("/usr/local/bin/opencode models");
-    expect(modelsCommandLabel("codex")).toBeNull();
+    expect(modelsCommandLabel("claudeAgent")).toBeNull();
   });
 });
 

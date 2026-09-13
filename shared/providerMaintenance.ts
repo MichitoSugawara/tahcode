@@ -5,10 +5,11 @@
  * Two things live here and nothing else:
  *
  * 1. **Live model discovery** — which CLIs can list their own model catalog
- *    (`agent models`, `opencode models`, `grok models`, verified against each
- *    CLI's reference docs) and how to parse that output. Codex and Claude have
- *    no such command, so they stay on the static catalog in
- *    `shared/providers.ts`, the same fallback Multica's `models.go` uses.
+ *    (`agent models`, `opencode models`, `grok models` per each CLI's reference
+ *    docs; `codex debug models --bundled` as Multica's `models.go` does) and
+ *    how to parse that output. Claude has no such command (Multica drives a
+ *    stream-json control request instead), so it stays on the static catalog
+ *    in `shared/providers.ts`, the same fallback Multica uses.
  *
  * 2. **CLI update plans** — the exact argv a bridge is allowed to run to
  *    update a provider CLI. The server never sends a command string: it sends
@@ -74,8 +75,10 @@ type ProviderMaintenanceEntry = {
 
 export const PROVIDER_MAINTENANCE: Record<ProviderDriverKind, ProviderMaintenanceEntry> = {
   codex: {
-    modelsArgv: null,
-    modelsHint: "Codex CLI にはモデル一覧コマンドがないため静的カタログ（t3code model-manifest）",
+    // Codex 0.122.0+ ships a structured, offline catalog dump (JSON on stdout);
+    // Multica's daemon uses the same hook. Older binaries fail → static fallback.
+    modelsArgv: ["debug", "models", "--bundled"],
+    modelsHint: "codex debug models --bundled（Codex 0.122.0 以降。古い CLI は静的カタログ）",
     selfUpdateArgv: null,
     npmPackage: "@openai/codex",
     brewName: "codex",
@@ -211,6 +214,8 @@ function candidateFromJson(value: unknown): LiveModel | null {
   if (typeof value === "string") return isValidModelSlug(value) ? { slug: value } : null;
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
+  // `codex debug models` lists hidden entries too; Codex's own picker skips them.
+  if (record.visibility === "hide" || record.hidden === true) return null;
   const slugField = [record.id, record.slug, record.model, record.value, record.name].find((field) => typeof field === "string" && isValidModelSlug(field));
   if (typeof slugField !== "string") return null;
   const nameField = [record.displayName, record.display_name, record.label, record.title, record.name].find(

@@ -98,7 +98,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ### マシンのプロバイダ設定（モデル・バージョン・CLI 更新）
 
-Multica の「ランタイムごとに使えるエージェントとモデルを見せる」型を踏襲した、マシン単位の設定画面。右レール Runtime タブ / Org 設定のマシンカードの **「プロバイダ設定」**（または CLI チップのクリック）で開く。
+Multica の型（daemon がランタイムごとに CLI を検出してバージョンを報告し、モデル一覧は各 CLI から動的に取得して静的カタログにフォールバックする）を踏襲した、マシン単位の設定画面。Multica ではモデル一覧はエージェント設定のピッカーから取得されるが、tahcode ではマシン画面にも常時表示する。右レール Runtime タブ / Org 設定のマシンカードの **「プロバイダ設定」**（または CLI チップのクリック）で開く。
 
 ![Machine provider settings: live models per CLI, versions, allowlisted update](docs/ui-screenshots/provider-settings/04-cursor-live-models.png)
 
@@ -107,11 +107,11 @@ Multica の「ランタイムごとに使えるエージェントとモデルを
 
 | プロバイダ | モデル一覧 | 更新コマンド（ブリッジの許可リスト） |
 |---|---|---|
+| Codex | **live** `codex debug models --bundled`（0.122.0+、JSON。古い CLI は静的） | npm `npm i -g @openai/codex@latest` / Homebrew `brew upgrade codex` / 判別不能なら手動案内 |
 | Cursor | **live** `agent models` | `agent update` |
 | OpenCode | **live** `opencode models`（`provider/model`） | `opencode upgrade`（CLI 側がインストール方法を判別） |
 | Grok | **live** `grok models` | npm 導入なら `npm i -g @xai-official/grok@latest`、それ以外 `grok update` |
 | Claude | 静的（一覧コマンドなし） | npm `npm i -g @anthropic-ai/claude-code@latest` / Homebrew `brew upgrade claude-code` / それ以外 `claude update` |
-| Codex | 静的（一覧コマンドなし） | npm `npm i -g @openai/codex@latest` / Homebrew `brew upgrade codex` / 判別不能なら手動案内 |
 | Antigravity | 静的 | なし（アプリ側で更新） |
 
 - **更新の流れ** — 「CLI を更新」→ Convex の `runtimeCommands` に `(updateCli, provider)` がキューされる → ブリッジが claim し、**マシン側の許可リスト**からインストール方法に応じた argv を解決して shell なしで spawn → 出力をログとして流しつつ実行 → 終了後にバージョンを再検出（`0.9.0 → 0.9.1`）、モデル一覧も再取得。UI は待機中 / 実行中（ログの末尾）/ 完了 / 失敗（終了コードと最終行、ログ展開）を同じカード内に出す。サーバはコマンド文字列を送らないので、サーバが乗っ取られても許可リスト外は走らない。「モデルを再取得」は同じ経路で一覧コマンドだけを実行する。ブリッジが落ちて 15 分報告がない実行は自動で失敗扱い（取り消しも可）。
@@ -189,7 +189,7 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 
 - **Antigravity**: headless CLI がないためランタイムは「未対応」表示 + ガイド文。カタログには含む。
 - **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`、モデルは `--model`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
-- **Codex / Claude のモデル一覧は静的**: 両 CLI にはモデル一覧コマンドがないため `shared/providers.ts` のスナップショット（t3code model-manifest）のまま。Cursor / Grok / OpenCode は接続中のマシンから `agent models` / `grok models` / `opencode models` の結果をライブ表示する（[マシンのプロバイダ設定](#マシンのプロバイダ設定モデルバージョンcli-更新)）。一覧外のスラッグは引き続き `@provider/<slug>` でそのまま指名できる。
+- **Claude のモデル一覧は静的**: Claude Code にはモデル一覧コマンドがないため `shared/providers.ts` のスナップショット（t3code model-manifest）のまま（Multica は stream-json の `control_request list_models` で取っているが未移植）。Codex / Cursor / Grok / OpenCode は接続中のマシンから `codex debug models --bundled` / `agent models` / `grok models` / `opencode models` の結果をライブ表示する（Codex 0.122.0 未満は静的にフォールバック）（[マシンのプロバイダ設定](#マシンのプロバイダ設定モデルバージョンcli-更新)）。一覧外のスラッグは引き続き `@provider/<slug>` でそのまま指名できる。
 - **CLI 更新は許可リストのコマンドのみ**: `shared/providerMaintenance.ts` にある各 CLI の公式更新コマンドだけをブリッジが実行する。Antigravity（CLI なし）と、インストール方法を判別できない Codex は手動更新の案内のみ。`curl | sh` 型のインストーラは実行しない。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー招待・ロール・ランタイム許可まで。
 - **Org 名変更 / 削除なし**: 設定ページは表示のみ（Owner 向けの変更は後続フェーズ）。
