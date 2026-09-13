@@ -1,7 +1,7 @@
 {
   "name": "tahcode",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --port 43173 --host 127.0.0.1",
@@ -12,7 +12,10 @@
     "preview": "vite preview --port 43173 --host 127.0.0.1",
     "preview:cf": "npm run build && wrangler dev --config wrangler.jsonc --port 43173",
     "deploy:cf": "npm run build && wrangler deploy",
-    "lint": "eslint convex src runtime worker shared packages/cli/src --max-warnings=0",
+    "check": "ultracite check --deny-warnings",
+    "fix": "ultracite fix",
+    "lint": "ultracite check --deny-warnings",
+    "lint:convex": "eslint -c eslint.convex.config.js convex --max-warnings=0",
     "typecheck": "tsc -b && tsc -p tsconfig.convex.json --noEmit && tsc -p tsconfig.runtime.json --noEmit",
     "test": "vitest run",
     "runtime": "tsx packages/cli/src/index.ts",
@@ -21,7 +24,8 @@
     "env:enc": "node scripts/env.mjs encrypt",
     "env:dec": "node scripts/env.mjs decrypt",
     "cli": "tsx packages/cli/src/index.ts",
-    "cli:build": "node packages/cli/build.mjs"
+    "cli:build": "node packages/cli/build.mjs",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
@@ -59,24 +63,27 @@
     "@cloudflare/vite-plugin": "^1.25.2",
     "@convex-dev/eslint-plugin": "^1.1.1",
     "@dotenvx/dotenvx": "^2.24.1",
-    "@eslint/js": "^9.39.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^9.2.1",
-    "eslint": "^9.39.2",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.3.0",
-    "oxlint": "^1.81.0",
+    "eslint": "^9.39.5",
+    "lefthook": "^2.1.12",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
     "playwright-core": "^1.63.0",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.54.0",
+    "typescript-eslint": "^8.70.0",
+    "ultracite": "^7.11.1",
     "vite": "^8.3.0",
     "vitest": "^3.2.4",
     "wrangler": "^4.57.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

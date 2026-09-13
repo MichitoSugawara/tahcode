@@ -1,0 +1,6 @@
+---
+description: tahcode product rules — multi-harness control plane
+alwaysApply: true
+---
+
+tahcode is a multi-harness control plane that invokes **real** provider CLIs (Codex / Claude / Cursor / OpenCode — not a single-harness OpenCodex default). Expose harness-native features (e.g. Codex imagegen), not only a lowest-common-denominator prompt pipe. Stack is Convex + Cloudflare Workers. Prefer Japanese for user-facing product copy. Full rules: `docs/agent-rules.md`. Product overview: `README.md`.

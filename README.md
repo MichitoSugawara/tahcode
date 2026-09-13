@@ -1,18 +1,8 @@
 # tahcode — Phase 1
 
-**tahcode**（ターコード、*team agent harness*）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。
-本番: https://tahcode.gawara.workers.dev（旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。
-Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。
-Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、
-履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、
-最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
+**tahcode**（ターコード、_team agent harness_）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。本番: https://tahcode.gawara.workers.dev（旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
 
-UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと
-[/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、
-配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。
-プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts`
-（Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。
-Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない）。
+UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと [/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts` （Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない）。
 
 ![Project chat with a streamed agent reply](docs/ui-screenshots/20-agent-reply-final-codeblock-table.png)
 
@@ -32,21 +22,18 @@ Multica からは Org / member / project / chat の考え方と作成フロー�
 
 ### 導入方法（shadcn レジストリ）
 
-Beautiful UI は npm パッケージではなく **shadcn 互換のコンポーネントレジストリ**（`https://www.beautifului.dev/r/registry.json`）。
-`components.json` に `@beautifui` 名前空間を登録済みで、プリミティブは次で追加・更新する:
+Beautiful UI は npm パッケージではなく **shadcn 互換のコンポーネントレジストリ**（`https://www.beautifului.dev/r/registry.json`）。 `components.json` に `@beautifui` 名前空間を登録済みで、プリミティブは次で追加・更新する:
 
 ```bash
 npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registryDependencies で自動解決
 ```
 
-インストール先は `src/components/atoms/*`（Button, EntityChip, ValuePill, Chip, StatusPill, SegmentedControl, TextRow）と
-`src/components/primitives/*`。`src/app/beautifui/foundation.css` がトークン（`:root` / `.dark` / `@theme`）・
-基本ルール・共有キーフレーム、`sidebar-nav.css` が SidebarNav の開閉演出。`shadow-plugin` は foundation が要求する依存。
+インストール先は `src/components/atoms/*`（Button, EntityChip, ValuePill, Chip, StatusPill, SegmentedControl, TextRow）と `src/components/primitives/*`。`src/app/beautifui/foundation.css` がトークン（`:root` / `.dark` / `@theme`）・基本ルール・共有キーフレーム、`sidebar-nav.css` が SidebarNav の開閉演出。`shadow-plugin` は foundation が要求する依存。
 
 ### 採用したプリミティブと使い所
 
 | プリミティブ | 使い所 |
-|---|---|
+| --- | --- |
 | **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、New chat / Home / 招待 / ランタイムのレール、パーソナル + プロジェクト別チャットツリー、検索、52↔224px 折りたたみ |
 | **PromptBar**（移植: デモ/口述/シェーダを除去、データ駆動化） | コンポーザ。`@` でエージェント + メンバー、`/` でコマンド、プロバイダ / ランタイムのピルピッカー、R2 添付チップ、⏎送信 / ⇧⏎改行、IME 対応 |
 | **ThinkingState**（`working` prop を追加してライブ駆動） | ランタイムの `thinking` イベントをそのままトレース行に。実行中はシマー + スピナー、完了で「N ステップ実行」に畳む |
@@ -62,15 +49,14 @@ npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registr
 | Button / StatusPill / ValuePill / Chip / SegmentedControl / TextRow / EntityChip(Monogram) | ボタン、ロール・状態ピル、件数、ハンドル、タブ切替、設定行、アバター |
 | ハーネスの構成（`IceCreamHarness`） | 3 ペインシェル、チャットタブバー、ホームの登場ストーリーボード（blur → 定位置）、ユーザーバブル、返信の fade-up、浮かぶコンポーザと追従スクロール |
 
-見送り（Phase 1 に対応する機能がないため未導入）: ApprovalCard（承認フローは Phase 1 外）、DiffTable / ToolChips の diff チップ（構造化 diff をランタイムが返さない）、
-RecordsTable / FilterTable / InsightCards / Flowchart / FineTuneCard / SelectionActions / RecommendationCard / ChatComposer(デモ)。
+見送り（Phase 1 に対応する機能がないため未導入）: ApprovalCard（承認フローは Phase 1 外）、DiffTable / ToolChips の diff チップ（構造化 diff をランタイムが返さない）、RecordsTable / FilterTable / InsightCards / Flowchart / FineTuneCard / SelectionActions / RecommendationCard / ChatComposer(デモ)。
 
 ### テーマ（`src/app/theme.css`）
 
 Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI のセマンティックトークンに解決する:
 
 | Dark Green+ | 値 | → Beautiful UI |
-|---|---|---|
+| --- | --- | --- |
 | editor.background | `#121712` | `--page`（メインペイン） |
 | sideBar.background | `#0b140b` | `--canvas`（シェル / サイドバー） |
 | panel.background | `#141d14` | `--surface`（カード / メニュー） |
@@ -96,12 +82,10 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
 9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
-10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール）
-    **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
+10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール） **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
 
-スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。
-プロバイダ + モデルの結びつけと `@provider/model` メンションは `docs/ui-screenshots/agent-model/`（引数をそのまま返すフェイク CLI で `--model` が届くことを確認）。
+スクリーンショット一覧: `docs/ui-screenshots/`（01 → 43 の順で上のジャーニーをなぞる。`localhost` のフェイク `codex` CLI で実際にジョブを流したもの）。プロバイダ + モデルの結びつけと `@provider/model` メンションは `docs/ui-screenshots/agent-model/`（引数をそのまま返すフェイク CLI で `--model` が届くことを確認）。
 
 ### プロバイダとモデル（`@provider/model`）
 
@@ -113,9 +97,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ## Stack
 
-パッケージ名・Worker 名は `tahcode`（production `tahcode` → `tahcode.gawara.workers.dev`、staging `tahcode-staging`）。
-R2 バケット名 `team-harness-files*` はデータを保持しているため据え置き（改名にはバケット作成 + オブジェクト移行が必要。ユーザーには見えない）。
-`HARNESS_*` 環境変数は CLI の互換フォールバックとして残す。ユーザーに見える名前はすべて **tahcode**。
+パッケージ名・Worker 名は `tahcode`（production `tahcode` → `tahcode.gawara.workers.dev`、staging `tahcode-staging`）。R2 バケット名 `team-harness-files*` はデータを保持しているため据え置き（改名にはバケット作成 + オブジェクト移行が必要。ユーザーには見えない）。 `HARNESS_*` 環境変数は CLI の互換フォールバックとして残す。ユーザーに見える名前はすべて **tahcode**。
 
 - UI: Vite + React 19 + Tailwind v4 + Beautiful UI（shadcn レジストリ）+ Convex Auth（Password）+ react-router
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
@@ -125,7 +107,7 @@ R2 バケット名 `team-harness-files*` はデータを保持しているため
 
 ## ローカルで動かす
 
-前提: Node 22+、npm。
+前提: Node **22.18+**（Oxlint / Oxfmt の TypeScript 設定を読むため）、npm。
 
 ```bash
 npm install --legacy-peer-deps
@@ -143,13 +125,11 @@ npm run dev        # http://127.0.0.1:43173
 npm run dev:files  # http://127.0.0.1:43174（Vite が /api/files をプロキシ）
 ```
 
-`.env.local` は `npx convex dev` が生成（`VITE_CONVEX_URL=http://127.0.0.1:3210`）。
-本番相当の確認: `npm run build` → `npm run preview:cf`（dist を Worker で配信）。
+`.env.local` は `npx convex dev` が生成（`VITE_CONVEX_URL=http://127.0.0.1:3210`）。本番相当の確認: `npm run build` → `npm run preview:cf`（dist を Worker で配信）。
 
 ### マシンランタイム（`npm i -g tahcode`）
 
-エージェントはあなたのマシンで、**Multica daemon** 経由で動きます。tahcode は独自の常駐デーモンを持たず、
-[Multica CLI/daemon](https://multica.ai/docs/daemon-runtimes) を薄くラップします（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。
+エージェントはあなたのマシンで、**Multica daemon** 経由で動きます。tahcode は独自の常駐デーモンを持たず、 [Multica CLI/daemon](https://multica.ai/docs/daemon-runtimes) を薄くラップします（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。
 
 1. Web UI → 右レール **Runtime** タブ →「このマシンを登録」。一度だけ表示されるトークン入りのコマンド 3 行が発行されます:
 
@@ -159,19 +139,14 @@ tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token 
 tahcode start        # Multica daemon を起動 → tahcode のジョブブリッジをフォアグラウンドで実行
 ```
 
-2. Multica CLI が未導入なら `tahcode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする:
-   `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
+2. Multica CLI が未導入なら `tahcode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
 3. 確認: `tahcode doctor`（Node / Multica / 検出 CLI / tahcode 接続）、`tahcode status`、`tahcode logs -f`。
 
-役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、
-`tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。
-`tahcode multica <args>` で Multica CLI をそのまま呼べます（例: `tahcode multica login`）。
+役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。 `tahcode multica <args>` で Multica CLI をそのまま呼べます（例: `tahcode multica login`）。
 
-リポジトリ内での開発: `npm run cli -- doctor`（tsx でソース実行）、`npm run cli:build`（`packages/cli/dist/tahcode.mjs` にバンドル）。
-公開手順は [`packages/cli/README.md`](packages/cli/README.md)。CI や 1 回限りの実行では環境変数 `TAHCODE_URL` / `TAHCODE_RUNTIME_ID` / `TAHCODE_TOKEN` でもリンクできます。
+リポジトリ内での開発: `npm run cli -- doctor`（tsx でソース実行）、`npm run cli:build`（`packages/cli/dist/tahcode.mjs` にバンドル）。公開手順は [`packages/cli/README.md`](packages/cli/README.md)。CI や 1 回限りの実行では環境変数 `TAHCODE_URL` / `TAHCODE_RUNTIME_ID` / `TAHCODE_TOKEN` でもリンクできます。
 
-DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` や `@cursor/muse-spark-1.3 直して` のようにメンションする。
-送信時にチャットのエージェントのメンションが自動付与される（プロジェクトのみ。DM は付与なしでチャットのエージェントで動く）。
+DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` や `@cursor/muse-spark-1.3 直して` のようにメンションする。送信時にチャットのエージェントのメンションが自動付与される（プロジェクトのみ。DM は付与なしでチャットのエージェントで動く）。
 
 ## 受け入れ基準の対応
 
@@ -197,69 +172,53 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 
 ## CI/CD（Convex + Cloudflare）
 
-`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。
-共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` → `convex deploy --cmd cf:build`
-（`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` /
-`JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。
+`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` → `convex deploy --cmd cf:build` （`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。
 
 ### GitHub に設定する secrets（リポジトリ Settings → Secrets）
 
-| secret | 用途 |
-|---|---|
-| `DOTENV_PRIVATE_KEY_PREVIEW` | `.env.preview.enc` の復号鍵 |
-| `DOTENV_PRIVATE_KEY_STAGING` | `.env.staging.enc` の復号鍵 |
+| secret                          | 用途                           |
+| ------------------------------- | ------------------------------ |
+| `DOTENV_PRIVATE_KEY_PREVIEW`    | `.env.preview.enc` の復号鍵    |
+| `DOTENV_PRIVATE_KEY_STAGING`    | `.env.staging.enc` の復号鍵    |
 | `DOTENV_PRIVATE_KEY_PRODUCTION` | `.env.production.enc` の復号鍵 |
 
 各 `.env.<name>`（平文・gitignore、`.env.<name>.enc` のみコミット）が持つ変数:
 
 | 変数 | 用途 |
-|---|---|
+| --- | --- |
 | `CONVEX_DEPLOY_KEY` | `convex deploy` / `convex env set` の認証 |
 | `CLOUDFLARE_API_TOKEN` | wrangler の認証 |
 | `CLOUDFLARE_ACCOUNT_ID` | wrangler のデプロイ先 |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth の署名鍵（本番・staging・preview deploy ごとに設定される） |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | （任意）Google OAuth のクライアント ID / シークレット。設定時のみ Google ログインが有効 |
 
-`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` はデプロイ後の
-Cloudflare URL を CI が設定するため保存不要。
+`VITE_CONVEX_URL` は CI が自動注入するため保存不要。`SITE_URL` はデプロイ後の Cloudflare URL を CI が設定するため保存不要。
 
 ### Convex Auth の署名鍵（重要）
 
-デプロイ時、CI は `scripts/sync-convex-auth-env.mjs` で `SITE_URL` / `JWT_PRIVATE_KEY` /
-`JWKS`（と設定時の Google 資格情報）を Convex デプロイに反映する。鍵ペアは次で生成:
+デプロイ時、CI は `scripts/sync-convex-auth-env.mjs` で `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS`（と設定時の Google 資格情報）を Convex デプロイに反映する。鍵ペアは次で生成:
 
 ```bash
 node scripts/generate-auth-keys.mjs >> .env.production   # JWT_PRIVATE_KEY と JWKS を追記
 npm run env:enc -- production                            # .env.production.enc を更新してコミット
 ```
 
-**JSON のクォートに注意**（過去に本番のログイン不能を招いた原因）。
-`.env.<name>` では:
+**JSON のクォートに注意**（過去に本番のログイン不能を招いた原因）。 `.env.<name>` では:
 
 - `JWKS` は**シングルクォート**か引用符なしで書く（例 `JWKS='{"keys":[...]}'`）。
-- `JWKS="{\"keys\":...}"` のように**ダブルクォート＋エスケープにしない**。dotenv は
-  バックスラッシュを保持するため、デプロイが不正な JSON を配信し、発行直後の JWT を
-  自身で拒否して（`AuthProviderDiscoveryFailed`）サインインが成立しなくなる。
+- `JWKS="{\"keys\":...}"` のように**ダブルクォート＋エスケープにしない**。dotenv はバックスラッシュを保持するため、デプロイが不正な JSON を配信し、発行直後の JWT を自身で拒否して（`AuthProviderDiscoveryFailed`）サインインが成立しなくなる。
 - `JWT_PRIVATE_KEY` は 1 行（改行をスペースに置換）でダブルクォート可。
 
-CI の同期スクリプトは `jose` で両値を検証し、エスケープや改行の崩れを自動補修し、
-`JWKS` が壊れている / 秘密鍵と一致しない場合は秘密鍵から公開鍵のみの JWKS を再生成する。
-検証は `DRY_RUN=1 SITE_URL=… JWT_PRIVATE_KEY=… JWKS=… node scripts/sync-convex-auth-env.mjs`
-で確認できる（`convex` は呼ばれない）。
+CI の同期スクリプトは `jose` で両値を検証し、エスケープや改行の崩れを自動補修し、 `JWKS` が壊れている / 秘密鍵と一致しない場合は秘密鍵から公開鍵のみの JWKS を再生成する。検証は `DRY_RUN=1 SITE_URL=… JWT_PRIVATE_KEY=… JWKS=… node scripts/sync-convex-auth-env.mjs` で確認できる（`convex` は呼ばれない）。
 
 ### Google OAuth（任意）
 
 1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID**（Web application）。
-2. **Authorized redirect URIs** に各デプロイの Convex **site** URL のコールバックを追加:
-   `https://<deployment>.convex.site/api/auth/callback/google`
-   （例 本番: `https://dapper-ibex-447.convex.site/api/auth/callback/google`。`.convex.cloud` ではなく `.convex.site`）。
-   OAuth 後の戻り先は Convex Auth の `SITE_URL`（CI が Worker の URL、本番は `https://tahcode.gawara.workers.dev` を設定）。
-   **Authorized JavaScript origins** に Worker の URL を登録している場合は `https://tahcode.gawara.workers.dev` へ更新する。
+2. **Authorized redirect URIs** に各デプロイの Convex **site** URL のコールバックを追加: `https://<deployment>.convex.site/api/auth/callback/google` （例 本番: `https://dapper-ibex-447.convex.site/api/auth/callback/google`。`.convex.cloud` ではなく `.convex.site`）。OAuth 後の戻り先は Convex Auth の `SITE_URL`（CI が Worker の URL、本番は `https://tahcode.gawara.workers.dev` を設定）。 **Authorized JavaScript origins** に Worker の URL を登録している場合は `https://tahcode.gawara.workers.dev` へ更新する。
 3. 取得した Client ID / Secret を反映する。いずれか:
    - `.env.<name>` に `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` を入れて `env:enc` → CI が同期、または
    - ダッシュボードで直接 `npx convex env set AUTH_GOOGLE_ID …`（本番は `--prod`）。
-4. 両方が設定されると `/login` の「Google で続ける」が有効になる（未設定時は自動で無効表示）。
-   シークレットはコミットしないこと（`.enc` のみコミット）。
+4. 両方が設定されると `/login` の「Google で続ける」が有効になる（未設定時は自動で無効表示）。シークレットはコミットしないこと（`.enc` のみコミット）。
 
 ### env ファイルの運用
 
@@ -269,11 +228,7 @@ npm run env:enc -- production   # .env.production.enc を生成 → コミット
 npm run env:dec -- production   # 復号の確認（平文は捨てる）
 ```
 
-鍵（`DOTENV_PRIVATE_KEY_*` の値）は各自 `openssl rand -hex 32` 等で生成し、GitHub secret と手元で共有する。
-`env:enc` / `env:dec` 実行時は対応する `DOTENV_PRIVATE_KEY_<NAME>` をシェルに export すること
-（dotenvx がファイル名のサフィックスから鍵名を解決する。未設定だと `.env.keys` が生成されるが gitignore 済み）。
-初回は `.env.preview.enc` / `.env.staging.enc` / `.env.production.enc` が未コミットのため preview/staging/production
-ジョブは復号で失敗する。実シークレットは絶対にコミットしないこと。
+鍵（`DOTENV_PRIVATE_KEY_*` の値）は各自 `openssl rand -hex 32` 等で生成し、GitHub secret と手元で共有する。 `env:enc` / `env:dec` 実行時は対応する `DOTENV_PRIVATE_KEY_<NAME>` をシェルに export すること（dotenvx がファイル名のサフィックスから鍵名を解決する。未設定だと `.env.keys` が生成されるが gitignore 済み）。初回は `.env.preview.enc` / `.env.staging.enc` / `.env.production.enc` が未コミットのため preview/staging/production ジョブは復号で失敗する。実シークレットは絶対にコミットしないこと。
 
 ### Environments と wrangler
 
@@ -281,16 +236,15 @@ npm run env:dec -- production   # 復号の確認（平文は捨てる）
 - staging: `wrangler deploy --env staging`（Worker `tahcode-staging` → `tahcode-staging.gawara.workers.dev` + R2 `team-harness-files-staging`）
 - production: `wrangler deploy --env=""`（トップレベル Worker `tahcode` → `tahcode.gawara.workers.dev` + R2 `team-harness-files`）+ `convex --prod`
 
-R2 バケット（`team-harness-files` / `team-harness-files-staging`）は初回デプロイ前に作成すること。
-`wrangler versions upload`（preview）は既存の Worker にしか上げられないため、Worker 名を変えた直後は production を一度
-`wrangler deploy` して `tahcode` Worker を作ってから preview が通る。旧 Worker `team-harness` / `team-harness-staging` は
-新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
+R2 バケット（`team-harness-files` / `team-harness-files-staging`）は初回デプロイ前に作成すること。 `wrangler versions upload`（preview）は既存の Worker にしか上げられないため、Worker 名を変えた直後は production を一度 `wrangler deploy` して `tahcode` Worker を作ってから preview が通る。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
 
 ## 開発コマンド
 
 ```bash
 npm run typecheck  # TS（app / convex / runtime + packages/cli）
-npm run lint       # eslint（Convex プラグイン含む）
+npm run check      # Ultracite（Oxlint + Oxfmt、`--deny-warnings`）。`lint` はエイリアス
+npm run lint:convex  # Convex 専用 ESLint（`eslint.convex.config.js`。Oxlint ではカバーしない）
+npm run fix        # Ultracite autofix + format
 npm run cli -- …   # tahcode CLI をソースから実行 / npm run cli:build でバンドル
 npm test           # vitest（mentions / access）
 npm run build      # 本番ビルド

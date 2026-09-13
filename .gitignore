@@ -35,6 +35,9 @@ convex/_generated/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+.lefthook-local.yml
+.lefthook-local.yaml
 .idea
 .DS_Store
 *.suo
