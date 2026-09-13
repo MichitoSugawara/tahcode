@@ -324,6 +324,7 @@ export async function runHeadless(
 
   let output = "";
   let emittedText = false;
+  let lastEmitted = "";
   const lineBuffer = createUtf8LineBuffer();
   const stderrBuffer = createUtf8LineBuffer();
 
@@ -335,7 +336,12 @@ export async function runHeadless(
     if (kind === "codex" || kind === "claudeAgent" || kind === "cursor") {
       const parsed = tryParseJson(trimmed);
       if (parsed !== null) {
-        const classified = classifyStreamEvent(parsed, emittedText);
+        const classified = classifyStreamEvent(
+          parsed,
+          emittedText,
+          output,
+          lastEmitted
+        );
         if (events.onArtifact) {
           for (const artifact of extractStreamArtifacts(parsed)) {
             await events.onArtifact(artifact);
@@ -343,6 +349,7 @@ export async function runHeadless(
         }
         if (classified.kind === "text" && classified.text) {
           emittedText = true;
+          lastEmitted = classified.text;
           output += `${classified.text}\n`;
           await events.onText(`${classified.text}\n`);
         } else if (classified.kind === "tool") {
@@ -364,9 +371,20 @@ export async function runHeadless(
     await events.onText(`${trimmed}\n`);
   };
 
+  // Classify sequentially. Cursor/Claude flush assistant + result in one
+  // stdout chunk; `void emit(line)` raced and double-appended the greeting.
+  let emitChain = Promise.resolve();
+  const queueEmit = (line: string) => {
+    emitChain = emitChain
+      .then(() => emit(line))
+      .catch(() => {
+        /* keep draining so later lines still classify */
+      });
+  };
+
   const onData = (data: Buffer) => {
     for (const line of pushUtf8Lines(lineBuffer, data)) {
-      void emit(line);
+      queueEmit(line);
     }
   };
   child.stdout?.on("data", onData);
@@ -392,6 +410,7 @@ export async function runHeadless(
     child.on("error", () => resolve(1));
   });
   signal.removeEventListener("abort", abort);
+  await emitChain;
   for (const line of flushUtf8Lines(lineBuffer)) {
     await emit(line);
   }
@@ -426,30 +445,48 @@ type StreamEvent =
  *
  * Shapes handled (mirroring what t3code's adapters normalize):
  * - Claude / Cursor (claude-style): {type:"assistant",message:{content:[{type:"text",text}]}}
- *   and the final {type:"result",result}.
+ *   and the final {type:"result",result}. Multiple `assistant` events may each
+ *   carry the full message snapshot (not a delta). Skip when the new text
+ *   equals accumulated text or is a prefix/suffix duplicate of the last
+ *   emitted snapshot; treat a longer snapshot as replace (delta only).
  * - Codex exec --json: {type:"item.completed",item:{item_type|type:"agent_message"|"assistant_message",text}}
  *   with command/tool items surfaced as tool chips; turn/thread lifecycle
  *   events are trace-only.
+ *
+ * Callers must classify events sequentially and pass the text accumulated so
+ * far. Concurrent classify with `alreadyEmittedText=false` will double-emit
+ * Cursor's terminal `result`.
  */
 export function classifyStreamEvent(
   parsed: unknown,
-  alreadyEmittedText = false
+  alreadyEmittedText = false,
+  accumulatedText = "",
+  lastEmitted = ""
 ): StreamEvent {
   if (typeof parsed !== "object" || parsed === null) {
     return { kind: "trace" };
   }
   const record = parsed as Record<string, unknown>;
   const type = typeof record.type === "string" ? record.type : "";
+  const hasEmitted = alreadyEmittedText || accumulatedText.trim().length > 0;
 
   if (type === "result" && typeof record.result === "string") {
     // Claude/Cursor emit the full text again as `result` after streaming
     // assistant deltas — do not append a second copy.
-    return alreadyEmittedText
-      ? { kind: "trace" }
-      : { kind: "text", text: record.result };
+    if (
+      hasEmitted ||
+      isRedundantStreamText(record.result, accumulatedText, lastEmitted)
+    ) {
+      return { kind: "trace" };
+    }
+    return { kind: "text", text: record.result };
   }
 
   if (type === "assistant") {
+    // Cursor --stream-partial-output: buffered flush before a tool call.
+    if (typeof record.model_call_id === "string" && record.model_call_id) {
+      return { kind: "trace" };
+    }
     const message = record.message as
       | { content?: { text?: string; type?: string }[] }
       | undefined;
@@ -457,7 +494,11 @@ export function classifyStreamEvent(
       ?.filter((item) => item.type === "text" && item.text)
       .map((item) => item.text ?? "");
     if (texts && texts.length > 0) {
-      return { kind: "text", text: texts.join("\n") };
+      return classifyEmittedText(
+        joinAssistantTexts(texts),
+        accumulatedText,
+        lastEmitted
+      );
     }
     return { kind: "trace" };
   }
@@ -474,7 +515,7 @@ export function classifyStreamEvent(
       typeof item.text === "string" &&
       type.endsWith("completed")
     ) {
-      return { kind: "text", text: item.text };
+      return classifyEmittedText(item.text, accumulatedText, lastEmitted);
     }
     if (/command|tool|file|patch|mcp|image_gen/.test(itemType)) {
       const label =
@@ -490,10 +531,89 @@ export function classifyStreamEvent(
     typeof record.text === "string" &&
     /message|output|content|delta/.test(type)
   ) {
-    return { kind: "text", text: record.text };
+    return classifyEmittedText(record.text, accumulatedText, lastEmitted);
   }
   if (typeof record.error === "string") {
     return { kind: "text", text: `error: ${record.error}` };
   }
   return { kind: "trace" };
+}
+
+/** True when `incoming` is a snapshot already shown in `accumulated` / last emit. */
+export function isRedundantStreamText(
+  incoming: string,
+  accumulated: string,
+  lastEmitted = ""
+): boolean {
+  const next = incoming.trim();
+  if (next.length === 0) {
+    return false;
+  }
+  const prior = accumulated.trim();
+  const last = lastEmitted.trim();
+  if (prior.length > 0 && sameSnapshotText(prior, next)) {
+    return true;
+  }
+  if (last.length > 0 && sameSnapshotText(last, next)) {
+    return true;
+  }
+  if (last.length > 0 && isPrefixOrSuffixDuplicate(next, last)) {
+    return true;
+  }
+  if (prior.length > 0 && isPrefixOrSuffixDuplicate(next, prior)) {
+    return true;
+  }
+  return false;
+}
+
+function sameSnapshotText(left: string, right: string): boolean {
+  return (
+    left === right || left.replaceAll("\n", "") === right.replaceAll("\n", "")
+  );
+}
+
+function isPrefixOrSuffixDuplicate(
+  incoming: string,
+  reference: string
+): boolean {
+  if (incoming.length >= reference.length) {
+    return false;
+  }
+  return reference.startsWith(incoming) || reference.endsWith(incoming);
+}
+
+function joinAssistantTexts(texts: string[]): string {
+  const unique: string[] = [];
+  for (const text of texts) {
+    const prev = unique.at(-1) ?? "";
+    if (prev && isRedundantStreamText(text, prev, prev)) {
+      continue;
+    }
+    unique.push(text);
+  }
+  return unique.join("\n");
+}
+
+function classifyEmittedText(
+  incoming: string,
+  accumulated: string,
+  lastEmitted: string
+): StreamEvent {
+  if (isRedundantStreamText(incoming, accumulated, lastEmitted)) {
+    return { kind: "trace" };
+  }
+  const prior = accumulated.trim();
+  const next = incoming.trim();
+  if (
+    prior.length > 0 &&
+    next.startsWith(prior) &&
+    next.length > prior.length
+  ) {
+    const rest = next.slice(prior.length);
+    if (rest.trim().length === 0) {
+      return { kind: "trace" };
+    }
+    return { kind: "text", text: rest };
+  }
+  return { kind: "text", text: incoming };
 }
