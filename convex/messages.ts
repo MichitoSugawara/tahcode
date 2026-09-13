@@ -16,10 +16,12 @@ import {
   shouldDispatchAgent,
 } from "./lib/mentions";
 import type { AgentTarget } from "./lib/mentions";
-import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
+import type { ProviderOptionSelection } from "./lib/modelOptions";
+import { sanitizeOptionSelections } from "./lib/modelOptions";
 import type { ProviderDriverKind } from "./lib/providers";
+import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
 import { STALE_RUNTIME_MS } from "./lib/runtimeHealth";
-import { messageDoc, providerKind } from "./lib/validators";
+import { messageDoc, optionSelection, providerKind } from "./lib/validators";
 
 async function enrichMessages(
   ctx: { db: QueryCtx["db"] },
@@ -82,6 +84,7 @@ export const send = authedMutation({
     /* the composer's provider / model pick; wins over the chat binding, loses to an explicit @mention */
     driverKind: v.optional(providerKind),
     model: v.optional(v.string()),
+    options: v.optional(v.array(optionSelection)),
   },
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
@@ -137,7 +140,11 @@ export const send = authedMutation({
     const bound: AgentTarget | undefined =
       explicit ??
       (chat.driverKind
-        ? { driverKind: chat.driverKind, model: chat.model }
+        ? {
+            driverKind: chat.driverKind,
+            model: chat.model,
+            options: chat.options,
+          }
         : undefined);
     const wantedKind = preferredProvider(
       mentions,
@@ -154,7 +161,7 @@ export const send = authedMutation({
       mentions,
       bound ?? { driverKind: runtime?.installedDriver ?? "codex" }
     );
-    const { driverKind, model } = target;
+    const { driverKind, model, options } = target;
 
     if (!runtime) {
       const assistantMessageId = await ctx.db.insert("messages", {
@@ -194,6 +201,7 @@ export const send = authedMutation({
       runtimeId: runtime.doc._id,
       driverKind,
       model,
+      options,
       status: "queued",
       prompt: body,
       contextJson: JSON.stringify(context),
@@ -221,6 +229,7 @@ export const send = authedMutation({
 function explicitTarget(args: {
   driverKind?: ProviderDriverKind;
   model?: string;
+  options?: ProviderOptionSelection[];
 }): AgentTarget | undefined {
   if (!args.driverKind) {
     return undefined;
@@ -231,9 +240,11 @@ function explicitTarget(args: {
       "Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes"
     );
   }
+  const options = sanitizeOptionSelections(args.options);
   return {
     driverKind: args.driverKind,
     model: resolveModelSlug(args.driverKind, trimmed),
+    ...(options ? { options } : {}),
   };
 }
 

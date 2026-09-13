@@ -14,6 +14,19 @@ import {
   type ModelSource,
 } from "@shared/providerMaintenance.ts";
 import {
+  effortFooterFor,
+  getProviderOptionCurrentLabel,
+  getProviderOptionCurrentValue,
+  optionDescriptorsFor,
+  primaryOptionDescriptor,
+  retainValidOptions,
+  sanitizeOptionSelections,
+  supportsEffortPick,
+  upsertOptionSelection,
+  type ProviderOptionDescriptor,
+  type ProviderOptionSelection,
+} from "@shared/modelOptions.ts";
+import {
   PROVIDER_CATALOG,
   catalogFor,
   formatAgentMention,
@@ -22,8 +35,39 @@ import {
 } from "@shared/providers.ts";
 import type { ProviderDriverKind, ProviderModel } from "@shared/providers.ts";
 
-export type { CatalogModel, InstallMethod, LiveModel, MaintenanceKind, MaintenanceStatus, ModelSource, ProviderDriverKind, ProviderModel };
-export { PROVIDER_MAINTENANCE, STALE_RUNNING_MS, canRequestMaintenance, formatAgentMention, installMethodLabel, mergeModelCatalog, modelDisplayName, modelsCommandLabel, resolveModelSlug, supportsLiveModels };
+export type {
+  CatalogModel,
+  InstallMethod,
+  LiveModel,
+  MaintenanceKind,
+  MaintenanceStatus,
+  ModelSource,
+  ProviderDriverKind,
+  ProviderModel,
+  ProviderOptionDescriptor,
+  ProviderOptionSelection,
+};
+export {
+  PROVIDER_MAINTENANCE,
+  STALE_RUNNING_MS,
+  canRequestMaintenance,
+  effortFooterFor,
+  formatAgentMention,
+  getProviderOptionCurrentLabel,
+  getProviderOptionCurrentValue,
+  installMethodLabel,
+  mergeModelCatalog,
+  modelDisplayName,
+  modelsCommandLabel,
+  optionDescriptorsFor,
+  primaryOptionDescriptor,
+  resolveModelSlug,
+  retainValidOptions,
+  sanitizeOptionSelections,
+  supportsEffortPick,
+  supportsLiveModels,
+  upsertOptionSelection,
+};
 
 export const PROVIDER_KINDS = PROVIDER_CATALOG.map((entry) => entry.kind);
 

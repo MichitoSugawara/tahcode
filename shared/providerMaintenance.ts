@@ -44,6 +44,9 @@ export type LiveModel = {
   name?: string;
   /** The CLI marked this as its current default (`*`, "(default)", "(current)"). */
   default?: boolean;
+  /** Codex `debug models` JSON — sizes the effort picker when present. */
+  defaultReasoningLevel?: string;
+  supportedReasoningLevels?: string[];
 };
 
 export type ModelSource = "live" | "static";
@@ -222,7 +225,31 @@ function candidateFromJson(value: unknown): LiveModel | null {
     (field) => typeof field === "string" && field !== slugField && field.trim().length > 0,
   );
   const isDefault = record.default === true || record.current === true || record.selected === true;
-  return { slug: slugField, ...(typeof nameField === "string" ? { name: nameField.trim() } : {}), ...(isDefault ? { default: true } : {}) };
+  const defaultReasoning = [record.default_reasoning_level, record.defaultReasoningLevel, record.defaultReasoningEffort].find(
+    (field) => typeof field === "string" && field.trim().length > 0,
+  );
+  const levelsRaw = [record.supported_reasoning_levels, record.supportedReasoningLevels, record.supportedReasoningEfforts].find(
+    (field) => Array.isArray(field),
+  );
+  const supportedReasoningLevels = Array.isArray(levelsRaw)
+    ? levelsRaw
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (typeof item === "object" && item !== null) {
+            const effort = (item as Record<string, unknown>).reasoningEffort ?? (item as Record<string, unknown>).id;
+            return typeof effort === "string" ? effort : "";
+          }
+          return "";
+        })
+        .filter((item) => item.length > 0)
+    : undefined;
+  return {
+    slug: slugField,
+    ...(typeof nameField === "string" ? { name: nameField.trim() } : {}),
+    ...(isDefault ? { default: true } : {}),
+    ...(typeof defaultReasoning === "string" ? { defaultReasoningLevel: defaultReasoning.trim() } : {}),
+    ...(supportedReasoningLevels && supportedReasoningLevels.length > 0 ? { supportedReasoningLevels } : {}),
+  };
 }
 
 function parseJsonModels(text: string): LiveModel[] | null {

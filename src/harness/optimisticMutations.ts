@@ -5,7 +5,7 @@ import { useCallback } from "react";
 
 import { useOrg } from "@/harness/OrgContext";
 import { placeholderId } from "@/lib/optimistic";
-import type { ProviderDriverKind } from "@/lib/providers";
+import type { ProviderDriverKind, ProviderOptionSelection } from "@/lib/providers";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -62,6 +62,7 @@ const projectSlug = (name: string) =>
 export interface ChatAgentArgs {
   driverKind?: ProviderDriverKind;
   model?: string;
+  options?: ProviderOptionSelection[];
 }
 export type CreateChatArgs = {
   projectId: Id<"projects">;
@@ -87,6 +88,7 @@ export function useCreateProjectChat() {
           orgId: org._id,
           ownerId: undefined,
           projectId: input.projectId,
+          options: input.driverKind ? input.options : undefined,
           title: chatTitle(input.title),
           visibility: input.visibility,
         })
@@ -132,6 +134,7 @@ export function useCreateProjectWithChat() {
           orgId: input.orgId,
           ownerId: undefined,
           projectId: projectPlaceholder,
+          options: undefined,
           title: chatTitle(firstChatTitle),
           visibility: "inherit",
         });
@@ -155,7 +158,11 @@ export function useCreateProjectWithChat() {
 /** Bind a chat to a provider + model; the composer's picker and the sidebar row reflect it at once. */
 export function useSetChatAgent() {
   return useMutation(api.chats.setAgent).withOptimisticUpdate((store, args) => {
-    const patch = { driverKind: args.driverKind, model: args.model };
+    const patch = {
+      driverKind: args.driverKind,
+      model: args.model,
+      options: args.options,
+    };
     for (const { args: listArgs, value } of store.getAllQueries(
       api.chats.list
     )) {

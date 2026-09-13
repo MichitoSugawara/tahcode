@@ -58,7 +58,7 @@ describe("parseModelListOutput", () => {
       ],
     });
     expect(parseModelListOutput("codex", out)).toEqual([
-      { slug: "gpt-6-astra", name: "GPT-6 Astra" },
+      { slug: "gpt-6-astra", name: "GPT-6 Astra", defaultReasoningLevel: "high" },
       { slug: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
     ]);
   });

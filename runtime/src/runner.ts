@@ -9,6 +9,7 @@ import {
   supportsLiveModels,
   updateCommandLabel,
 } from "../../shared/providerMaintenance.ts";
+import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
@@ -144,7 +145,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       const job = await client.claimNext(options.runtimeId, options.token);
       if (job) {
         console.log(
-          `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""})`
+          `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""}${job.options?.length ? ` +${job.options.length} opt` : ""})`
         );
         await executeJob(client, options, job, probes, heartbeatMs);
         continue;
@@ -278,6 +279,7 @@ async function executeJob(
     driverKind: ProviderDriverKind;
     leaseId: string;
     model?: string;
+    options?: ProviderOptionSelection[];
     prompt: string;
   },
   probes: ProviderProbe[],
@@ -292,6 +294,7 @@ async function executeJob(
     options.preferredKind !== job.driverKind;
   const wanted = options.preferredKind ?? job.driverKind;
   const model = pinned ? undefined : job.model;
+  const jobOptions = pinned ? undefined : job.options;
   const probe = probes.find((item) => item.kind === wanted && item.available);
   const anyAvailable = probes.find((item) => item.available);
   const send = async (
@@ -343,9 +346,12 @@ async function executeJob(
 
   const contextSummary = summarizeContext(job.contextJson);
   const prompt = `${job.prompt}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}`;
+  const effortTag = jobOptions?.find(
+    (item) => typeof item.value === "string"
+  )?.value;
   await send(
     "thinking",
-    `Running ${probe.kind}${model ? ` (${model})` : ""} via ${probe.binary}…`
+    `Running ${probe.kind}${model ? ` (${model})` : ""}${typeof effortTag === "string" ? ` · ${effortTag}` : ""} via ${probe.binary}…`
   );
 
   const keepAlive = setInterval(() => {
@@ -386,7 +392,8 @@ async function executeJob(
         onTool: (line) => send("tool", line),
       },
       controller.signal,
-      model
+      model,
+      jobOptions
     );
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     if (result.exitCode === 0 && result.output) {

@@ -77,12 +77,12 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
 3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・招待・テーマ・サインアウト）、`/o/:slug/settings`
 4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
-5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
+5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル + 推論レベル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
    **プロバイダ設定** — マシンカードの「プロバイダ設定」で、検出 CLI ごとの使えるモデル（ライブ / 静的）・バージョン・インストール方法を確認し、所有者は「CLI を更新」「モデルを再取得」を実行（進行ログ・結果はその場に表示）
-9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
+9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / 推論レベル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール） **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
 
@@ -93,8 +93,30 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 - **カタログ** — `shared/providers.ts` が 6 プロバイダごとのモデル一覧を持つ。出典は t3code の `model-manifest.json`（Codex / Claude / Antigravity）、Multica の `models.go` 静的カタログ（Codex / Claude / Grok）、Cursor のモデルドキュメント（Cursor CLI の id）。Cursor / Grok / OpenCode は上流ではサインイン済み CLI から動的に取得するため、ここでの一覧はスナップショット。**一覧にないスラッグも `@cursor/<slug>` で直接指名でき、そのまま CLI に渡る**（CLI 側のカタログが正）。
 - **メンション文法** — `@provider/model`。最初の `/` で分割するので OpenCode の `@opencode/anthropic/claude-sonnet-5` も通る。Claude の別名（`@claude/opus` → `claude-opus-5`）はカタログで解決。`@agent` は「このチャットのエージェント」。
 - **既定モデル（後方互換）** — `@cursor` のようにプロバイダだけの指名は、そのプロバイダの既定モデル = **CLI 側の設定に従う**（`--model` を付けない）。これまでの `@codex` / `@claude` はそのまま同じ動きをする。チャットが `cursor/muse-spark-1.3` に結びついているときは素の `@cursor` もそのモデルで動く（別プロバイダを素で指名したときはその CLI の既定）。
-- **チャットへの結びつけ** — `chats.driverKind` / `chats.model`。「新しいチャット」ダイアログで選ぶか、コンポーザのプロバイダ / モデルピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。
+- **チャットへの結びつけ** — `chats.driverKind` / `chats.model` / `chats.options`。「新しいチャット」ダイアログで選ぶか、コンポーザのプロバイダ / モデル / 推論ピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。別プロバイダを `@mention` したときはそのプロバイダの CLI 既定に戻り、effort も引き継がない。
 - **ランタイム** — ジョブが `model` を持つときだけ CLI にフラグを付ける: `codex exec --model`、`claude -p --model`、`agent -p --model`、`opencode run --model provider/model`、`grok --model`（Grok の headless 引数は暫定のまま）。指名されたプロバイダの CLI がそのマシンに無いときは別の CLI で黙って実行せず、「未インストール」を返信として返す。サーバ側も指名プロバイダが検出済みのマシンを優先して選ぶ。`tahcode start --provider <kind>` で固定した場合はメンションのモデル指定は無視される（モデル名はプロバイダ固有のため）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
+
+### 推論レベル（effort / reasoning）
+
+t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存エージェント結びつけ（チャット保存 → job → `headlessArgs`）に載せたもの。コンポーザと「新しいチャット」に **Reasoning** ピルが出る（対応プロバイダだけ。Antigravity はモデル slug に High/Medium/Low が含まれるので非表示）。ラベル・値・既定は t3code に合わせてある。
+
+| プロバイダ | option id | 既定 | 実行時 |
+|---|---|---|---|
+| Codex | `reasoningEffort`（None…Ultra、`xhigh` = Extra High） | `medium`（`gpt-6-astra` も medium。ライブ `codex debug models` に `supported_reasoning_levels` があればそれを使う） | `codex exec --config model_reasoning_effort=high`（未選択ならフラグなし = CLI の設定） |
+| Claude | `effort`（Low…Max / Ultracode / Ultrathink）。Haiku は `thinking` On/Off | Fable `medium`、Opus/Sonnet `high`、Opus 4.7 `xhigh` | `claude -p --effort …`。Ultrathink はプロンプト先頭 `Ultrathink:\n`（`--effort` なし）。Ultracode は `--effort xhigh` + `--settings {"ultracode":true}`。モデルごとの `effortMap`（Opus 4.7 の `xhigh`→`max`、Sonnet 4.6 の `max`→`high`）も t3code と同じ |
+| OpenCode | `variant`（low / medium / high / xhigh） | Anthropic/Google `high`、OpenAI `medium` | `opencode run --variant high` |
+| Cursor | `reasoning`（low…max） | `medium` | **保存のみ。** `agent -p` に effort フラグがなく、t3code は ACP `setConfigOption` で渡す |
+| Grok | `reasoningEffort` | `high` | **保存のみ。** headless `grok --prompt` のフラグは未確定（t3code は ACP） |
+| Antigravity | （なし） | — | モデル slug で切り替え |
+
+**t3code との差（意図的な簡略化）**
+
+- Composer は primary select（+ Haiku の Thinking）だけ。`fastMode` / `serviceTier` / `contextWindow` / OpenCode `agent` は未配線。
+- Ultrathink はチャットの `options` に保存する（t3code Web はプロンプト注入だけで option には残さない）。本文に `ultrathink` があれば二重付与しない。スラッシュコマンドは注入しない。
+- Cursor / Grok の選択はチャットに残るが headless 実行には乗らない（上記）。
+- モバイル専用の `selectableChoices`（ultrathink / ultracode を隠す）は Web のみの tahcode には無い。
+
+選択は `chats.options` / `jobs.options` の `{ id, value }[]`（t3code の `ModelSelection.options`）。未選択の既存チャットは従来どおり CLI 側の effort 設定に従う。
 
 ### マシンのプロバイダ設定（モデル・バージョン・CLI 更新）
 

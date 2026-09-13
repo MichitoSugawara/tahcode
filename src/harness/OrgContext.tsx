@@ -16,8 +16,13 @@ import type {
   InstallMethod,
   LiveModel,
   ProviderDriverKind,
+  ProviderOptionSelection,
 } from "@/lib/providers";
-import { isProviderKind } from "@/lib/providers";
+import {
+  isProviderKind,
+  retainValidOptions,
+  sanitizeOptionSelections,
+} from "@/lib/providers";
 import { useStoredState } from "@/lib/storage";
 
 import { api } from "../../convex/_generated/api";
@@ -55,9 +60,10 @@ export interface Chat {
   title: string;
   visibility: "inherit" | "private";
   ownerId?: Id<"users">;
-  /** default agent bound to the chat (provider + optional model slug) */
+  /** default agent bound to the chat (provider + optional model slug + effort options) */
   driverKind?: ProviderDriverKind;
   model?: string;
+  options?: ProviderOptionSelection[];
 }
 export interface RuntimeProvider {
   available: boolean;
@@ -139,7 +145,8 @@ interface OrgContextValue {
   /** last-used agent in this org — the default for chats that have no binding yet */
   provider: ProviderDriverKind;
   model: string | null;
-  setAgent: (kind: ProviderDriverKind, model?: string | null) => void;
+  options: ProviderOptionSelection[] | undefined;
+  setAgent: (kind: ProviderDriverKind, model?: string | null, options?: ProviderOptionSelection[] | null) => void;
   runtimeId: Id<"runtimes"> | null;
   setRuntimeId: (id: Id<"runtimes"> | null) => void;
   tabs: Id<"chats">[];
@@ -238,12 +245,25 @@ export function OrgProvider({
     typeof storedModel === "string" && storedModel.length > 0
       ? storedModel
       : null;
+  const [storedOptions, setStoredOptions] = useStoredState<
+    ProviderOptionSelection[] | null
+  >(`th:${orgId}:options`, null);
+  const options = sanitizeOptionSelections(storedOptions);
   const setAgent = useCallback(
-    (kind: ProviderDriverKind, nextModel?: string | null) => {
+    (
+      kind: ProviderDriverKind,
+      nextModel?: string | null,
+      nextOptions?: ProviderOptionSelection[] | null
+    ) => {
       setStoredProvider(kind);
       setStoredModel(nextModel ?? null);
+      const kept =
+        nextOptions === undefined
+          ? retainValidOptions(kind, nextModel ?? null, storedOptions)
+          : sanitizeOptionSelections(nextOptions);
+      setStoredOptions(kept ?? null);
     },
-    [setStoredProvider, setStoredModel]
+    [setStoredProvider, setStoredModel, setStoredOptions, storedOptions]
   );
   const [storedRuntime, setStoredRuntime] = useStoredState<string | null>(
     `th:${orgId}:runtime`,
@@ -339,6 +359,7 @@ export function OrgProvider({
       members,
       model,
       now,
+      options,
       openDialog: (state) => setDialog(state),
       openTab,
       org,
@@ -373,6 +394,7 @@ export function OrgProvider({
       now,
       provider,
       model,
+      options,
       setAgent,
       runtimeId,
       tabs,

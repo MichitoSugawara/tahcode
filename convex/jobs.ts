@@ -10,6 +10,7 @@ import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
 import {
   jobStatus,
+  optionSelection,
   providerKind,
   runtimeProviderReport,
 } from "./lib/validators";
@@ -21,6 +22,7 @@ const jobView = v.object({
   driverKind: providerKind,
   error: v.optional(v.string()),
   model: v.optional(v.string()),
+  options: v.optional(v.array(optionSelection)),
   prompt: v.string(),
   runtimeId: v.id("runtimes"),
   status: jobStatus,
@@ -35,6 +37,7 @@ const claimView = v.union(
     contextJson: v.string(),
     driverKind: providerKind,
     model: v.optional(v.string()),
+    options: v.optional(v.array(optionSelection)),
     prompt: v.string(),
     runtimeId: v.id("runtimes"),
     status: jobStatus,
@@ -174,6 +177,7 @@ export const claimNext = mutation({
       driverKind: job.driverKind,
       leaseId,
       model: job.model,
+      options: job.options,
       prompt: job.prompt,
       runtimeId: job.runtimeId,
       status: "running" as const,
@@ -346,6 +350,7 @@ export const get = authedQuery({
         runtimeId: job.runtimeId,
         driverKind: job.driverKind,
         model: job.model,
+        options: job.options,
         status: job.status,
         prompt: job.prompt,
         error: job.error,
@@ -399,6 +404,7 @@ export const listByChat = authedQuery({
       runtimeId: job.runtimeId,
       driverKind: job.driverKind,
       model: job.model,
+      options: job.options,
       status: job.status,
       prompt: job.prompt,
       error: job.error,

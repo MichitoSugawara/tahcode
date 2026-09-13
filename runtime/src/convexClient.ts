@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 
+import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type {
   InstallMethod,
   LiveModel,
@@ -35,6 +36,8 @@ export interface ClaimedJob {
   leaseId: string;
   /** `@provider/model` slug for the CLI's model flag; absent = CLI default */
   model?: string;
+  /** t3code option selections (effort / variant) applied as CLI flags */
+  options?: ProviderOptionSelection[];
   prompt: string;
   runtimeId: string;
   status: string;

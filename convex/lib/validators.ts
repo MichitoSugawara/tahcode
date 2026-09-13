@@ -37,6 +37,15 @@ export const liveModel = v.object({
   slug: v.string(),
   name: v.optional(v.string()),
   default: v.optional(v.boolean()),
+  /** From `codex debug models` JSON — used to size the effort picker. */
+  defaultReasoningLevel: v.optional(v.string()),
+  supportedReasoningLevels: v.optional(v.array(v.string())),
+});
+
+/** t3code `ProviderOptionSelection` — `{ id, value }` persisted with the agent binding. */
+export const optionSelection = v.object({
+  id: v.string(),
+  value: v.union(v.string(), v.boolean()),
 });
 
 export const maintenanceKind = v.union(
@@ -116,6 +125,7 @@ export const chatSummary = v.object({
   projectId: v.optional(v.id("projects")),
   title: v.string(),
   visibility: chatVisibility,
+  options: v.optional(v.array(optionSelection)),
 });
 
 export const messageDoc = v.object({

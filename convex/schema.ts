@@ -9,6 +9,7 @@ import {
   installMethod,
   jobStatus,
   liveModel,
+  optionSelection,
   maintenanceKind,
   maintenanceStatus,
   messageAuthorType,
@@ -39,6 +40,8 @@ export default defineSchema({
     /* default agent for this chat: what auto-mentions and bare messages run on */
     driverKind: v.optional(providerKind),
     model: v.optional(v.string()),
+    /* t3code ModelSelection.options — effort / traits for this chat's agent */
+    options: v.optional(v.array(optionSelection)),
   })
     .index("by_org", ["orgId"])
     .index("by_project", ["projectId"])
@@ -108,6 +111,7 @@ export default defineSchema({
     runtimeId: v.id("runtimes"),
     driverKind: providerKind,
     model: v.optional(v.string()),
+    options: v.optional(v.array(optionSelection)),
     status: jobStatus,
     prompt: v.string(),
     contextJson: v.string(),
