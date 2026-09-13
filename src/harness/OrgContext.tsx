@@ -1,19 +1,40 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+
 import { isPlaceholderId, trackPlaceholder } from "@/lib/optimistic";
-import { useStoredState } from "@/lib/storage";
 import type { ProviderDriverKind } from "@/lib/providers";
 import { isProviderKind } from "@/lib/providers";
+import { useStoredState } from "@/lib/storage";
+
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 export type OrgRole = "owner" | "admin" | "member";
 
-export type Me = { _id: Id<"users">; name?: string; email?: string; handle?: string; image?: string };
-export type OrgSummary = { _id: Id<"orgs">; name: string; slug: string; role: OrgRole };
-export type Project = {
+export interface Me {
+  _id: Id<"users">;
+  name?: string;
+  email?: string;
+  handle?: string;
+  image?: string;
+}
+export interface OrgSummary {
+  _id: Id<"orgs">;
+  name: string;
+  slug: string;
+  role: OrgRole;
+}
+export interface Project {
   _id: Id<"projects">;
   orgId: Id<"orgs">;
   name: string;
@@ -21,8 +42,8 @@ export type Project = {
   visibility: "org" | "private";
   cwd?: string;
   repoUrl?: string;
-};
-export type Chat = {
+}
+export interface Chat {
   _id: Id<"chats">;
   orgId: Id<"orgs">;
   projectId?: Id<"projects">;
@@ -33,8 +54,8 @@ export type Chat = {
   /** default agent bound to the chat (provider + optional model slug) */
   driverKind?: ProviderDriverKind;
   model?: string;
-};
-export type Runtime = {
+}
+export interface Runtime {
   _id: Id<"runtimes">;
   name: string;
   slug: string;
@@ -44,15 +65,23 @@ export type Runtime = {
   lastSeenAt?: number;
   ownerUserId: Id<"users">;
   canUse: boolean;
-  providers: { driverKind: ProviderDriverKind; available: boolean; version?: string; binaryPath?: string }[];
+  providers: {
+    driverKind: ProviderDriverKind;
+    available: boolean;
+    version?: string;
+    binaryPath?: string;
+  }[];
   grants: {
     _id: Id<"runtimeGrants">;
     targetType: "user" | "role";
     targetUserId?: Id<"users">;
     targetRole?: OrgRole;
   }[];
-};
-export type Member = { user: Me; role: OrgRole };
+}
+export interface Member {
+  user: Me;
+  role: OrgRole;
+}
 
 export type DialogState =
   | { kind: "createOrg" }
@@ -65,11 +94,18 @@ export type DialogState =
 
 /** A runtime is "live" when its heartbeat is fresh (server treats >90s as dead). */
 export const STALE_AFTER_MS = 90_000;
-export function isLive(runtime: Pick<Runtime, "status" | "lastSeenAt">, now = Date.now()): boolean {
-  return runtime.status === "online" && runtime.lastSeenAt !== undefined && now - runtime.lastSeenAt < STALE_AFTER_MS;
+export function isLive(
+  runtime: Pick<Runtime, "status" | "lastSeenAt">,
+  now = Date.now()
+): boolean {
+  return (
+    runtime.status === "online" &&
+    runtime.lastSeenAt !== undefined &&
+    now - runtime.lastSeenAt < STALE_AFTER_MS
+  );
 }
 
-type OrgContextValue = {
+interface OrgContextValue {
   me: Me;
   orgs: OrgSummary[];
   org: OrgSummary;
@@ -98,17 +134,22 @@ type OrgContextValue = {
   goChat: (id: Id<"chats">) => void;
   /** Open a chat whose create is still in flight: shows `placeholder` now, swaps the URL and tab
    *  to the real id when `created` resolves, and returns to the previous screen if it fails. */
-  goPendingChat: (placeholder: Id<"chats">, created: Promise<Id<"chats">>) => void;
+  goPendingChat: (
+    placeholder: Id<"chats">,
+    created: Promise<Id<"chats">>
+  ) => void;
   goSettings: () => void;
   switchOrg: (id: Id<"orgs">) => void;
   signOut: () => void;
-};
+}
 
 const OrgContext = createContext<OrgContextValue | null>(null);
 
 export function useOrg(): OrgContextValue {
   const value = useContext(OrgContext);
-  if (!value) throw new Error("useOrg must be used inside <OrgProvider>");
+  if (!value) {
+    throw new Error("useOrg must be used inside <OrgProvider>");
+  }
   return value;
 }
 
@@ -127,9 +168,13 @@ export function OrgProvider({
   const { signOut } = useAuthActions();
   const orgId = org._id;
 
-  const projects = useQuery(api.projects.list, { orgId }) as Project[] | undefined;
+  const projects = useQuery(api.projects.list, { orgId }) as
+    | Project[]
+    | undefined;
   const chats = useQuery(api.chats.list, { orgId }) as Chat[] | undefined;
-  const runtimes = useQuery(api.runtimes.list, { orgId }) as Runtime[] | undefined;
+  const runtimes = useQuery(api.runtimes.list, { orgId }) as
+    | Runtime[]
+    | undefined;
   const members = useQuery(api.orgs.members, { orgId }) as Member[] | undefined;
 
   const ensureDm = useMutation(api.chats.ensureDm);
@@ -139,9 +184,11 @@ export function OrgProvider({
     setDmId(null);
     ensureDm({ orgId })
       .then((id) => {
-        if (!cancelled) setDmId(id);
+        if (!cancelled) {
+          setDmId(id);
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -158,34 +205,55 @@ export function OrgProvider({
     return () => clearInterval(t);
   }, []);
 
-  const [storedProvider, setStoredProvider] = useStoredState<string>(`th:${orgId}:provider`, "codex");
-  const provider: ProviderDriverKind = isProviderKind(storedProvider) ? storedProvider : "codex";
-  const [storedModel, setStoredModel] = useStoredState<string | null>(`th:${orgId}:model`, null);
-  const model = typeof storedModel === "string" && storedModel.length > 0 ? storedModel : null;
+  const [storedProvider, setStoredProvider] = useStoredState<string>(
+    `th:${orgId}:provider`,
+    "codex"
+  );
+  const provider: ProviderDriverKind = isProviderKind(storedProvider)
+    ? storedProvider
+    : "codex";
+  const [storedModel, setStoredModel] = useStoredState<string | null>(
+    `th:${orgId}:model`,
+    null
+  );
+  const model =
+    typeof storedModel === "string" && storedModel.length > 0
+      ? storedModel
+      : null;
   const setAgent = useCallback(
     (kind: ProviderDriverKind, nextModel?: string | null) => {
       setStoredProvider(kind);
       setStoredModel(nextModel ?? null);
     },
-    [setStoredProvider, setStoredModel],
+    [setStoredProvider, setStoredModel]
   );
-  const [storedRuntime, setStoredRuntime] = useStoredState<string | null>(`th:${orgId}:runtime`, null);
+  const [storedRuntime, setStoredRuntime] = useStoredState<string | null>(
+    `th:${orgId}:runtime`,
+    null
+  );
   const runtimeId = (storedRuntime as Id<"runtimes"> | null) ?? null;
 
   const [tabs, setTabs] = useStoredState<Id<"chats">[]>(`th:${orgId}:tabs`, []);
   const openTab = useCallback(
-    (id: Id<"chats">) => setTabs((current) => (current.includes(id) ? current : [...current, id])),
-    [setTabs],
+    (id: Id<"chats">) =>
+      setTabs((current) => (current.includes(id) ? current : [...current, id])),
+    [setTabs]
   );
-  const closeTab = useCallback((id: Id<"chats">) => setTabs((current) => current.filter((item) => item !== id)), [setTabs]);
+  const closeTab = useCallback(
+    (id: Id<"chats">) =>
+      setTabs((current) => current.filter((item) => item !== id)),
+    [setTabs]
+  );
   const swapTab = useCallback(
     (from: Id<"chats">, to: Id<"chats">) =>
       setTabs((current) => {
         const swapped = current.map((item) => (item === from ? to : item));
-        const next = swapped.filter((item, index) => item !== to || swapped.indexOf(item) === index);
+        const next = swapped.filter(
+          (item, index) => item !== to || swapped.indexOf(item) === index
+        );
         return next.includes(to) ? next : [...next, to];
       }),
-    [setTabs],
+    [setTabs]
   );
 
   const goPendingChat = useCallback(
@@ -193,28 +261,37 @@ export function OrgProvider({
       /* BrowserRouter: window.location is the router's location, read at call time so the memo below stays stable.
        * Never fall back onto another placeholder page — by the time we return it may have been swapped away. */
       const here = `${window.location.pathname}${window.location.search}`;
-      const from = isPlaceholderId(window.location.pathname.split("/c/")[1]) ? `/o/${org.slug}` : here;
+      const from = isPlaceholderId(window.location.pathname.split("/c/")[1])
+        ? `/o/${org.slug}`
+        : here;
       const chatPath = (id: Id<"chats">) => `/o/${org.slug}/c/${String(id)}`;
-      const stillHere = () => window.location.pathname === chatPath(placeholder);
+      const stillHere = () =>
+        window.location.pathname === chatPath(placeholder);
       openTab(placeholder);
       navigate(chatPath(placeholder));
       trackPlaceholder(placeholder, created).then(
         (id) => {
           swapTab(placeholder, id);
-          if (stillHere()) navigate(chatPath(id), { replace: true });
+          if (stillHere()) {
+            navigate(chatPath(id), { replace: true });
+          }
         },
         () => {
           closeTab(placeholder);
-          if (stillHere()) navigate(from, { replace: true });
-        },
+          if (stillHere()) {
+            navigate(from, { replace: true });
+          }
+        }
       );
     },
-    [org.slug, openTab, closeTab, swapTab, navigate],
+    [org.slug, openTab, closeTab, swapTab, navigate]
   );
 
   /* drop tabs for chats that vanished or became invisible */
   useEffect(() => {
-    if (!chats) return;
+    if (!chats) {
+      return;
+    }
     const ids = new Set(chats.map((chat) => String(chat._id)));
     setTabs((current) => {
       const next = current.filter((id) => ids.has(String(id)));
@@ -226,43 +303,45 @@ export function OrgProvider({
 
   const value = useMemo<OrgContextValue>(
     () => ({
-      me,
-      orgs,
-      org,
-      role: org.role,
-      isAdmin: org.role === "owner" || org.role === "admin",
-      isOwner: org.role === "owner",
-      projects,
       chats,
-      runtimes,
-      members,
-      dmId,
-      now,
-      provider,
-      model,
-      setAgent,
-      runtimeId,
-      setRuntimeId: (id) => setStoredRuntime(id ? String(id) : null),
-      tabs,
-      openTab,
+      closeDialog: () => setDialog(null),
       closeTab,
       dialog,
-      openDialog: (state) => setDialog(state),
-      closeDialog: () => setDialog(null),
-      goHome: () => navigate(`/o/${org.slug}`),
+      dmId,
       goChat: (id) => {
         openTab(id);
         navigate(`/o/${org.slug}/c/${String(id)}`);
       },
+      goHome: () => navigate(`/o/${org.slug}`),
       goPendingChat,
       goSettings: () => navigate(`/o/${org.slug}/settings`),
-      switchOrg: (id) => {
-        const target = orgs.find((item) => item._id === id);
-        if (target) navigate(`/o/${target.slug}`);
-      },
+      isAdmin: org.role === "owner" || org.role === "admin",
+      isOwner: org.role === "owner",
+      me,
+      members,
+      model,
+      now,
+      openDialog: (state) => setDialog(state),
+      openTab,
+      org,
+      orgs,
+      projects,
+      provider,
+      role: org.role,
+      runtimeId,
+      runtimes,
+      setAgent,
+      setRuntimeId: (id) => setStoredRuntime(id ? String(id) : null),
       signOut: () => {
         void signOut().then(() => navigate("/login"));
       },
+      switchOrg: (id) => {
+        const target = orgs.find((item) => item._id === id);
+        if (target) {
+          navigate(`/o/${target.slug}`);
+        }
+      },
+      tabs,
     }),
     [
       me,
@@ -286,7 +365,7 @@ export function OrgProvider({
       navigate,
       signOut,
       setStoredRuntime,
-    ],
+    ]
   );
 
   return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;

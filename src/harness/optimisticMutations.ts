@@ -2,11 +2,13 @@ import type { OptimisticLocalStore } from "convex/browser";
 import { useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useCallback } from "react";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+
 import { useOrg } from "@/harness/OrgContext";
 import { placeholderId } from "@/lib/optimistic";
 import type { ProviderDriverKind } from "@/lib/providers";
+
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 /* ─────────────────────────────────────────────────────────
  * OPTIMISTIC MUTATIONS — the create flows that navigate. Each
@@ -22,61 +24,85 @@ type ProjectSummary = FunctionReturnType<typeof api.projects.list>[number];
 
 function appendChat(store: OptimisticLocalStore, chat: ChatSummary) {
   for (const { args, value } of store.getAllQueries(api.chats.list)) {
-    if (value === undefined || args.orgId !== chat.orgId) continue;
-    if (args.projectId !== undefined && args.projectId !== chat.projectId) continue;
-    if (args.kind !== undefined && args.kind !== chat.kind) continue;
+    if (value === undefined || args.orgId !== chat.orgId) {
+      continue;
+    }
+    if (args.projectId !== undefined && args.projectId !== chat.projectId) {
+      continue;
+    }
+    if (args.kind !== undefined && args.kind !== chat.kind) {
+      continue;
+    }
     store.setQuery(api.chats.list, args, [...value, chat]);
   }
 }
 
 function appendProject(store: OptimisticLocalStore, project: ProjectSummary) {
   for (const { args, value } of store.getAllQueries(api.projects.list)) {
-    if (value === undefined || args.orgId !== project.orgId) continue;
+    if (value === undefined || args.orgId !== project.orgId) {
+      continue;
+    }
     store.setQuery(api.projects.list, args, [...value, project]);
   }
 }
 
 /* mirrors the server's normalisation so the placeholder reads like the row it becomes */
-const chatTitle = (title: string) => title.trim().slice(0, 80) || "Untitled chat";
+const chatTitle = (title: string) =>
+  title.trim().slice(0, 80) || "Untitled chat";
 const projectSlug = (name: string) =>
   name
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replaceAll(/[^\w\s-]/g, "")
+    .replaceAll(/[\s_]+/g, "-")
+    .replaceAll(/-+/g, "-")
+    .replaceAll(/^-|-$/g, "")
     .slice(0, 40) || "item";
 
-export type ChatAgentArgs = { driverKind?: ProviderDriverKind; model?: string };
-export type CreateChatArgs = { projectId: Id<"projects">; title: string; visibility: "inherit" | "private" } & ChatAgentArgs;
+export interface ChatAgentArgs {
+  driverKind?: ProviderDriverKind;
+  model?: string;
+}
+export type CreateChatArgs = {
+  projectId: Id<"projects">;
+  title: string;
+  visibility: "inherit" | "private";
+} & ChatAgentArgs;
 
 /** Create a project chat; the placeholder shows up in the sidebar immediately. */
 export function useCreateProjectChat() {
   const { org } = useOrg();
   const mutate = useMutation(api.chats.createProjectChat);
   return useCallback(
-    (args: CreateChatArgs, placeholder: Id<"chats"> = placeholderId("chats")) => {
+    (
+      args: CreateChatArgs,
+      placeholder: Id<"chats"> = placeholderId("chats")
+    ) => {
       const optimistic = mutate.withOptimisticUpdate((store, input) =>
         appendChat(store, {
           _id: placeholder,
-          orgId: org._id,
-          projectId: input.projectId,
+          driverKind: input.driverKind,
           kind: "project",
+          model: input.driverKind ? input.model : undefined,
+          orgId: org._id,
+          ownerId: undefined,
+          projectId: input.projectId,
           title: chatTitle(input.title),
           visibility: input.visibility,
-          ownerId: undefined,
-          driverKind: input.driverKind,
-          model: input.driverKind ? input.model : undefined,
-        }),
+        })
       );
-      return { placeholder, created: optimistic(args) };
+      return { created: optimistic(args), placeholder };
     },
-    [mutate, org._id],
+    [mutate, org._id]
   );
 }
 
-export type CreateProjectArgs = { name: string; visibility: "org" | "private"; repoUrl?: string; cwd?: string };
+export interface CreateProjectArgs {
+  name: string;
+  visibility: "org" | "private";
+  repoUrl?: string;
+  cwd?: string;
+}
 
 /** Create a project together with its first chat. The project and the chat placeholder
  *  appear at once; the chat is created for real once the project id exists. */
@@ -91,34 +117,38 @@ export function useCreateProjectWithChat() {
       const optimistic = mutate.withOptimisticUpdate((store, input) => {
         appendProject(store, {
           _id: projectPlaceholder,
-          orgId: input.orgId,
+          cwd: input.cwd,
           name: input.name.trim().slice(0, 80),
+          orgId: input.orgId,
+          repoUrl: input.repoUrl,
           slug: projectSlug(input.name),
           visibility: input.visibility,
-          cwd: input.cwd,
-          repoUrl: input.repoUrl,
         });
         appendChat(store, {
           _id: chatPlaceholder,
-          orgId: input.orgId,
-          projectId: projectPlaceholder,
+          driverKind: undefined,
           kind: "project",
+          model: undefined,
+          orgId: input.orgId,
+          ownerId: undefined,
+          projectId: projectPlaceholder,
           title: chatTitle(firstChatTitle),
           visibility: "inherit",
-          ownerId: undefined,
-          driverKind: undefined,
-          model: undefined,
         });
       });
       const projectCreated = optimistic({ orgId: org._id, ...args });
       /* re-insert the same chat placeholder under the real project while the second mutation runs,
        * so the page the user is already looking at never loses its row */
       const chatCreated = projectCreated.then(
-        (projectId) => createChat({ projectId, title: firstChatTitle, visibility: "inherit" }, chatPlaceholder).created,
+        (projectId) =>
+          createChat(
+            { projectId, title: firstChatTitle, visibility: "inherit" },
+            chatPlaceholder
+          ).created
       );
-      return { chatPlaceholder, projectCreated, chatCreated };
+      return { chatCreated, chatPlaceholder, projectCreated };
     },
-    [mutate, createChat, org._id],
+    [mutate, createChat, org._id]
   );
 }
 
@@ -126,11 +156,30 @@ export function useCreateProjectWithChat() {
 export function useSetChatAgent() {
   return useMutation(api.chats.setAgent).withOptimisticUpdate((store, args) => {
     const patch = { driverKind: args.driverKind, model: args.model };
-    for (const { args: listArgs, value } of store.getAllQueries(api.chats.list)) {
-      if (value === undefined || !value.some((chat) => chat._id === args.chatId)) continue;
-      store.setQuery(api.chats.list, listArgs, value.map((chat) => (chat._id === args.chatId ? { ...chat, ...patch } : chat)));
+    for (const { args: listArgs, value } of store.getAllQueries(
+      api.chats.list
+    )) {
+      if (
+        value === undefined ||
+        !value.some((chat) => chat._id === args.chatId)
+      ) {
+        continue;
+      }
+      store.setQuery(
+        api.chats.list,
+        listArgs,
+        value.map((chat) =>
+          chat._id === args.chatId ? { ...chat, ...patch } : chat
+        )
+      );
     }
     const current = store.getQuery(api.chats.get, { chatId: args.chatId });
-    if (current) store.setQuery(api.chats.get, { chatId: args.chatId }, { ...current, ...patch });
+    if (current) {
+      store.setQuery(
+        api.chats.get,
+        { chatId: args.chatId },
+        { ...current, ...patch }
+      );
+    }
   });
 }

@@ -1,9 +1,11 @@
 import { useConvexAuth, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { api } from "../convex/_generated/api";
+
 import LoadingState from "@/components/primitives/LoadingState";
 import { useTheme } from "@/lib/theme";
+
+import { api } from "../convex/_generated/api";
 import ChatPage from "./pages/ChatPage.tsx";
 import HomePage from "./pages/HomePage.tsx";
 import InvitePage from "./pages/InvitePage.tsx";
@@ -14,7 +16,7 @@ import WelcomePage from "./pages/WelcomePage.tsx";
 
 function FullscreenLoader({ label }: { label: string }) {
   return (
-    <div className="flex h-[100dvh] items-center justify-center bg-canvas">
+    <div className="bg-canvas flex h-[100dvh] items-center justify-center">
       <LoadingState label={label} variant="Dots" />
     </div>
   );
@@ -23,7 +25,9 @@ function FullscreenLoader({ label }: { label: string }) {
 /* "/" → first org, or first-run */
 function RootRedirect() {
   const orgs = useQuery(api.orgs.listMine);
-  if (orgs === undefined) return <FullscreenLoader label="読み込んでいます" />;
+  if (orgs === undefined) {
+    return <FullscreenLoader label="読み込んでいます" />;
+  }
   const first = orgs[0];
   return <Navigate to={first ? `/o/${first.slug}` : "/welcome"} replace />;
 }
@@ -43,20 +47,29 @@ export default function App() {
       setLoadingTooLong(false);
       return;
     }
-    const timer = setTimeout(() => setLoadingTooLong(true), AUTH_LOADING_GRACE_MS);
+    const timer = setTimeout(
+      () => setLoadingTooLong(true),
+      AUTH_LOADING_GRACE_MS
+    );
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  if (isLoading && !loadingTooLong) return <FullscreenLoader label="サインイン状態を確認しています" />;
+  if (isLoading && !loadingTooLong) {
+    return <FullscreenLoader label="サインイン状態を確認しています" />;
+  }
 
-  const guard = (element: React.ReactElement) => (isAuthenticated ? element : <Navigate to="/login" replace />);
+  const guard = (element: React.ReactElement) =>
+    isAuthenticated ? element : <Navigate to="/login" replace />;
 
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InvitePage />} />
       <Route path="/welcome" element={guard(<WelcomePage />)} />
-      <Route path="/o/:orgSlug" element={guard(<OrgLayout theme={theme} onToggleTheme={toggleTheme} />)}>
+      <Route
+        path="/o/:orgSlug"
+        element={guard(<OrgLayout theme={theme} onToggleTheme={toggleTheme} />)}
+      >
         <Route index element={<HomePage />} />
         <Route path="c/:chatId" element={<ChatPage />} />
         <Route path="settings" element={<SettingsPage />} />

@@ -1,9 +1,17 @@
 {
   "name": "tahcode",
   "version": "0.1.0",
-  "description": "tahcode (team agent harness) machine CLI \u2014 link this computer to a tahcode org and run agents through the Multica daemon.",
+  "description": "tahcode (team agent harness) machine CLI — link this computer to a tahcode org and run agents through the Multica daemon.",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "coding-agent",
+    "cursor",
+    "multica",
+    "tahcode",
+    "team-agent-harness"
+  ],
   "license": "MIT",
-  "type": "module",
   "bin": {
     "tahcode": "./dist/tahcode"
   },
@@ -11,9 +19,7 @@
     "dist",
     "README.md"
   ],
-  "engines": {
-    "node": ">=20"
-  },
+  "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "prepublishOnly": "node build.mjs"
@@ -21,13 +27,7 @@
   "dependencies": {
     "convex": "^1.31.2"
   },
-  "keywords": [
-    "tahcode",
-    "team-agent-harness",
-    "multica",
-    "coding-agent",
-    "codex",
-    "claude-code",
-    "cursor"
-  ]
+  "engines": {
+    "node": ">=20"
+  }
 }

@@ -1,7 +1,8 @@
 import { ConvexHttpClient } from "convex/browser";
+
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 
-export type ClaimedJob = {
+export interface ClaimedJob {
   _id: string;
   chatId: string;
   triggerMessageId: string;
@@ -13,7 +14,7 @@ export type ClaimedJob = {
   status: string;
   prompt: string;
   contextJson: string;
-};
+}
 
 export class RuntimeClient {
   private client: ConvexHttpClient;
@@ -33,19 +34,28 @@ export class RuntimeClient {
       binaryPath?: string;
     }[];
   }): Promise<void> {
-    await this.client.mutation("jobs:heartbeat" as never, {
-      runtimeId: input.runtimeId,
-      token: input.token,
-      hostname: input.hostname,
-      providers: input.providers,
-    } as never);
+    await this.client.mutation(
+      "jobs:heartbeat" as never,
+      {
+        hostname: input.hostname,
+        providers: input.providers,
+        runtimeId: input.runtimeId,
+        token: input.token,
+      } as never
+    );
   }
 
-  async claimNext(runtimeId: string, token: string): Promise<ClaimedJob | null> {
-    return await this.client.mutation("jobs:claimNext" as never, {
-      runtimeId,
-      token,
-    } as never);
+  async claimNext(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedJob | null> {
+    return await this.client.mutation(
+      "jobs:claimNext" as never,
+      {
+        runtimeId,
+        token,
+      } as never
+    );
   }
 
   async appendEvent(input: {

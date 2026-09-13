@@ -1,9 +1,10 @@
 import { Building2, ChevronDown, Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/atoms/Button";
-import { useOrg } from "@/harness/OrgContext";
 import { useCreateProjectWithChat } from "@/harness/optimisticMutations";
+import { useOrg } from "@/harness/OrgContext";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
 import { errorSummary } from "@/lib/format";
@@ -16,7 +17,13 @@ import { errorSummary } from "@/lib/format";
  * it at once as an optimistic placeholder while both creates run.
  * ───────────────────────────────────────────────────────── */
 
-export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CreateProjectDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { org, goPendingChat } = useOrg();
   const createProject = useCreateProjectWithChat();
   const [name, setName] = useState("");
@@ -37,7 +44,9 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset();
+        if (!next) {
+          reset();
+        }
         onOpenChange(next);
       }}
       title="新しいプロジェクト"
@@ -45,9 +54,16 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
       width={480}
       footer={
         <>
-          <span className="text-[12px] text-ink-3">作成後に「General」チャットを開きます</span>
+          <span className="text-ink-3 text-[12px]">
+            作成後に「General」チャットを開きます
+          </span>
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
               キャンセル
             </Button>
             <Button
@@ -69,11 +85,19 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
         onSubmit={(event) => {
           event.preventDefault();
           const projectName = name.trim();
-          if (!projectName) return;
-          const { chatPlaceholder, projectCreated, chatCreated } = createProject(
-            { name: projectName, visibility, repoUrl: repoUrl.trim() || undefined, cwd: cwd.trim() || undefined },
-            "General",
-          );
+          if (!projectName) {
+            return;
+          }
+          const { chatPlaceholder, projectCreated, chatCreated } =
+            createProject(
+              {
+                cwd: cwd.trim() || undefined,
+                name: projectName,
+                repoUrl: repoUrl.trim() || undefined,
+                visibility,
+              },
+              "General"
+            );
           reset();
           onOpenChange(false);
           goPendingChat(chatPlaceholder, chatCreated);
@@ -81,15 +105,29 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
             () => {
               toast.success(`プロジェクト「${projectName}」を作成しました`);
               /* the project landed; only its first chat can still fail from here */
-              chatCreated.catch((e: unknown) => toast.error("General チャットを作成できませんでした", { description: errorSummary(e) }));
+              chatCreated.catch((error: unknown) =>
+                toast.error("General チャットを作成できませんでした", {
+                  description: errorSummary(error),
+                })
+              );
             },
-            (e: unknown) => toast.error(`プロジェクト「${projectName}」を作成できませんでした`, { description: errorSummary(e) }),
+            (error: unknown) =>
+              toast.error(
+                `プロジェクト「${projectName}」を作成できませんでした`,
+                { description: errorSummary(error) }
+              )
           );
         }}
       >
         <div>
           <Label>プロジェクト名</Label>
-          <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="例: Web リニューアル" maxLength={80} />
+          <Input
+            autoFocus
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="例: Web リニューアル"
+            maxLength={80}
+          />
         </div>
 
         <div>
@@ -99,16 +137,16 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
             onChange={setVisibility}
             options={[
               {
-                value: "org",
-                label: "Org 全体",
                 desc: `${org.name} のメンバー全員が見て参加できます`,
                 icon: <Building2 size={14} />,
+                label: "Org 全体",
+                value: "org",
               },
               {
-                value: "private",
-                label: "プライベート",
                 desc: "あなたと Owner / Admin、追加したメンバーだけに表示されます",
                 icon: <Lock size={14} />,
+                label: "プライベート",
+                value: "private",
               },
             ]}
           />
@@ -119,25 +157,47 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
             type="button"
             onClick={() => setMore((current) => !current)}
             aria-expanded={more}
-            className="-mx-1.5 flex items-center gap-1.5 rounded-control px-1.5 py-1 text-[12.5px] font-medium text-ink-2 transition-colors duration-100 hover:bg-hover-2"
+            className="rounded-control text-ink-2 hover:bg-hover-2 -mx-1.5 flex items-center gap-1.5 px-1.5 py-1 text-[12.5px] font-medium transition-colors duration-100"
           >
-            <ChevronDown size={14} className="transition-transform duration-300" style={{ transform: more ? "rotate(180deg)" : "rotate(0)" }} />
+            <ChevronDown
+              size={14}
+              className="transition-transform duration-300"
+              style={{ transform: more ? "rotate(180deg)" : "rotate(0)" }}
+            />
             リソース（任意）
-            <span className="font-normal text-ink-3">リポジトリ / 作業ディレクトリ</span>
+            <span className="text-ink-3 font-normal">
+              リポジトリ / 作業ディレクトリ
+            </span>
           </button>
           <div
             className="grid transition-[grid-template-rows,opacity] duration-300"
-            style={{ gridTemplateRows: more ? "1fr" : "0fr", opacity: more ? 1 : 0, transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)" }}
+            style={{
+              gridTemplateRows: more ? "1fr" : "0fr",
+              opacity: more ? 1 : 0,
+              transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+            }}
           >
             <div className="overflow-hidden">
-              <div className="mt-2 flex flex-col gap-3 rounded-card bg-inset p-3 shadow-hairline">
+              <div className="rounded-card bg-inset shadow-hairline mt-2 flex flex-col gap-3 p-3">
                 <div>
-                  <Label hint="エージェントへの project link に含まれます">リポジトリ URL</Label>
-                  <Input value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="https://github.com/acme/web" inputMode="url" />
+                  <Label hint="エージェントへの project link に含まれます">
+                    リポジトリ URL
+                  </Label>
+                  <Input
+                    value={repoUrl}
+                    onChange={(event) => setRepoUrl(event.target.value)}
+                    placeholder="https://github.com/acme/web"
+                    inputMode="url"
+                  />
                 </div>
                 <div>
                   <Label hint="ランタイム側のパス">作業ディレクトリ</Label>
-                  <Input value={cwd} onChange={(event) => setCwd(event.target.value)} placeholder="~/code/web" className="font-mono" />
+                  <Input
+                    value={cwd}
+                    onChange={(event) => setCwd(event.target.value)}
+                    placeholder="~/code/web"
+                    className="font-mono"
+                  />
                 </div>
               </div>
             </div>

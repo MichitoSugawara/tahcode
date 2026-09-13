@@ -9,4 +9,9 @@ export {
   preferredTarget,
   shouldDispatchAgent,
 } from "../../shared/mentions.ts";
-export type { AgentTarget, ChatKind, MentionKind, ParsedMention } from "../../shared/mentions.ts";
+export type {
+  AgentTarget,
+  ChatKind,
+  MentionKind,
+  ParsedMention,
+} from "../../shared/mentions.ts";

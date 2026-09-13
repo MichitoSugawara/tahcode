@@ -1,51 +1,72 @@
 import { v } from "convex/values";
+
 import type { Doc } from "./_generated/dataModel";
 import { assertChatVisible, getMembership, requireRole } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
-import { isValidModelSlug, resolveModelSlug, type ProviderDriverKind } from "./lib/providers";
-import { chatKind, chatSummary, chatVisibility, providerKind, userSummary } from "./lib/validators";
+import { isValidModelSlug, resolveModelSlug } from "./lib/providers";
+import type { ProviderDriverKind } from "./lib/providers";
+import {
+  chatKind,
+  chatSummary,
+  chatVisibility,
+  providerKind,
+  userSummary,
+} from "./lib/validators";
 
 /**
  * A chat's default agent: `driverKind` picks the provider, `model` the model
  * slug passed to that CLI. No model means the CLI's own default — the same
  * thing a bare `@provider` mention meant before models could be named.
  */
-function normalizeAgentBinding(input: { driverKind?: ProviderDriverKind; model?: string }) {
-  if (!input.driverKind) return { driverKind: undefined, model: undefined };
+function normalizeAgentBinding(input: {
+  driverKind?: ProviderDriverKind;
+  model?: string;
+}) {
+  if (!input.driverKind) {
+    return { driverKind: undefined, model: undefined };
+  }
   const trimmed = input.model?.trim();
   if (trimmed && !isValidModelSlug(trimmed)) {
-    throw new Error("Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes");
+    throw new Error(
+      "Model must be 1-80 characters of letters, digits, dots, dashes, underscores or slashes"
+    );
   }
-  return { driverKind: input.driverKind, model: resolveModelSlug(input.driverKind, trimmed) };
+  return {
+    driverKind: input.driverKind,
+    model: resolveModelSlug(input.driverKind, trimmed),
+  };
 }
 
 function summarize(chat: Doc<"chats">) {
   return {
     _id: chat._id,
-    orgId: chat.orgId,
-    projectId: chat.projectId,
+    driverKind: chat.driverKind,
     kind: chat.kind,
+    model: chat.model,
+    orgId: chat.orgId,
+    ownerId: chat.ownerId,
+    projectId: chat.projectId,
     title: chat.title,
     visibility: chat.visibility,
-    ownerId: chat.ownerId,
-    driverKind: chat.driverKind,
-    model: chat.model,
   };
 }
 
 export const ensureDm = authedMutation({
   args: { orgId: v.id("orgs") },
-  returns: v.id("chats"),
   handler: async (ctx, args) => {
     const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const existing = await ctx.db
       .query("chats")
       .withIndex("by_org_and_owner_kind", (q) =>
-        q.eq("orgId", args.orgId).eq("ownerId", ctx.user._id).eq("kind", "dm"),
+        q.eq("orgId", args.orgId).eq("ownerId", ctx.user._id).eq("kind", "dm")
       )
       .unique();
-    if (existing) return existing._id;
+    if (existing) {
+      return existing._id;
+    }
     return await ctx.db.insert("chats", {
       orgId: args.orgId,
       kind: "dm",
@@ -55,23 +76,27 @@ export const ensureDm = authedMutation({
       createdBy: ctx.user._id,
     });
   },
+  returns: v.id("chats"),
 });
 
 export const createProjectChat = authedMutation({
   args: {
+    driverKind: v.optional(providerKind),
+    memberIds: v.optional(v.array(v.id("users"))),
+    model: v.optional(v.string()),
     projectId: v.id("projects"),
     title: v.string(),
     visibility: chatVisibility,
-    memberIds: v.optional(v.array(v.id("users"))),
-    driverKind: v.optional(providerKind),
-    model: v.optional(v.string()),
   },
-  returns: v.id("chats"),
   handler: async (ctx, args) => {
     const project = await ctx.db.get("projects", args.projectId);
-    if (!project) throw new Error("Project not found");
+    if (!project) {
+      throw new Error("Project not found");
+    }
     const membership = await getMembership(ctx, project.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const title = args.title.trim().slice(0, 80) || "Untitled chat";
     const agent = normalizeAgentBinding(args);
     const chatId = await ctx.db.insert("chats", {
@@ -90,23 +115,27 @@ export const createProjectChat = authedMutation({
     }
     for (const memberId of members) {
       const user = await ctx.db.get("users", memberId as never);
-      if (!user) continue;
+      if (!user) {
+        continue;
+      }
       await ctx.db.insert("chatMembers", { chatId, userId: user._id });
     }
     return chatId;
   },
+  returns: v.id("chats"),
 });
 
 export const list = authedQuery({
   args: {
+    kind: v.optional(chatKind),
     orgId: v.id("orgs"),
     projectId: v.optional(v.id("projects")),
-    kind: v.optional(chatKind),
   },
-  returns: v.array(chatSummary),
   handler: async (ctx, args) => {
     const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const chats = await ctx.db
       .query("chats")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -116,7 +145,9 @@ export const list = authedQuery({
       if (args.projectId && String(chat.projectId) !== String(args.projectId)) {
         continue;
       }
-      if (args.kind && chat.kind !== args.kind) continue;
+      if (args.kind && chat.kind !== args.kind) {
+        continue;
+      }
       try {
         await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
         visible.push(chat);
@@ -126,16 +157,20 @@ export const list = authedQuery({
     }
     return visible.map(summarize);
   },
+  returns: v.array(chatSummary),
 });
 
 export const get = authedQuery({
   args: { chatId: v.id("chats") },
-  returns: v.union(chatSummary, v.null()),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) return null;
+    if (!chat) {
+      return null;
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) return null;
+    if (!membership) {
+      return null;
+    }
     try {
       await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     } catch {
@@ -143,6 +178,7 @@ export const get = authedQuery({
     }
     return summarize(chat);
   },
+  returns: v.union(chatSummary, v.null()),
 });
 
 /**
@@ -156,12 +192,15 @@ export const setAgent = authedMutation({
     driverKind: providerKind,
     model: v.optional(v.string()),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     const agent = normalizeAgentBinding(args);
     await ctx.db.patch("chats", args.chatId, {
@@ -170,16 +209,20 @@ export const setAgent = authedMutation({
     });
     return null;
   },
+  returns: v.null(),
 });
 
 export const members = authedQuery({
   args: { chatId: v.id("chats") },
-  returns: v.array(userSummary),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     const rows = await ctx.db
       .query("chatMembers")
@@ -188,7 +231,9 @@ export const members = authedQuery({
     const users = [];
     for (const row of rows) {
       const user = await ctx.db.get("users", row.userId);
-      if (!user) continue;
+      if (!user) {
+        continue;
+      }
       users.push({
         _id: user._id,
         name: user.name,
@@ -199,6 +244,7 @@ export const members = authedQuery({
     }
     return users;
   },
+  returns: v.array(userSummary),
 });
 
 export const addMember = authedMutation({
@@ -206,16 +252,19 @@ export const addMember = authedMutation({
     chatId: v.id("chats"),
     userId: v.id("users"),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
-    if (chat.kind === "dm") throw new Error("DMs stay owner-only in Phase 1");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    if (chat.kind === "dm") {
+      throw new Error("DMs stay owner-only in Phase 1");
+    }
     await requireRole(ctx, chat.orgId, ctx.user._id, "admin");
     const existing = await ctx.db
       .query("chatMembers")
       .withIndex("by_chat_and_user", (q) =>
-        q.eq("chatId", args.chatId).eq("userId", args.userId),
+        q.eq("chatId", args.chatId).eq("userId", args.userId)
       )
       .unique();
     if (!existing) {
@@ -226,4 +275,5 @@ export const addMember = authedMutation({
     }
     return null;
   },
+  returns: v.null(),
 });

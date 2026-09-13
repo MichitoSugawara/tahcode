@@ -1,21 +1,24 @@
 import { v } from "convex/values";
-import { getMembership, requireRole, type OrgRole } from "./lib/access";
+
+import { getMembership, requireRole } from "./lib/access";
+import type { OrgRole } from "./lib/access";
 import { getCurrentUser } from "./lib/auth";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { randomToken, slugify } from "./lib/ids";
 import { orgRole, orgSummary, userSummary } from "./lib/validators";
 
 const memberView = v.object({
-  user: userSummary,
   role: orgRole,
+  user: userSummary,
 });
 
 export const create = authedMutation({
   args: { name: v.string() },
-  returns: v.id("orgs"),
   handler: async (ctx, args) => {
     const name = args.name.trim().slice(0, 80);
-    if (name.length < 1) throw new Error("Organization name is required");
+    if (name.length < 1) {
+      throw new Error("Organization name is required");
+    }
     const slug = `${slugify(name)}-${randomToken(4).slice(0, 6)}`;
     const orgId = await ctx.db.insert("orgs", {
       name,
@@ -29,11 +32,11 @@ export const create = authedMutation({
     });
     return orgId;
   },
+  returns: v.id("orgs"),
 });
 
 export const listMine = authedQuery({
   args: {},
-  returns: v.array(orgSummary),
   handler: async (ctx) => {
     const memberships = await ctx.db
       .query("orgMembers")
@@ -42,7 +45,9 @@ export const listMine = authedQuery({
     const orgs = [];
     for (const membership of memberships) {
       const org = await ctx.db.get("orgs", membership.orgId);
-      if (!org) continue;
+      if (!org) {
+        continue;
+      }
       orgs.push({
         _id: org._id,
         name: org.name,
@@ -52,10 +57,27 @@ export const listMine = authedQuery({
     }
     return orgs;
   },
+  returns: v.array(orgSummary),
 });
 
 export const get = authedQuery({
   args: { orgId: v.id("orgs") },
+  handler: async (ctx, args) => {
+    const membership = await getMembership(ctx, args.orgId, ctx.user._id);
+    if (!membership) {
+      return null;
+    }
+    const org = await ctx.db.get("orgs", args.orgId);
+    if (!org) {
+      return null;
+    }
+    return {
+      _id: org._id,
+      name: org.name,
+      slug: org.slug,
+      role: membership.role,
+    };
+  },
   returns: v.union(
     v.object({
       _id: v.id("orgs"),
@@ -63,31 +85,36 @@ export const get = authedQuery({
       slug: v.string(),
       role: orgRole,
     }),
-    v.null(),
+    v.null()
   ),
-  handler: async (ctx, args) => {
-    const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) return null;
-    const org = await ctx.db.get("orgs", args.orgId);
-    if (!org) return null;
-    return { _id: org._id, name: org.name, slug: org.slug, role: membership.role };
-  },
 });
 
 export const members = authedQuery({
   args: { orgId: v.id("orgs") },
-  returns: v.array(memberView),
   handler: async (ctx, args) => {
     const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     const rows = await ctx.db
       .query("orgMembers")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
       .take(200);
-    const out: { user: { _id: typeof ctx.user._id; name?: string; email?: string; handle?: string; image?: string }; role: OrgRole }[] = [];
+    const out: {
+      user: {
+        _id: typeof ctx.user._id;
+        name?: string;
+        email?: string;
+        handle?: string;
+        image?: string;
+      };
+      role: OrgRole;
+    }[] = [];
     for (const row of rows) {
       const user = await ctx.db.get("users", row.userId);
-      if (!user) continue;
+      if (!user) {
+        continue;
+      }
       out.push({
         user: {
           _id: user._id,
@@ -101,22 +128,27 @@ export const members = authedQuery({
     }
     return out;
   },
+  returns: v.array(memberView),
 });
 
 export const setRole = authedMutation({
   args: {
     orgId: v.id("orgs"),
-    userId: v.id("users"),
     role: orgRole,
+    userId: v.id("users"),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, args.orgId, ctx.user._id, "admin");
     const target = await getMembership(ctx, args.orgId, args.userId);
-    if (!target) throw new Error("Target is not a member");
+    if (!target) {
+      throw new Error("Target is not a member");
+    }
     // Only owners may grant or revoke the owner role (admins would otherwise
     // be able to escalate themselves via a colluding member).
-    if ((args.role === "owner" || target.role === "owner") && actor.role !== "owner") {
+    if (
+      (args.role === "owner" || target.role === "owner") &&
+      actor.role !== "owner"
+    ) {
       throw new Error("Only an owner can change owner roles");
     }
     if (target.role === "owner" && args.role !== "owner") {
@@ -132,15 +164,15 @@ export const setRole = authedMutation({
     await ctx.db.patch("orgMembers", target._id, { role: args.role });
     return null;
   },
+  returns: v.null(),
 });
 
 export const createInvite = authedMutation({
   args: {
-    orgId: v.id("orgs"),
     email: v.optional(v.string()),
+    orgId: v.id("orgs"),
     role: orgRole,
   },
-  returns: v.object({ token: v.string() }),
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, args.orgId, ctx.user._id, "admin");
     if (args.role === "owner" && actor.role !== "owner") {
@@ -157,21 +189,30 @@ export const createInvite = authedMutation({
     });
     return { token };
   },
+  returns: v.object({ token: v.string() }),
 });
 
 export const acceptInvite = authedMutation({
   args: { token: v.string() },
-  returns: v.id("orgs"),
   handler: async (ctx, args) => {
     const invite = await ctx.db
       .query("invites")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
-    if (!invite) throw new Error("Invite not found");
-    if (invite.expiresAt < Date.now()) throw new Error("Invite expired");
-    if (invite.acceptedBy) throw new Error("Invite already used");
+    if (!invite) {
+      throw new Error("Invite not found");
+    }
+    if (invite.expiresAt < Date.now()) {
+      throw new Error("Invite expired");
+    }
+    if (invite.acceptedBy) {
+      throw new Error("Invite already used");
+    }
     const user = await getCurrentUser(ctx);
-    if (invite.email && user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+    if (
+      invite.email &&
+      user.email?.toLowerCase() !== invite.email.toLowerCase()
+    ) {
       throw new Error("This invite is for a different email");
     }
     const existing = await getMembership(ctx, invite.orgId, user._id);
@@ -185,4 +226,5 @@ export const acceptInvite = authedMutation({
     await ctx.db.patch("invites", invite._id, { acceptedBy: user._id });
     return invite.orgId;
   },
+  returns: v.id("orgs"),
 });

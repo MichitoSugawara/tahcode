@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync } from "node:fs";
 
 const ENVS = ["preview", "staging", "production"];
 
@@ -7,7 +7,9 @@ const [command, target] = process.argv.slice(2);
 const selected = target ? [target] : ENVS;
 
 function usage() {
-  console.error("Usage: node scripts/env.mjs <decrypt|encrypt> [preview|staging|production]");
+  console.error(
+    "Usage: node scripts/env.mjs <decrypt|encrypt> [preview|staging|production]"
+  );
   process.exit(1);
 }
 
@@ -24,9 +26,9 @@ for (const envName of selected) {
 
 function runDotenvx(args) {
   const result = spawnSync("npx", ["dotenvx", ...args], {
-    stdio: "inherit",
     env: process.env,
     shell: process.platform === "win32",
+    stdio: "inherit",
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

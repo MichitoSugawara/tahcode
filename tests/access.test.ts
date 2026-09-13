@@ -1,43 +1,44 @@
 import { describe, expect, it } from "vitest";
+
 import { canSeeChat, canSeeProject, canUseRuntime } from "../shared/access.ts";
 
-describe("canUseRuntime", () => {
+describe(canUseRuntime, () => {
   it("is default-deny except for the machine owner", () => {
     expect(
       canUseRuntime({
-        actorUserId: "u1",
-        runtimeOwnerUserId: "owner",
         actorRole: "admin",
+        actorUserId: "u1",
         grants: [],
-      }),
-    ).toBe(false);
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeFalsy();
     expect(
       canUseRuntime({
-        actorUserId: "owner",
-        runtimeOwnerUserId: "owner",
         actorRole: "member",
+        actorUserId: "owner",
         grants: [],
-      }),
-    ).toBe(true);
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeTruthy();
   });
 
   it("honors mixed user and role grants", () => {
     expect(
       canUseRuntime({
-        actorUserId: "u2",
-        runtimeOwnerUserId: "owner",
         actorRole: "member",
+        actorUserId: "u2",
         grants: [{ targetType: "role", targetRole: "member" }],
-      }),
-    ).toBe(true);
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeTruthy();
     expect(
       canUseRuntime({
-        actorUserId: "u3",
-        runtimeOwnerUserId: "owner",
         actorRole: "admin",
+        actorUserId: "u3",
         grants: [{ targetType: "user", targetUserId: "u3" }],
-      }),
-    ).toBe(true);
+        runtimeOwnerUserId: "owner",
+      })
+    ).toBeTruthy();
   });
 });
 
@@ -45,24 +46,24 @@ describe("visibility", () => {
   it("hides private projects from non-members", () => {
     expect(
       canSeeProject({
-        visibility: "private",
         isOrgMember: true,
-        isProjectMember: false,
         isOwner: false,
-      }),
-    ).toBe(false);
+        isProjectMember: false,
+        visibility: "private",
+      })
+    ).toBeFalsy();
   });
 
   it("keeps Phase 1 DMs owner-only", () => {
     expect(
       canSeeChat({
+        actorUserId: "u2",
         chatKind: "dm",
         chatOwnerId: "u1",
-        actorUserId: "u2",
         chatVisibility: "inherit",
-        projectVisible: true,
         isChatMember: true,
-      }),
-    ).toBe(false);
+        projectVisible: true,
+      })
+    ).toBeFalsy();
   });
 });

@@ -9,40 +9,42 @@
  * codex exec, claude -p, agent -p, grok, opencode run. Antigravity has no CLI
  * and stays a guided stub.
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+
 import type { ProviderDriverKind } from "../../shared/providers.ts";
 
-export type ProviderProbe = {
+export interface ProviderProbe {
   kind: ProviderDriverKind;
   displayName: string;
   binary: string | null;
   available: boolean;
   version: string | null;
   headlessSummary: string;
-};
+}
 
-export type RunEvents = {
+export interface RunEvents {
   onText: (chunk: string) => void | Promise<void>;
   onTool: (line: string) => void | Promise<void>;
   onThinking: (line: string) => void | Promise<void>;
-};
+}
 
 const DISPLAY: Record<ProviderDriverKind, string> = {
-  codex: "Codex",
+  antigravity: "Antigravity",
   claudeAgent: "Claude",
+  codex: "Codex",
   cursor: "Cursor",
   grok: "Grok",
   opencode: "OpenCode",
-  antigravity: "Antigravity",
 };
 
 const BINARIES: Record<ProviderDriverKind, string[]> = {
-  codex: ["codex"],
+  antigravity: ["antigravity", "agy"],
   claudeAgent: ["claude"],
+  codex: ["codex"],
   cursor: ["agent", "cursor-agent"],
   grok: ["grok"],
   opencode: ["opencode"],
-  antigravity: ["antigravity", "agy"],
 };
 
 export async function whichBinary(names: string[]): Promise<string | null> {
@@ -56,15 +58,20 @@ export async function whichBinary(names: string[]): Promise<string | null> {
       child.on("close", () => resolve(out.trim() || null));
       child.on("error", () => resolve(null));
     });
-    if (found) return found;
+    if (found) {
+      return found;
+    }
   }
   return null;
 }
 
-async function binaryVersion(binary: string, args: string[]): Promise<string | null> {
+async function binaryVersion(
+  binary: string,
+  args: string[]
+): Promise<string | null> {
   try {
     const out = await new Promise<string>((resolve, reject) => {
-      const child = spawn(binary, args, { timeout: 15000 });
+      const child = spawn(binary, args, { timeout: 15_000 });
       let text = "";
       child.stdout.on("data", (data: Buffer) => {
         text += data.toString();
@@ -87,24 +94,25 @@ export async function probeProviders(): Promise<ProviderProbe[]> {
   for (const kind of Object.keys(BINARIES) as ProviderDriverKind[]) {
     if (kind === "antigravity") {
       probes.push({
-        kind,
-        displayName: DISPLAY[kind] ?? kind,
-        binary: null,
         available: false,
+        binary: null,
+        displayName: DISPLAY[kind] ?? kind,
+        headlessSummary:
+          "native installer + Google sign-in (guided setup, no CLI)",
+        kind,
         version: null,
-        headlessSummary: "native installer + Google sign-in (guided setup, no CLI)",
       });
       continue;
     }
     const binary = await whichBinary(BINARIES[kind] ?? []);
     const version = binary ? await binaryVersion(binary, ["--version"]) : null;
     probes.push({
-      kind,
-      displayName: DISPLAY[kind] ?? kind,
-      binary,
       available: binary !== null,
-      version,
+      binary,
+      displayName: DISPLAY[kind] ?? kind,
       headlessSummary: headlessSummary(kind),
+      kind,
+      version,
     });
   }
   return probes;
@@ -112,25 +120,31 @@ export async function probeProviders(): Promise<ProviderProbe[]> {
 
 function headlessSummary(kind: ProviderDriverKind): string {
   switch (kind) {
-    case "codex":
+    case "codex": {
       return "codex exec --json (t3code CodexDriver)";
-    case "claudeAgent":
+    }
+    case "claudeAgent": {
       return "claude -p --output-format stream-json (t3code ClaudeDriver)";
-    case "cursor":
+    }
+    case "cursor": {
       return "agent -p --output-format stream-json (t3code CursorDriver)";
-    case "grok":
+    }
+    case "grok": {
       return "grok --prompt (t3code GrokDriver)";
-    case "opencode":
+    }
+    case "opencode": {
       return "opencode run (t3code OpenCodeDriver)";
-    case "antigravity":
+    }
+    case "antigravity": {
       return "native installer + Google sign-in (t3code AntigravityDriver)";
+    }
   }
 }
 
-export type ProviderRun = {
+export interface ProviderRun {
   process: ChildProcess;
   done: Promise<{ exitCode: number; output: string }>;
-};
+}
 
 /**
  * Headless argv per provider. `model` is the slug from `@provider/model` (or
@@ -140,12 +154,17 @@ export type ProviderRun = {
  * `opencode run --model provider/model`; Grok's headless flags stay
  * provisional (see README).
  */
-export function headlessArgs(kind: ProviderDriverKind, prompt: string, model?: string): string[] {
+export function headlessArgs(
+  kind: ProviderDriverKind,
+  prompt: string,
+  model?: string
+): string[] {
   const modelFlag = model ? ["--model", model] : [];
   switch (kind) {
-    case "codex":
+    case "codex": {
       return ["exec", ...modelFlag, "--json", prompt];
-    case "claudeAgent":
+    }
+    case "claudeAgent": {
       // `--verbose` is required by the Claude CLI when combining
       // `-p/--print` with `--output-format stream-json`.
       return [
@@ -158,16 +177,21 @@ export function headlessArgs(kind: ProviderDriverKind, prompt: string, model?: s
         "10",
         prompt,
       ];
-    case "cursor":
+    }
+    case "cursor": {
       return ["-p", ...modelFlag, "--output-format", "stream-json", prompt];
-    case "grok":
+    }
+    case "grok": {
       return [...modelFlag, "--prompt", prompt];
-    case "opencode":
+    }
+    case "opencode": {
       return ["run", ...modelFlag, prompt];
-    case "antigravity":
+    }
+    case "antigravity": {
       throw new Error(
-        "Antigravity has no headless CLI in Phase 1 — install via the provider app and pick another runtime provider.",
+        "Antigravity has no headless CLI in Phase 1 — install via the provider app and pick another runtime provider."
       );
+    }
   }
 }
 
@@ -178,7 +202,7 @@ export async function runHeadless(
   cwd: string | undefined,
   events: RunEvents,
   signal: AbortSignal,
-  model?: string,
+  model?: string
 ): Promise<{ exitCode: number; output: string }> {
   const args = headlessArgs(kind, prompt, model);
   const child = spawn(binary, args, {
@@ -192,7 +216,9 @@ export async function runHeadless(
 
   const emit = async (line: string) => {
     const trimmed = line.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      return;
+    }
     if (kind === "codex" || kind === "claudeAgent" || kind === "cursor") {
       const parsed = tryParseJson(trimmed);
       if (parsed !== null) {
@@ -228,26 +254,34 @@ export async function runHeadless(
   child.stdout?.on("data", onData);
   child.stderr?.on("data", (data: Buffer) => {
     const line = data.toString().trim();
-    if (line) void events.onThinking(line.slice(0, 2000));
+    if (line) {
+      void events.onThinking(line.slice(0, 2000));
+    }
   });
 
   const abort = () => {
     child.kill("SIGTERM");
   };
-  if (signal.aborted) abort();
+  if (signal.aborted) {
+    abort();
+  }
   signal.addEventListener("abort", abort, { once: true });
 
   const exitCode = await new Promise<number>((resolve) => {
     child.on("close", (code) => resolve(code ?? 1));
     child.on("error", () => resolve(1));
   });
-  if (buffer.trim()) await emit(buffer);
+  if (buffer.trim()) {
+    await emit(buffer);
+  }
 
-  return { exitCode, output: output.trim().slice(-20000) };
+  return { exitCode, output: output.trim().slice(-20_000) };
 }
 
 function tryParseJson(line: string): unknown | null {
-  if (!line.startsWith("{")) return null;
+  if (!line.startsWith("{")) {
+    return null;
+  }
   try {
     return JSON.parse(line) as unknown;
   } catch {
@@ -271,7 +305,9 @@ type StreamEvent =
  *   events are trace-only.
  */
 function classifyStreamEvent(parsed: unknown): StreamEvent {
-  if (typeof parsed !== "object" || parsed === null) return { kind: "trace" };
+  if (typeof parsed !== "object" || parsed === null) {
+    return { kind: "trace" };
+  }
   const record = parsed as Record<string, unknown>;
   const type = typeof record.type === "string" ? record.type : "";
 
@@ -286,7 +322,9 @@ function classifyStreamEvent(parsed: unknown): StreamEvent {
     const texts = message?.content
       ?.filter((item) => item.type === "text" && item.text)
       .map((item) => item.text ?? "");
-    if (texts && texts.length > 0) return { kind: "text", text: texts.join("\n") };
+    if (texts && texts.length > 0) {
+      return { kind: "text", text: texts.join("\n") };
+    }
     return { kind: "trace" };
   }
 
@@ -314,7 +352,10 @@ function classifyStreamEvent(parsed: unknown): StreamEvent {
     return { kind: "trace" };
   }
 
-  if (typeof record.text === "string" && /message|output|content|delta/.test(type)) {
+  if (
+    typeof record.text === "string" &&
+    /message|output|content|delta/.test(type)
+  ) {
     return { kind: "text", text: record.text };
   }
   if (typeof record.error === "string") {

@@ -1,7 +1,7 @@
 import type { Doc } from "../_generated/dataModel";
 import type { ParsedMention } from "./mentions";
 
-export type AgentContext = {
+export interface AgentContext {
   chat: { id: string; kind: string; title: string };
   project: {
     id: string;
@@ -12,7 +12,7 @@ export type AgentContext = {
   } | null;
   mentions: ParsedMention[];
   history: { author: string; body: string; driverKind?: string }[];
-};
+}
 
 export function buildAgentContext(input: {
   chat: Doc<"chats">;
@@ -26,6 +26,12 @@ export function buildAgentContext(input: {
       kind: input.chat.kind,
       title: input.chat.title,
     },
+    history: input.history.slice(-30).map((message) => ({
+      author: message.authorType,
+      body: message.body.slice(0, 4000),
+      driverKind: message.driverKind,
+    })),
+    mentions: input.mentions,
     project: input.project
       ? {
           id: String(input.project._id),
@@ -35,11 +41,5 @@ export function buildAgentContext(input: {
           repoUrl: input.project.repoUrl,
         }
       : null,
-    mentions: input.mentions,
-    history: input.history.slice(-30).map((message) => ({
-      author: message.authorType,
-      body: message.body.slice(0, 4000),
-      driverKind: message.driverKind,
-    })),
   };
 }

@@ -1,5 +1,7 @@
 import { ArrowUp, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+
 import { MentionText } from "@/components/atoms/MentionText";
 import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
 
@@ -16,7 +18,7 @@ import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
  * draft are painted as accent chips by a mirror layer under the textarea.
  * ───────────────────────────────────────────────────────── */
 
-export type PromptMenuItem = {
+export interface PromptMenuItem {
   key: string;
   name: string;
   desc?: string;
@@ -26,16 +28,16 @@ export type PromptMenuItem = {
   /** runs instead of inserting (attach, slash commands) */
   action?: () => void;
   trailing?: ReactNode;
-};
+}
 
-export type PromptPickerItem = {
+export interface PromptPickerItem {
   key: string;
   name: string;
   tag?: string;
   disabled?: boolean;
-};
+}
 
-export type PromptPicker = {
+export interface PromptPicker {
   id: string;
   ariaLabel: string;
   icon?: ReactNode;
@@ -45,11 +47,18 @@ export type PromptPicker = {
   onChange: (key: string) => void;
   emptyHint?: string;
   footer?: ReactNode;
-};
+}
 
-export type PromptAttachment = { name: string; size?: number };
+export interface PromptAttachment {
+  name: string;
+  size?: number;
+}
 
-type Token = { kind: "at" | "slash"; query: string; start: number };
+interface Token {
+  kind: "at" | "slash";
+  query: string;
+  start: number;
+}
 
 /* an @ opens after the same boundary the highlighter uses (so it also
  * works mid-sentence in Japanese); a / command only at a word start */
@@ -59,7 +68,9 @@ const SLASH_TOKEN = /(^|\s)(\/)([\w./-]*)$/;
 /* the last @word or /word being typed, if any */
 function parseToken(draft: string): Token | null {
   const match = AT_TOKEN.exec(draft) ?? SLASH_TOKEN.exec(draft);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   return {
     kind: match[2] === "@" ? "at" : "slash",
     query: (match[3] ?? "").toLowerCase(),
@@ -68,15 +79,21 @@ function parseToken(draft: string): Token | null {
 }
 
 /* keep the mention highlighter scrolled and wrapped like the textarea */
-function alignHighlight(input: HTMLTextAreaElement | null, highlight: HTMLDivElement | null) {
-  if (!input || !highlight) return;
+function alignHighlight(
+  input: HTMLTextAreaElement | null,
+  highlight: HTMLDivElement | null
+) {
+  if (!input || !highlight) {
+    return;
+  }
   highlight.scrollTop = input.scrollTop;
   /* a visible scrollbar narrows the textarea's wrap width; mirror that */
   highlight.style.right = `${input.offsetWidth - input.clientWidth}px`;
 }
 
 const POP = "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both";
-const GLIDE = "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease";
+const GLIDE =
+  "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease";
 
 export default function PromptBar({
   placeholder = "メッセージを入力…",
@@ -127,9 +144,14 @@ export default function PromptBar({
   const [engaged, setEngaged] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const wide = expanded || tall;
-  const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(null);
+  const [rowBox, setRowBox] = useState<{ top: number; height: number } | null>(
+    null
+  );
   const [menuMaxHeight, setMenuMaxHeight] = useState(288);
-  const [pickerBox, setPickerBox] = useState<{ top: number; height: number } | null>(null);
+  const [pickerBox, setPickerBox] = useState<{
+    top: number;
+    height: number;
+  } | null>(null);
   const [pickerHovered, setPickerHovered] = useState<number | null>(null);
   const [pickerMenuLeft, setPickerMenuLeft] = useState(0);
   const [pickerMenuBottom, setPickerMenuBottom] = useState(0);
@@ -142,10 +164,15 @@ export default function PromptBar({
 
   /* the textarea and its mention highlighter must share every metric
    * that affects line breaking, or the chips drift from the caret */
-  const inputMetrics = tall ? "px-2 py-2 text-[14px] leading-5" : "px-1 py-[5px] text-[13px] leading-[18px]";
-  const syncHighlight = () => alignHighlight(inputRef.current, highlightRef.current);
+  const inputMetrics = tall
+    ? "px-2 py-2 text-[14px] leading-5"
+    : "px-1 py-[5px] text-[13px] leading-[18px]";
+  const syncHighlight = () =>
+    alignHighlight(inputRef.current, highlightRef.current);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const pickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>(
+    {}
+  );
   const pickerRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const token = dismissed ? null : parseToken(draft);
@@ -160,11 +187,13 @@ export default function PromptBar({
             (item) =>
               item.name.toLowerCase().includes(query) ||
               (item.desc ?? "").toLowerCase().includes(query) ||
-              (item.insert ?? "").toLowerCase().includes(query),
+              (item.insert ?? "").toLowerCase().includes(query)
           ),
         ]
       : menu === "slash"
-        ? commands.filter((item) => item.name.replace(/^\//, "").toLowerCase().startsWith(query))
+        ? commands.filter((item) =>
+            item.name.replace(/^\//, "").toLowerCase().startsWith(query)
+          )
         : [];
 
   useEffect(() => {
@@ -177,8 +206,10 @@ export default function PromptBar({
   useLayoutEffect(() => {
     const target = rowRefs.current[active];
     if (target) {
-      setRowBox({ top: target.offsetTop, height: target.offsetHeight });
-      if (engaged) target.scrollIntoView({ block: "nearest" });
+      setRowBox({ height: target.offsetHeight, top: target.offsetTop });
+      if (engaged) {
+        target.scrollIntoView({ block: "nearest" });
+      }
     }
   }, [menu, query, active, rows.length, engaged]);
 
@@ -186,37 +217,59 @@ export default function PromptBar({
    * close to the top of the viewport, so cap it to the room that is there
    * (model lists are long) and let it scroll. */
   useLayoutEffect(() => {
-    if (!menu || !anchorRef.current) return;
+    if (!menu || !anchorRef.current) {
+      return;
+    }
     const room = anchorRef.current.getBoundingClientRect().top - 16;
     setMenuMaxHeight(Math.max(140, Math.min(288, room)));
   }, [menu, rows.length]);
 
   const picker = pickers.find((item) => item.id === openPicker) ?? null;
-  const pickerIndex = picker ? picker.items.findIndex((item) => item.key === picker.value) : -1;
+  const pickerIndex = picker
+    ? picker.items.findIndex((item) => item.key === picker.value)
+    : -1;
   useLayoutEffect(() => {
-    if (!picker) return;
-    const target = pickerRowRefs.current[pickerHovered ?? Math.max(pickerIndex, 0)];
-    if (target) setPickerBox({ top: target.offsetTop, height: target.offsetHeight });
+    if (!picker) {
+      return;
+    }
+    const target =
+      pickerRowRefs.current[pickerHovered ?? Math.max(pickerIndex, 0)];
+    if (target) {
+      setPickerBox({ top: target.offsetTop, height: target.offsetHeight });
+    }
   }, [picker, pickerHovered, pickerIndex]);
 
   /* The menu is outside the clipped composer, so align it to its trigger
    * by measurement instead of pinning it to the far-right edge. */
   useLayoutEffect(() => {
-    if (!picker || !anchorRef.current) return;
+    if (!picker || !anchorRef.current) {
+      return;
+    }
     const trigger = pickerTriggerRefs.current[picker.id];
-    if (!trigger) return;
+    if (!trigger) {
+      return;
+    }
     const anchorRect = anchorRef.current.getBoundingClientRect();
     const triggerRect = trigger.getBoundingClientRect();
-    setPickerMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 224)));
+    setPickerMenuLeft(
+      Math.max(
+        0,
+        Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 224)
+      )
+    );
     setPickerMenuBottom(anchorRect.bottom - triggerRect.top + 8);
   }, [picker, wide]);
 
   useEffect(() => {
-    if (!openPicker) setPickerHovered(null);
+    if (!openPicker) {
+      setPickerHovered(null);
+    }
   }, [openPicker]);
 
   useEffect(() => {
-    if (autoFocus) inputRef.current?.focus();
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
   }, [autoFocus]);
 
   /* Move wrapped text above the controls, then grow to a compact maximum. */
@@ -224,14 +277,20 @@ export default function PromptBar({
     const input = inputRef.current;
     const controls = controlsRef.current;
     const measure = measureRef.current;
-    if (!input || !controls || !measure) return;
+    if (!input || !controls || !measure) {
+      return;
+    }
 
     const pickersWidth = pickersRef.current?.offsetWidth ?? 0;
     const fixedControlsWidth = 28 * 2 + pickersWidth;
     const inlineGaps = 4 * 3;
-    const inlineInputWidth = controls.clientWidth - fixedControlsWidth - inlineGaps;
-    const needsFullWidth = draft.includes("\n") || measure.offsetWidth + 8 > inlineInputWidth;
-    if (needsFullWidth !== expanded) setExpanded(needsFullWidth);
+    const inlineInputWidth =
+      controls.clientWidth - fixedControlsWidth - inlineGaps;
+    const needsFullWidth =
+      draft.includes("\n") || measure.offsetWidth + 8 > inlineInputWidth;
+    if (needsFullWidth !== expanded) {
+      setExpanded(needsFullWidth);
+    }
 
     const minHeight = tall ? 68 : 28;
     const maxHeight = tall ? 220 : 120;
@@ -244,7 +303,9 @@ export default function PromptBar({
 
   /* clicking anywhere outside the composer closes the open menus */
   useEffect(() => {
-    if (!openPicker && !plusOpen) return;
+    if (!openPicker && !plusOpen) {
+      return;
+    }
     const close = (event: PointerEvent) => {
       if (!(event.target as Element).closest("[data-promptbar]")) {
         setOpenPicker(null);
@@ -267,7 +328,9 @@ export default function PromptBar({
 
   const pick = (row: PromptMenuItem) => {
     if (row.action) {
-      if (token) update(draft.slice(0, token.start));
+      if (token) {
+        update(draft.slice(0, token.start));
+      }
       row.action();
     } else if (row.insert !== undefined) {
       const base = token ? draft.slice(0, token.start) : draft;
@@ -278,9 +341,12 @@ export default function PromptBar({
     inputRef.current?.focus();
   };
 
-  const canSend = !disabled && !busy && (draft.trim().length > 0 || attachments.length > 0);
+  const canSend =
+    !disabled && !busy && (draft.trim().length > 0 || attachments.length > 0);
   const send = () => {
-    if (!canSend) return;
+    if (!canSend) {
+      return;
+    }
     const text = draft.trim();
     update("");
     closeMenus();
@@ -298,16 +364,20 @@ export default function PromptBar({
         {menu && (
           <div
             onMouseLeave={() => setEngaged(false)}
-            className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised"
-            style={{ animation: POP, transformOrigin: "bottom center", maxHeight: menuMaxHeight }}
+            className="bg-surface shadow-raised absolute inset-x-0 bottom-full z-20 mb-2 overflow-y-auto rounded-[10px] p-1"
+            style={{
+              animation: POP,
+              maxHeight: menuMaxHeight,
+              transformOrigin: "bottom center",
+            }}
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+              className="bg-hover pointer-events-none absolute inset-x-1 rounded-[6px]"
               style={{
-                top: rowBox?.top ?? 0,
                 height: rowBox?.height ?? 0,
                 opacity: rowBox && engaged && rows.length > 0 ? 1 : 0,
+                top: rowBox?.top ?? 0,
                 transition: GLIDE,
               }}
             />
@@ -326,16 +396,32 @@ export default function PromptBar({
                 onClick={() => pick(row)}
                 className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2 text-left"
               >
-                {row.icon && <span className="flex size-5.5 shrink-0 items-center justify-center text-ink-2">{row.icon}</span>}
-                <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.name}</span>
-                {row.desc && <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{row.desc}</span>}
-                {row.trailing && <span className="ml-auto shrink-0 text-[11.5px] text-ink-3">{row.trailing}</span>}
+                {row.icon && (
+                  <span className="text-ink-2 flex size-5.5 shrink-0 items-center justify-center">
+                    {row.icon}
+                  </span>
+                )}
+                <span className="text-ink shrink-0 text-[12.5px] font-medium">
+                  {row.name}
+                </span>
+                {row.desc && (
+                  <span className="text-ink-3 min-w-0 flex-1 truncate text-[12px]">
+                    {row.desc}
+                  </span>
+                )}
+                {row.trailing && (
+                  <span className="text-ink-3 ml-auto shrink-0 text-[11.5px]">
+                    {row.trailing}
+                  </span>
+                )}
               </button>
             ))}
             {rows.length === 0 && (
-              <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">「{query}」に一致する候補はありません</div>
+              <div className="text-ink-3 flex h-9 items-center px-2 text-[12px]">
+                「{query}」に一致する候補はありません
+              </div>
             )}
-            <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
+            <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px]">
               {menu === "at" ? footerAt : footerSlash}
             </div>
           </div>
@@ -345,16 +431,21 @@ export default function PromptBar({
         {picker && (
           <div
             onMouseLeave={() => setPickerHovered(null)}
-            className="absolute z-20 w-56 rounded-[10px] bg-surface p-1 shadow-raised"
-            style={{ left: pickerMenuLeft, bottom: pickerMenuBottom, animation: POP, transformOrigin: "bottom left" }}
+            className="bg-surface shadow-raised absolute z-20 w-56 rounded-[10px] p-1"
+            style={{
+              animation: POP,
+              bottom: pickerMenuBottom,
+              left: pickerMenuLeft,
+              transformOrigin: "bottom left",
+            }}
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+              className="bg-hover pointer-events-none absolute inset-x-1 rounded-[6px]"
               style={{
-                top: pickerBox?.top ?? 0,
                 height: pickerBox?.height ?? 0,
                 opacity: pickerBox && pickerHovered !== null ? 1 : 0,
+                top: pickerBox?.top ?? 0,
                 transition: GLIDE,
               }}
             />
@@ -375,27 +466,47 @@ export default function PromptBar({
                 }}
                 className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left disabled:opacity-45"
               >
-                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{item.name}</span>
-                {item.tag && <span className="shrink-0 text-[11px] text-ink-3">{item.tag}</span>}
-                <span className={`shrink-0 text-ink ${item.key === picker.value ? "" : "invisible"}`}>
+                <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                  {item.name}
+                </span>
+                {item.tag && (
+                  <span className="text-ink-3 shrink-0 text-[11px]">
+                    {item.tag}
+                  </span>
+                )}
+                <span
+                  className={`text-ink shrink-0 ${item.key === picker.value ? "" : "invisible"}`}
+                >
                   <Check size={13} strokeWidth={2.5} />
                 </span>
               </button>
             ))}
             {picker.items.length === 0 && (
-              <div className="px-2 py-2 text-[12px] leading-[1.5] text-ink-3">{picker.emptyHint ?? "候補がありません"}</div>
+              <div className="text-ink-3 px-2 py-2 text-[12px] leading-[1.5]">
+                {picker.emptyHint ?? "候補がありません"}
+              </div>
             )}
-            {picker.footer && <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">{picker.footer}</div>}
+            {picker.footer && (
+              <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px]">
+                {picker.footer}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── composer ───────────────────────────────────── */}
         <div
-          className={`relative isolate flex flex-col overflow-hidden border border-line bg-surface shadow-card transition-[border-color,border-radius,opacity] duration-150 focus-within:border-line-strong ${
-            tall ? "gap-2.5 rounded-[22px] p-3.5" : "gap-1.5 rounded-[14px] p-1.5"
+          className={`border-line bg-surface shadow-card focus-within:border-line-strong relative isolate flex flex-col overflow-hidden border transition-[border-color,border-radius,opacity] duration-150 ${
+            tall
+              ? "gap-2.5 rounded-[22px] p-3.5"
+              : "gap-1.5 rounded-[14px] p-1.5"
           } ${disabled ? "opacity-70" : ""}`}
         >
-          <span ref={measureRef} aria-hidden="true" className="pointer-events-none invisible absolute whitespace-pre text-[13px] leading-[18px]">
+          <span
+            ref={measureRef}
+            aria-hidden="true"
+            className="pointer-events-none invisible absolute text-[13px] leading-[18px] whitespace-pre"
+          >
             {draft}
           </span>
 
@@ -404,8 +515,10 @@ export default function PromptBar({
               {attachments.map((file, i) => (
                 <span
                   key={`${file.name}-${i}`}
-                  className="flex h-6.5 items-center gap-1.5 rounded-chip bg-field py-1 pr-1 pl-1.5 text-[11.5px] text-ink-2 shadow-hairline"
-                  style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both" }}
+                  className="rounded-chip bg-field text-ink-2 shadow-hairline flex h-6.5 items-center gap-1.5 py-1 pr-1 pl-1.5 text-[11.5px]"
+                  style={{
+                    animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both",
+                  }}
                 >
                   <FileText size={12} />
                   <span className="max-w-36 truncate">{file.name}</span>
@@ -414,7 +527,7 @@ export default function PromptBar({
                       type="button"
                       aria-label={`${file.name} を外す`}
                       onClick={() => onRemoveAttachment(i)}
-                      className="-my-1 flex size-6 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink"
+                      className="text-ink-3 hover:bg-line/70 hover:text-ink -my-1 flex size-6 items-center justify-center rounded-[5px] transition-colors duration-100"
                     >
                       <X size={10} strokeWidth={2.5} />
                     </button>
@@ -427,7 +540,9 @@ export default function PromptBar({
           <div
             ref={controlsRef}
             className={`grid items-end gap-x-1 gap-y-1.5 ${
-              wide ? "grid-cols-[28px_auto_minmax(0,1fr)_28px]" : "grid-cols-[28px_minmax(0,1fr)_auto_28px]"
+              wide
+                ? "grid-cols-[28px_auto_minmax(0,1fr)_28px]"
+                : "grid-cols-[28px_minmax(0,1fr)_auto_28px]"
             }`}
           >
             <button
@@ -440,7 +555,7 @@ export default function PromptBar({
                 setPlusOpen((current) => !current);
                 inputRef.current?.focus();
               }}
-              className={`flex size-7 shrink-0 items-center justify-center justify-self-start rounded-[8px] text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] disabled:pointer-events-none ${
+              className={`text-ink-3 hover:bg-hover hover:text-ink flex size-7 shrink-0 items-center justify-center justify-self-start rounded-[8px] transition-[background-color,color,transform] duration-150 active:scale-[0.94] disabled:pointer-events-none ${
                 plusOpen ? "bg-hover text-ink" : ""
               } ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"}`}
             >
@@ -451,14 +566,16 @@ export default function PromptBar({
              * mobile keyboards, autocomplete) but paints its glyphs
              * transparent; a mirror underneath renders the same text with
              * mentions as chips, so the composer reads like a sent bubble. */}
-            <div className={`relative min-w-0 ${wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"}`}>
+            <div
+              className={`relative min-w-0 ${wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"}`}
+            >
               <div
                 ref={highlightRef}
                 aria-hidden="true"
-                className={`${inputMetrics} pointer-events-none absolute inset-0 overflow-hidden text-ink whitespace-pre-wrap [overflow-wrap:anywhere]`}
+                className={`${inputMetrics} text-ink pointer-events-none absolute inset-0 overflow-hidden [overflow-wrap:anywhere] whitespace-pre-wrap`}
               >
                 <MentionText text={draft} overlay />
-                {"\u200b"}
+                {"\u200B"}
               </div>
               <textarea
                 ref={inputRef}
@@ -472,18 +589,30 @@ export default function PromptBar({
                 }}
                 onScroll={syncHighlight}
                 onKeyDown={(event) => {
-                  if (event.nativeEvent.isComposing) return;
+                  if (event.nativeEvent.isComposing) {
+                    return;
+                  }
                   if (menu && rows.length > 0) {
                     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                       event.preventDefault();
                       setEngaged(true);
-                      setActive((current) => (current + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length);
+                      setActive(
+                        (current) =>
+                          (current +
+                            (event.key === "ArrowDown" ? 1 : rows.length - 1)) %
+                          rows.length
+                      );
                       return;
                     }
-                    if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
+                    if (
+                      (event.key === "Enter" && !event.shiftKey) ||
+                      event.key === "Tab"
+                    ) {
                       event.preventDefault();
                       const row = rows[active];
-                      if (row) pick(row);
+                      if (row) {
+                        pick(row);
+                      }
                       return;
                     }
                   }
@@ -501,7 +630,7 @@ export default function PromptBar({
                 aria-label="メッセージ"
                 className={`${inputMetrics} ${
                   tall ? "min-h-[68px]" : "min-h-7"
-                } relative block w-full min-w-0 resize-none bg-transparent text-transparent caret-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3`}
+                } caret-ink placeholder:text-ink-3 relative block w-full min-w-0 resize-none bg-transparent [overflow-wrap:anywhere] text-transparent outline-none`}
               />
             </div>
 
@@ -522,13 +651,19 @@ export default function PromptBar({
                   disabled={disabled}
                   onClick={() => {
                     setPlusOpen(false);
-                    setOpenPicker((current) => (current === item.id ? null : item.id));
+                    setOpenPicker((current) =>
+                      current === item.id ? null : item.id
+                    );
                   }}
-                  className={`flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink disabled:pointer-events-none ${
+                  className={`text-ink-2 hover:bg-hover hover:text-ink flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium transition-colors duration-150 disabled:pointer-events-none ${
                     openPicker === item.id ? "bg-hover text-ink" : ""
                   }`}
                 >
-                  {item.icon && <span className="flex shrink-0 text-ink-3">{item.icon}</span>}
+                  {item.icon && (
+                    <span className="text-ink-3 flex shrink-0">
+                      {item.icon}
+                    </span>
+                  )}
                   <span className="max-w-32 truncate">{item.label}</span>
                   <span className="text-ink-3">
                     <ChevronDown size={11} strokeWidth={2.4} />
@@ -555,7 +690,11 @@ export default function PromptBar({
             </button>
           </div>
 
-          {hint && <div className="px-1 pb-0.5 text-[11px] leading-[1.4] text-ink-3">{hint}</div>}
+          {hint && (
+            <div className="text-ink-3 px-1 pb-0.5 text-[11px] leading-[1.4]">
+              {hint}
+            </div>
+          )}
         </div>
       </div>
     </div>

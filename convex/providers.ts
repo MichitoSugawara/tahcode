@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+
 import { query } from "./_generated/server";
 import { PROVIDER_CATALOG } from "./lib/providers";
 import { providerKind } from "./lib/validators";
@@ -11,6 +12,20 @@ import { providerKind } from "./lib/validators";
  */
 export const catalog = query({
   args: {},
+  handler: async () =>
+    PROVIDER_CATALOG.map((entry) => ({
+      kind: entry.kind,
+      displayName: entry.displayName,
+      binaryNames: [...entry.binaryNames],
+      mentionHandles: [...entry.mentionHandles],
+      headlessSummary: entry.headlessSummary,
+      modelFlag: entry.modelFlag,
+      models: entry.models.map((model) => ({
+        slug: model.slug,
+        name: model.name,
+        legacy: model.legacy,
+      })),
+    })),
   returns: v.array(
     v.object({
       kind: providerKind,
@@ -24,23 +39,8 @@ export const catalog = query({
           slug: v.string(),
           name: v.string(),
           legacy: v.optional(v.boolean()),
-        }),
+        })
       ),
-    }),
+    })
   ),
-  handler: async () => {
-    return PROVIDER_CATALOG.map((entry) => ({
-      kind: entry.kind,
-      displayName: entry.displayName,
-      binaryNames: [...entry.binaryNames],
-      mentionHandles: [...entry.mentionHandles],
-      headlessSummary: entry.headlessSummary,
-      modelFlag: entry.modelFlag,
-      models: entry.models.map((model) => ({
-        slug: model.slug,
-        name: model.name,
-        legacy: model.legacy,
-      })),
-    }));
-  },
 });

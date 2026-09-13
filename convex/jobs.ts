@@ -1,6 +1,8 @@
 import { v } from "convex/values";
+
 import type { Id } from "./_generated/dataModel";
-import { mutation, type MutationCtx } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
 import { authedQuery } from "./lib/customFunctions";
 import { sha256Hex } from "./lib/ids";
@@ -8,42 +10,46 @@ import { jobStatus, providerKind } from "./lib/validators";
 
 const jobView = v.object({
   _id: v.id("jobs"),
-  chatId: v.id("chats"),
-  triggerMessageId: v.id("messages"),
   assistantMessageId: v.id("messages"),
-  runtimeId: v.id("runtimes"),
+  chatId: v.id("chats"),
   driverKind: providerKind,
-  model: v.optional(v.string()),
-  status: jobStatus,
-  prompt: v.string(),
   error: v.optional(v.string()),
+  model: v.optional(v.string()),
+  prompt: v.string(),
+  runtimeId: v.id("runtimes"),
+  status: jobStatus,
+  triggerMessageId: v.id("messages"),
 });
 
 const claimView = v.union(
   v.object({
     _id: v.id("jobs"),
-    chatId: v.id("chats"),
-    triggerMessageId: v.id("messages"),
     assistantMessageId: v.id("messages"),
-    runtimeId: v.id("runtimes"),
+    chatId: v.id("chats"),
+    contextJson: v.string(),
     driverKind: providerKind,
     model: v.optional(v.string()),
-    status: jobStatus,
     prompt: v.string(),
-    contextJson: v.string(),
+    runtimeId: v.id("runtimes"),
+    status: jobStatus,
+    triggerMessageId: v.id("messages"),
   }),
-  v.null(),
+  v.null()
 );
 
 async function getRuntimeByToken(
   ctx: MutationCtx,
   runtimeId: Id<"runtimes">,
-  token: string,
+  token: string
 ) {
   const runtime = await ctx.db.get("runtimes", runtimeId);
-  if (!runtime) throw new Error("Runtime not found");
+  if (!runtime) {
+    throw new Error("Runtime not found");
+  }
   const hash = await sha256Hex(token);
-  if (hash !== runtime.tokenHash) throw new Error("Invalid runtime token");
+  if (hash !== runtime.tokenHash) {
+    throw new Error("Invalid runtime token");
+  }
   return runtime;
 }
 
@@ -52,18 +58,19 @@ export const claimNext = mutation({
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
-  returns: claimView,
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
     const queued = await ctx.db
       .query("jobs")
       .withIndex("by_runtime_and_status", (q) =>
-        q.eq("runtimeId", args.runtimeId).eq("status", "queued"),
+        q.eq("runtimeId", args.runtimeId).eq("status", "queued")
       )
       .order("asc")
       .take(1);
     const job = queued[0];
-    if (!job) return null;
+    if (!job) {
+      return null;
+    }
     await ctx.db.patch("jobs", job._id, {
       status: "running",
       claimedAt: Date.now(),
@@ -85,12 +92,11 @@ export const claimNext = mutation({
       contextJson: job.contextJson,
     };
   },
+  returns: claimView,
 });
 
 export const heartbeat = mutation({
   args: {
-    runtimeId: v.id("runtimes"),
-    token: v.string(),
     hostname: v.optional(v.string()),
     providers: v.optional(
       v.array(
@@ -99,11 +105,12 @@ export const heartbeat = mutation({
           available: v.boolean(),
           version: v.optional(v.string()),
           binaryPath: v.optional(v.string()),
-        }),
-      ),
+        })
+      )
     ),
+    runtimeId: v.id("runtimes"),
+    token: v.string(),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const runtime = await getRuntimeByToken(ctx, args.runtimeId, args.token);
     await ctx.db.patch("runtimes", runtime._id, {
@@ -115,7 +122,7 @@ export const heartbeat = mutation({
       const existing = await ctx.db
         .query("runtimeProviders")
         .withIndex("by_runtime_and_kind", (q) =>
-          q.eq("runtimeId", runtime._id).eq("driverKind", provider.driverKind),
+          q.eq("runtimeId", runtime._id).eq("driverKind", provider.driverKind)
         )
         .unique();
       if (existing) {
@@ -136,40 +143,46 @@ export const heartbeat = mutation({
     }
     return null;
   },
+  returns: v.null(),
 });
 
 export const appendEvent = mutation({
   args: {
-    runtimeId: v.id("runtimes"),
-    token: v.string(),
     jobId: v.id("jobs"),
+    runtimeId: v.id("runtimes"),
+    text: v.string(),
+    token: v.string(),
     type: v.union(
       v.literal("thinking"),
       v.literal("tool"),
       v.literal("text"),
       v.literal("error"),
-      v.literal("done"),
+      v.literal("done")
     ),
-    text: v.string(),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
     const job = await ctx.db.get("jobs", args.jobId);
-    if (!job) throw new Error("Job not found");
+    if (!job) {
+      throw new Error("Job not found");
+    }
     if (String(job.runtimeId) !== String(args.runtimeId)) {
       throw new Error("Job belongs to another runtime");
     }
-    const text = args.text.slice(0, 20000);
+    const text = args.text.slice(0, 20_000);
     await ctx.db.insert("jobEvents", {
       jobId: args.jobId,
       type: args.type,
       text,
     });
-    if (args.type === "text" || args.type === "tool" || args.type === "thinking") {
+    if (
+      args.type === "text" ||
+      args.type === "tool" ||
+      args.type === "thinking"
+    ) {
       const message = await ctx.db.get("messages", job.assistantMessageId);
       if (message) {
-        const next = `${message.body}${text}`.slice(-100000);
+        const next = `${message.body}${text}`.slice(-100_000);
         await ctx.db.patch("messages", message._id, {
           body: next,
           status: "streaming",
@@ -178,21 +191,23 @@ export const appendEvent = mutation({
     }
     return null;
   },
+  returns: v.null(),
 });
 
 export const complete = mutation({
   args: {
+    error: v.optional(v.string()),
+    finalText: v.optional(v.string()),
+    jobId: v.id("jobs"),
     runtimeId: v.id("runtimes"),
     token: v.string(),
-    jobId: v.id("jobs"),
-    finalText: v.optional(v.string()),
-    error: v.optional(v.string()),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     await getRuntimeByToken(ctx, args.runtimeId, args.token);
     const job = await ctx.db.get("jobs", args.jobId);
-    if (!job) throw new Error("Job not found");
+    if (!job) {
+      throw new Error("Job not found");
+    }
     if (String(job.runtimeId) !== String(args.runtimeId)) {
       throw new Error("Job belongs to another runtime");
     }
@@ -204,13 +219,13 @@ export const complete = mutation({
     });
     const message = await ctx.db.get("messages", job.assistantMessageId);
     if (message) {
-      if (args.finalText !== undefined) {
+      if (args.finalText === undefined) {
         await ctx.db.patch("messages", message._id, {
-          body: args.finalText.slice(-100000),
           status: failed ? "error" : "done",
         });
       } else {
         await ctx.db.patch("messages", message._id, {
+          body: args.finalText.slice(-100000),
           status: failed ? "error" : "done",
         });
       }
@@ -222,30 +237,24 @@ export const complete = mutation({
     });
     return null;
   },
+  returns: v.null(),
 });
 
 export const get = authedQuery({
   args: { jobId: v.id("jobs") },
-  returns: v.union(
-    v.object({
-      job: jobView,
-      events: v.array(
-        v.object({
-          _id: v.id("jobEvents"),
-          type: v.string(),
-          text: v.string(),
-        }),
-      ),
-    }),
-    v.null(),
-  ),
   handler: async (ctx, args) => {
     const job = await ctx.db.get("jobs", args.jobId);
-    if (!job) return null;
+    if (!job) {
+      return null;
+    }
     const chat = await ctx.db.get("chats", job.chatId);
-    if (!chat) return null;
+    if (!chat) {
+      return null;
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) return null;
+    if (!membership) {
+      return null;
+    }
     try {
       await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     } catch {
@@ -276,16 +285,32 @@ export const get = authedQuery({
       })),
     };
   },
+  returns: v.union(
+    v.object({
+      job: jobView,
+      events: v.array(
+        v.object({
+          _id: v.id("jobEvents"),
+          type: v.string(),
+          text: v.string(),
+        })
+      ),
+    }),
+    v.null()
+  ),
 });
 
 export const listByChat = authedQuery({
   args: { chatId: v.id("chats") },
-  returns: v.array(jobView),
   handler: async (ctx, args) => {
     const chat = await ctx.db.get("chats", args.chatId);
-    if (!chat) throw new Error("Chat not found");
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
     const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
-    if (!membership) throw new Error("Not a member of this organization");
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
     await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
     const jobs = await ctx.db
       .query("jobs")
@@ -305,4 +330,5 @@ export const listByChat = authedQuery({
       error: job.error,
     }));
   },
+  returns: v.array(jobView),
 });

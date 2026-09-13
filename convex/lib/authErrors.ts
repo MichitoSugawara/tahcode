@@ -12,7 +12,9 @@ export const AUTH_ERROR_CODES = [
 ] as const;
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[number];
 
-export type AuthErrorData = { code: AuthErrorCode };
+export interface AuthErrorData {
+  code: AuthErrorCode;
+}
 
 export function authError(code: AuthErrorCode): ConvexError<AuthErrorData> {
   return new ConvexError<AuthErrorData>({ code });
@@ -20,16 +22,28 @@ export function authError(code: AuthErrorCode): ConvexError<AuthErrorData> {
 
 /** Maps @convex-dev/auth's internal error messages onto our codes. */
 export function classifyAuthError(message: string): AuthErrorCode | null {
-  if (/InvalidAccountId|InvalidSecret|Invalid credentials/i.test(message)) return "INVALID_CREDENTIALS";
-  if (/TooManyFailedAttempts/i.test(message)) return "TOO_MANY_ATTEMPTS";
-  if (/already exists/i.test(message)) return "ACCOUNT_EXISTS";
-  if (/Invalid password/i.test(message)) return "WEAK_PASSWORD";
-  if (/valid email/i.test(message)) return "INVALID_EMAIL";
+  if (/InvalidAccountId|InvalidSecret|Invalid credentials/i.test(message)) {
+    return "INVALID_CREDENTIALS";
+  }
+  if (/TooManyFailedAttempts/i.test(message)) {
+    return "TOO_MANY_ATTEMPTS";
+  }
+  if (/already exists/i.test(message)) {
+    return "ACCOUNT_EXISTS";
+  }
+  if (/Invalid password/i.test(message)) {
+    return "WEAK_PASSWORD";
+  }
+  if (/valid email/i.test(message)) {
+    return "INVALID_EMAIL";
+  }
   return null;
 }
 
 export function toConvexAuthError(error: unknown): unknown {
-  if (error instanceof ConvexError) return error;
+  if (error instanceof ConvexError) {
+    return error;
+  }
   const message = error instanceof Error ? error.message : String(error);
   const code = classifyAuthError(message);
   return code ? authError(code) : error;
@@ -43,5 +57,8 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
 export function isAcceptablePassword(password: string): boolean {
-  return password.length >= PASSWORD_MIN_LENGTH && password.length <= PASSWORD_MAX_LENGTH;
+  return (
+    password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH
+  );
 }

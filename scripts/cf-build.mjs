@@ -26,8 +26,12 @@ try {
 } catch (error) {
   const url = process.env.VITE_CONVEX_URL;
   const adminKey = process.env.CONVEX_DEPLOY_KEY;
-  if (!url || !adminKey) throw error;
-  console.log("convex codegen failed with the deploy key; retrying against the deployment URL (preview path)…");
+  if (!url || !adminKey) {
+    throw error;
+  }
+  console.log(
+    "convex codegen failed with the deploy key; retrying against the deployment URL (preview path)…"
+  );
   codegen(["--url", url, "--admin-key", adminKey]);
 }
 

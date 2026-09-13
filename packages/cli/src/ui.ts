@@ -1,7 +1,8 @@
 /* Tiny terminal styling — no dependencies, honours NO_COLOR / non-TTY. */
 
 const enabled = !process.env.NO_COLOR && process.stdout.isTTY;
-const wrap = (open: number, close: number) => (text: string) => (enabled ? `\u001b[${open}m${text}\u001b[${close}m` : text);
+const wrap = (open: number, close: number) => (text: string) =>
+  enabled ? `\u001B[${open}m${text}\u001B[${close}m` : text;
 
 export const bold = wrap(1, 22);
 export const dim = wrap(2, 22);

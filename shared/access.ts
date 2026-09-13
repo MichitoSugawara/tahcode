@@ -11,7 +11,7 @@ export const GRANT_TARGETS = ["user", "role"] as const;
 export type GrantTarget = (typeof GRANT_TARGETS)[number];
 
 export function roleAtLeast(role: OrgRole, needed: OrgRole): boolean {
-  const rank: Record<OrgRole, number> = { member: 0, admin: 1, owner: 2 };
+  const rank: Record<OrgRole, number> = { admin: 1, member: 0, owner: 2 };
   return rank[role] >= rank[needed];
 }
 
@@ -41,7 +41,9 @@ export function canUseRuntime(input: {
     targetRole?: OrgRole;
   }[];
 }): boolean {
-  if (input.actorUserId === input.runtimeOwnerUserId) return true;
+  if (input.actorUserId === input.runtimeOwnerUserId) {
+    return true;
+  }
   return input.grants.some((grant) => {
     if (grant.targetType === "user") {
       return grant.targetUserId === input.actorUserId;
@@ -59,8 +61,12 @@ export function canSeeProject(input: {
   isProjectMember: boolean;
   isOwner: boolean;
 }): boolean {
-  if (!input.isOrgMember) return false;
-  if (input.visibility === "org") return true;
+  if (!input.isOrgMember) {
+    return false;
+  }
+  if (input.visibility === "org") {
+    return true;
+  }
   return input.isProjectMember || input.isOwner;
 }
 
@@ -75,7 +81,9 @@ export function canSeeChat(input: {
   if (input.chatKind === "dm") {
     return input.chatOwnerId === input.actorUserId;
   }
-  if (!input.projectVisible) return false;
+  if (!input.projectVisible) {
+    return false;
+  }
   if (input.chatVisibility === "private") {
     return input.isChatMember;
   }
