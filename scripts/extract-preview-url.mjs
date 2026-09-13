@@ -1,11 +1,9 @@
 import { appendFileSync } from "node:fs";
 
-const output = await new Response(process.stdin).text();
+import { parseCloudflareUrl } from "./wrangler-classify.mjs";
 
-const aliasMatch = output.match(/Version Preview Alias URL:\s+(\S+)/);
-const previewMatch = output.match(/Version Preview URL:\s+(\S+)/);
-const publishedMatch = output.match(/https:\/\/[a-z0-9.-]+\.workers\.dev\/?/i);
-const url = aliasMatch?.[1] ?? previewMatch?.[1] ?? publishedMatch?.[0];
+const output = await new Response(process.stdin).text();
+const url = parseCloudflareUrl(output);
 
 if (!url) {
   console.error("Could not parse a Cloudflare URL from wrangler output.");

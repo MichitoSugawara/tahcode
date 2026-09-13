@@ -249,7 +249,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 
 ## CI/CD（Convex + Cloudflare）
 
-`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` → `convex deploy --cmd cf:build` （`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。
+`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` →（preview のみ）R2 preflight → `convex deploy --cmd cf:build` （`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。preview の Wrangler は一時的な `fetch failed` / 接続エラーを指数バックオフで最大 5 回再試行する。staging / production の Wrangler 呼び出しは従来どおり 1 回（Worker 未作成時の bootstrap のみ）。
 
 ### GitHub に設定する secrets（リポジトリ Settings → Secrets）
 
@@ -313,7 +313,7 @@ npm run env:dec -- production   # 復号の確認（平文は捨てる）
 - staging: `wrangler deploy --env staging`（Worker `tahcode-staging` → `tahcode-staging.gawara.workers.dev` + R2 `team-harness-files-staging`）
 - production: `wrangler deploy --env=""`（トップレベル Worker `tahcode` → `tahcode.gawara.workers.dev` + R2 `team-harness-files`）+ `convex --prod`
 
-R2 バケットは環境ごとに分かれており、**Wrangler はバケットを作らない**。初回デプロイ前に ops が作成する:
+R2 バケットは環境ごとに分かれており、**Wrangler はバケットを作らない**。preview ジョブは `team-harness-files-preview` を一覧し、無ければ資格情報の範囲で作成する（作成できない / 一覧できないときは理由を出して preflight をスキップ）。staging / production のバケットは自動作成しない。手元で作る場合:
 
 ```bash
 npx wrangler r2 bucket create team-harness-files
@@ -321,7 +321,7 @@ npx wrangler r2 bucket create team-harness-files-preview
 npx wrangler r2 bucket create team-harness-files-staging
 ```
 
-`wrangler versions upload` は既存 Worker にしかバージョンを上げられない。preview 用 Worker `tahcode-preview` が未作成のときは、`deploy-stack` が Wrangler の stderr を含む出力を見て一度 `wrangler deploy --env preview` してから upload し直す。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
+`wrangler versions upload` は既存 Worker にしかバージョンを上げられない。preview 用 Worker `tahcode-preview` が未作成のときは、`deploy-stack` が Wrangler の stderr を含む出力を見て一度 `wrangler deploy --env preview` してから upload し直す。一時的な `fetch failed` は Worker 未作成とは扱わず、preview のみバックオフ再試行する。Cloudflare 資格情報が復号後に無い preview は Worker アップロードを理由付きでスキップする（Convex はデプロイする）。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
 
 ## 開発コマンド
 

@@ -22,6 +22,12 @@ outputs:
   cloudflare_url:
     description: Deployed Cloudflare URL
     value: ${{ steps.cf.outputs.cloudflare_url }}
+  skipped:
+    description: true when preview Cloudflare deploy was skipped
+    value: ${{ steps.cf.outputs.skipped }}
+  skip_reason:
+    description: Why preview Cloudflare deploy was skipped
+    value: ${{ steps.cf.outputs.skip_reason }}
 
 runs:
   using: composite
@@ -33,6 +39,14 @@ runs:
     - name: Mask decrypted secrets
       shell: bash
       run: node scripts/mask-env.mjs ${{ inputs.dotenv_file }}
+
+    - name: Ensure preview R2 bucket
+      if: ${{ inputs.name == 'preview' }}
+      shell: bash
+      run: |
+        node scripts/ensure-r2-bucket.mjs \
+          --bucket team-harness-files-preview \
+          --dotenv "${{ inputs.dotenv_file }}"
 
     - name: Deploy Convex and build the Worker
       shell: bash
@@ -50,55 +64,23 @@ runs:
       id: cf
       shell: bash
       run: |
-        set -o pipefail
-        site_url="${CONVEX_URL:-}"
-        if [ -n "$site_url" ]; then
-          site_url="${site_url%.convex.cloud}.convex.site"
-        fi
-        extra=()
-        if [ -n "$site_url" ]; then
-          extra+=(--var "CONVEX_SITE_URL:${site_url}")
-        fi
-        # Redirect both streams to a file, then replay. Wrangler prints
-        # "does not yet exist" on stderr; a stdout-only tee misses it.
-        wrangler() {
-          local status=0
-          npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler "$@" \
-            "${extra[@]}" \
-            > /tmp/wrangler.out 2>&1 || status=$?
-          cat /tmp/wrangler.out
-          return "$status"
-        }
-        worker_missing() {
-          grep -Eiq \
-            'does not yet exist|has not been created|Worker does not exist' \
-            /tmp/wrangler.out
-        }
-        set +e
-        wrangler ${{ inputs.wrangler_args }}
-        status=$?
-        set -e
-        if [ "$status" -ne 0 ]; then
-          if worker_missing; then
-            echo "Named Worker is missing; deploying once so versions upload can target it."
-            bootstrap=()
-            if [ "${{ inputs.name }}" != "production" ]; then
-              bootstrap+=(--env "${{ inputs.name }}")
-            fi
-            wrangler deploy "${bootstrap[@]}"
-            wrangler ${{ inputs.wrangler_args }}
-          else
-            echo "wrangler failed (exit $status). Combined stdout/stderr is above."
-            exit "$status"
-          fi
-        fi
-        node scripts/extract-preview-url.mjs < /tmp/wrangler.out
+        # Preview: retry transient `fetch failed` / connectivity with backoff,
+        # bootstrap a missing Worker, create the preview R2 bucket if needed.
+        # Staging/production: one attempt + existing Worker-missing bootstrap.
+        # Combined stdout/stderr is saved so classification sees stderr too.
+        node scripts/wrangler-deploy.mjs \
+          --name "${{ inputs.name }}" \
+          --dotenv "${{ inputs.dotenv_file }}" \
+          --output /tmp/wrangler.out \
+          -- \
+          ${{ inputs.wrangler_args }}
 
     # Validates JWT_PRIVATE_KEY / JWKS with jose, repairs dotenv escaping and
     # derives the JWKS from the private key when the provided one is unusable.
     # A JWKS pushed verbatim with escaped quotes served invalid JSON and broke
     # every sign-in (AuthProviderDiscoveryFailed) on production and staging.
     - name: Point Convex Auth at the Worker
+      if: ${{ steps.cf.outputs.skipped != 'true' }}
       shell: bash
       env:
         SITE_URL: ${{ steps.cf.outputs.cloudflare_url }}
