@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
+
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 // Same tool as Multica's apps/desktop. Only `main` and `preload` are built:
 // the renderer is the deployed tahcode web app, loaded by URL (see
 // src/main/config.ts), so nothing from the Vite/React app is duplicated here.
-const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+const pkg = JSON.parse(
+  readFileSync(new URL("package.json", import.meta.url), "utf-8")
+) as { version: string };
 
 const define = {
   "process.env.TAHCODE_DESKTOP_VERSION": JSON.stringify(pkg.version),

@@ -1,4 +1,5 @@
-import { DESKTOP_BRIDGE_KEY, type TahcodeDesktopBridge } from "@tahcode/core/desktop";
+import { DESKTOP_BRIDGE_KEY } from "@tahcode/core/desktop";
+import type { TahcodeDesktopBridge } from "@tahcode/core/desktop";
 
 /* ─────────────────────────────────────────────────────────
  * Bridge to the desktop shell (apps/desktop, Electron).
@@ -15,7 +16,9 @@ declare global {
 }
 
 export function getDesktopBridge(): TahcodeDesktopBridge | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
   return window[DESKTOP_BRIDGE_KEY] ?? null;
 }
 
@@ -31,8 +34,12 @@ export function isDesktopShell(): boolean {
  */
 export function oauthRedirectTo(safeNext: string): string {
   const fromShell = getDesktopBridge()?.oauthRedirectTo(safeNext) ?? null;
-  if (fromShell) return fromShell;
-  return safeNext === "/" ? "/login" : `/login?next=${encodeURIComponent(safeNext)}`;
+  if (fromShell) {
+    return fromShell;
+  }
+  return safeNext === "/"
+    ? "/login"
+    : `/login?next=${encodeURIComponent(safeNext)}`;
 }
 
 /** True when the shell hands Google off to the system browser. */

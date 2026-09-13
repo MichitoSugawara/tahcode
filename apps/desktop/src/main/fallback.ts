@@ -3,7 +3,7 @@
  * button navigates back to the app origin, which the navigation policy allows. */
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+  return value.replaceAll(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
 export function fallbackPage(appUrl: string, detail: string): string {

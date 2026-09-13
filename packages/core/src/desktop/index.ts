@@ -50,14 +50,18 @@ function safeNext(next: string | null | undefined): string {
 export function desktopOAuthRedirectTo(next: string): string {
   const url = new URL(DESKTOP_OAUTH_CALLBACK);
   const path = safeNext(next);
-  if (path !== "/") url.searchParams.set("next", path);
+  if (path !== "/") {
+    url.searchParams.set("next", path);
+  }
   return url.toString();
 }
 
 /** Strict match on scheme + host + path; query is where `next` and `code` live. */
 export function isDesktopOAuthCallback(value: string): boolean {
   const candidate = parseUrl(value);
-  if (!candidate) return false;
+  if (!candidate) {
+    return false;
+  }
   const expected = new URL(DESKTOP_OAUTH_CALLBACK);
   return (
     candidate.protocol === expected.protocol &&
@@ -71,17 +75,23 @@ export function isDesktopOAuthCallback(value: string): boolean {
 
 /** `tahcode://auth/callback?code=…&next=…` → { code, next } or null for anything else. */
 export function parseAuthCallback(raw: string): AuthCallback | null {
-  if (!isDesktopOAuthCallback(raw)) return null;
+  if (!isDesktopOAuthCallback(raw)) {
+    return null;
+  }
   const url = new URL(raw);
   const code = url.searchParams.get("code");
-  if (!code) return null;
+  if (!code) {
+    return null;
+  }
   return { code, next: safeNext(url.searchParams.get("next")) };
 }
 
 /** The web app's own return URL, so ConvexAuthProvider exchanges the code as in a browser. */
 export function loginReturnUrl(appUrl: string, callback: AuthCallback): string {
   const url = new URL("/login", appUrl);
-  if (callback.next !== "/") url.searchParams.set("next", callback.next);
+  if (callback.next !== "/") {
+    url.searchParams.set("next", callback.next);
+  }
   url.searchParams.set("code", callback.code);
   return url.toString();
 }
@@ -97,13 +107,21 @@ export function findDeepLink(argv: readonly string[]): string | null {
  * so browser behaviour is unchanged.
  */
 export function resolveRedirectTo(redirectTo: string, siteUrl: string): string {
-  if (isDesktopOAuthCallback(redirectTo)) return redirectTo;
+  if (isDesktopOAuthCallback(redirectTo)) {
+    return redirectTo;
+  }
 
   const base = siteUrl.replace(/\/$/, "");
-  if (redirectTo.startsWith("?") || redirectTo.startsWith("/")) return `${base}${redirectTo}`;
+  if (redirectTo.startsWith("?") || redirectTo.startsWith("/")) {
+    return `${base}${redirectTo}`;
+  }
   if (redirectTo.startsWith(base)) {
     const after = redirectTo[base.length];
-    if (after === undefined || after === "?" || after === "/") return redirectTo;
+    if (after === undefined || after === "?" || after === "/") {
+      return redirectTo;
+    }
   }
-  throw new Error(`Invalid redirectTo ${redirectTo} for configured SITE_URL: ${base}`);
+  throw new Error(
+    `Invalid redirectTo ${redirectTo} for configured SITE_URL: ${base}`
+  );
 }

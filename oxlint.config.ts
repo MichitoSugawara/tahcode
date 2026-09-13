@@ -16,6 +16,9 @@ const projectIgnores = [
   // Vendored agent skills (hashes in skills-lock.json must stay upstream).
   "**/.agents/skills/**",
   "**/.claude/skills/**",
+  // Electron-vite / electron-builder output.
+  "**/apps/desktop/out/**",
+  "**/apps/desktop/release/**",
 ];
 
 export default defineConfig({

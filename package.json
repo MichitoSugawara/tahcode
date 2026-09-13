@@ -2,11 +2,11 @@
   "name": "tahcode",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "dev": "vite --port 43173 --host 127.0.0.1",
     "dev:convex": "convex dev",
