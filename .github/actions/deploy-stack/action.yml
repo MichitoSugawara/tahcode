@@ -59,18 +59,27 @@ runs:
         if [ -n "$site_url" ]; then
           extra+=(--var "CONVEX_SITE_URL:${site_url}")
         fi
+        # Redirect both streams to a file, then replay. Wrangler prints
+        # "does not yet exist" on stderr; a stdout-only tee misses it.
         wrangler() {
+          local status=0
           npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler "$@" \
             "${extra[@]}" \
-            2>&1 | tee /tmp/wrangler.out
-          return "${PIPESTATUS[0]}"
+            > /tmp/wrangler.out 2>&1 || status=$?
+          cat /tmp/wrangler.out
+          return "$status"
+        }
+        worker_missing() {
+          grep -Eiq \
+            'does not yet exist|has not been created|Worker does not exist' \
+            /tmp/wrangler.out
         }
         set +e
         wrangler ${{ inputs.wrangler_args }}
         status=$?
         set -e
         if [ "$status" -ne 0 ]; then
-          if grep -Fq "does not yet exist" /tmp/wrangler.out; then
+          if worker_missing; then
             echo "Named Worker is missing; deploying once so versions upload can target it."
             bootstrap=()
             if [ "${{ inputs.name }}" != "production" ]; then
@@ -79,6 +88,7 @@ runs:
             wrangler deploy "${bootstrap[@]}"
             wrangler ${{ inputs.wrangler_args }}
           else
+            echo "wrangler failed (exit $status). Combined stdout/stderr is above."
             exit "$status"
           fi
         fi

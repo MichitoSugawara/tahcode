@@ -12,6 +12,11 @@
   "vars": {
     "CONVEX_SITE_URL": "http://127.0.0.1:3211",
   },
+  // Each env binds a real R2 bucket that must exist before `wrangler deploy`
+  // or `versions upload`. Wrangler does not create buckets. Ops:
+  //   npx wrangler r2 bucket create team-harness-files
+  //   npx wrangler r2 bucket create team-harness-files-preview
+  //   npx wrangler r2 bucket create team-harness-files-staging
   "r2_buckets": [
     {
       "binding": "FILES",
