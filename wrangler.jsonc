@@ -7,7 +7,16 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
   },
+  "vars": {
+    "CONVEX_SITE_URL": "http://127.0.0.1:3211",
+  },
+  // Each env binds a real R2 bucket that must exist before `wrangler deploy`
+  // or `versions upload`. Wrangler does not create buckets. Ops:
+  //   npx wrangler r2 bucket create team-harness-files
+  //   npx wrangler r2 bucket create team-harness-files-preview
+  //   npx wrangler r2 bucket create team-harness-files-staging
   "r2_buckets": [
     {
       "binding": "FILES",
@@ -15,8 +24,23 @@
     },
   ],
   "env": {
+    "preview": {
+      "name": "tahcode-preview",
+      "vars": {
+        "CONVEX_SITE_URL": "https://unset.invalid",
+      },
+      "r2_buckets": [
+        {
+          "binding": "FILES",
+          "bucket_name": "team-harness-files-preview",
+        },
+      ],
+    },
     "staging": {
       "name": "tahcode-staging",
+      "vars": {
+        "CONVEX_SITE_URL": "https://unset.invalid",
+      },
       "r2_buckets": [
         {
           "binding": "FILES",

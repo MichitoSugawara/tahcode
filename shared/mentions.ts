@@ -1,6 +1,6 @@
 import {
-  MENTION_TO_PROVIDER,
   isValidModelSlug,
+  providerKindFromHandle,
   resolveModelSlug,
 } from "./providers.ts";
 import type { ProviderDriverKind } from "./providers.ts";
@@ -63,7 +63,7 @@ export function classifyMention(
   if (head === "agent" || head === "harness") {
     return { handle: head, kind: "agent", raw };
   }
-  const providerKind = MENTION_TO_PROVIDER[head];
+  const providerKind = providerKindFromHandle(head);
   if (providerKind) {
     const model =
       tail && isValidModelSlug(tail)

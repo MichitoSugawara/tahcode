@@ -1,3 +1,4 @@
+import { posixShellQuote } from "@shared/shellQuote.ts";
 import { useMutation } from "convex/react";
 import { Check, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -75,7 +76,7 @@ export function RegisterRuntimeDialog({
       issued
         ? [
             "npm i -g tahcode",
-            `tahcode link --url "${convexUrl}" --runtime "${String(issued.runtimeId)}" --token "${issued.token}" --name "${name.trim() || "machine"}"`,
+            `tahcode link --url ${posixShellQuote(convexUrl)} --runtime ${posixShellQuote(String(issued.runtimeId))} --token ${posixShellQuote(issued.token)} --name ${posixShellQuote(name.trim() || "machine")}`,
             "tahcode start",
           ]
         : [],
@@ -111,7 +112,12 @@ export function RegisterRuntimeDialog({
               >
                 <ShieldCheck size={13} /> 他のメンバーに許可
               </Button>
-              <Button type="button" variant="accent" size="sm" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="accent"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+              >
                 完了
               </Button>
             </div>

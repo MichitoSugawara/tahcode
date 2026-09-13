@@ -13,6 +13,7 @@ export {
   isProviderDriverKind,
   isValidModelSlug,
   mentionHandleFor,
+  providerKindFromHandle,
   modelDisplayName,
   resolveModelSlug,
 } from "../../shared/providers.ts";

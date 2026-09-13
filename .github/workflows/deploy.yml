@@ -45,7 +45,7 @@ jobs:
         with:
           name: preview
           dotenv_file: .env.preview
-          wrangler_args: versions upload --preview-alias pr-${{ github.event.number }}
+          wrangler_args: versions upload --env preview --preview-alias pr-${{ github.event.number }}
           preview_name: ${{ steps.meta.outputs.preview_name }}
           convex_env_extra: --preview-name ${{ steps.meta.outputs.preview_name }}
 

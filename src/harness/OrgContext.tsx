@@ -196,7 +196,7 @@ export function OrgProvider({
 
   /* keep the Personal DM thread subscribed while the org is open: the home composer sends there
    * and jumps in, so the thread must already be local (same args as ChatPage) for the jump to be instant */
-  useQuery(api.messages.list, dmId ? { chatId: dmId, limit: 200 } : "skip");
+  useQuery(api.messages.list, dmId ? { chatId: dmId, limit: 80 } : "skip");
 
   /* one shared clock so "online" badges age out together */
   const [now, setNow] = useState(() => Date.now());

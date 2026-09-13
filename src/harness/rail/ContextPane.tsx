@@ -49,11 +49,11 @@ export function ContextPane({ chatId }: { chatId?: string }) {
   );
   const listed = chats?.find((item) => String(item._id) === chatId);
   const chat = fetched === undefined ? listed : fetched;
-  const fetchedMessages = useQuery(
+  const fetchedPage = useQuery(
     api.messages.list,
-    serverId ? { chatId: serverId, limit: 200 } : "skip"
+    fetched ? { chatId: fetched._id, limit: 30 } : "skip"
   );
-  const messages = serverId ? fetchedMessages : NO_MESSAGES;
+  const messages = fetched ? fetchedPage?.messages : NO_MESSAGES;
   const chatMembers = useQuery(
     api.chats.members,
     serverId && chat?.kind === "project" ? { chatId: serverId } : "skip"

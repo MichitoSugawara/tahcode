@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUserId, getOptionalUser } from "./lib/auth";
 import { authedMutation } from "./lib/customFunctions";
+import {
+  allocateUniqueHandle,
+  handleTaken,
+  isReservedHandle,
+  normalizeHandle,
+} from "./lib/handles";
 import { userSummary } from "./lib/validators";
 
 export const me = query({
@@ -38,17 +44,12 @@ export const updateProfile = authedMutation({
       patch.name = name;
     }
     if (args.handle !== undefined) {
-      const handle = args.handle
-        .trim()
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9_]+/g, "")
-        .slice(0, 30);
+      const handle = normalizeHandle(args.handle);
       if (handle.length >= 1) {
-        const existing = await ctx.db
-          .query("users")
-          .withIndex("by_handle", (q) => q.eq("handle", handle))
-          .unique();
-        if (existing && String(existing._id) !== String(ctx.user._id)) {
+        if (isReservedHandle(handle)) {
+          throw new Error("This handle is reserved");
+        }
+        if (await handleTaken(ctx, handle, ctx.user._id)) {
           throw new Error("Handle is taken");
         }
         patch.handle = handle;
@@ -70,14 +71,14 @@ export const ensureHandle = mutation({
     if (!user) {
       throw new Error("User not found");
     }
-    if (user.handle) {
+    if (user.handle && !isReservedHandle(user.handle)) {
       return user.handle;
     }
-    const base = (user.name ?? user.email?.split("@")[0] ?? "member")
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9_]+/g, "")
-      .slice(0, 20);
-    const handle = `${base || "member"}${Math.floor(1000 + Math.random() * 9000)}`;
+    const handle = await allocateUniqueHandle(
+      ctx,
+      user.handle ?? user.name ?? user.email?.split("@")[0] ?? "member",
+      userId
+    );
     await ctx.db.patch("users", userId, { handle });
     return handle;
   },

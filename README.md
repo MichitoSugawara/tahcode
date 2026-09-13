@@ -97,7 +97,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ## Stack
 
-パッケージ名・Worker 名は `tahcode`（production `tahcode` → `tahcode.gawara.workers.dev`、staging `tahcode-staging`）。R2 バケット名 `team-harness-files*` はデータを保持しているため据え置き（改名にはバケット作成 + オブジェクト移行が必要。ユーザーには見えない）。 `HARNESS_*` 環境変数は CLI の互換フォールバックとして残す。ユーザーに見える名前はすべて **tahcode**。
+パッケージ名・Worker 名は `tahcode`（production `tahcode` → `tahcode.gawara.workers.dev`、staging `tahcode-staging`、preview `tahcode-preview`）。R2 バケット名 `team-harness-files*` はデータを保持しているため据え置き（改名にはバケット作成 + オブジェクト移行が必要。ユーザーには見えない）。 `HARNESS_*` 環境変数は CLI の互換フォールバックとして残す。ユーザーに見える名前はすべて **tahcode**。
 
 - UI: Vite + React 19 + Tailwind v4 + Beautiful UI（shadcn レジストリ）+ Convex Auth（Password）+ react-router
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
@@ -165,7 +165,7 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 - **モデル一覧は静的**: `shared/providers.ts` のカタログは t3code / Multica / Cursor ドキュメントのスナップショット。ランタイム側で `agent models` / `grok models` / `opencode models` を叩いて一覧を同期するのは後続フェーズ（一覧外のスラッグは `@provider/<slug>` でそのまま指名できる）。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー招待・ロール・ランタイム許可まで。
 - **Org 名変更 / 削除なし**: 設定ページは表示のみ（Owner 向けの変更は後続フェーズ）。
-- **ファイル配信**: 本番は R2 バインディング必須（`wrangler deploy` 前に `team-harness-files` バケット作成）。ローカルは `wrangler dev` のローカル永続化。
+- **ファイル配信**: 各環境の R2 バインディング必須（`wrangler deploy` / `versions upload` 前にバケット作成。Wrangler はバケットを作らない）。本番 `team-harness-files`、staging `team-harness-files-staging`、preview `team-harness-files-preview`。ローカルは `wrangler dev` のローカル永続化。
 - **ファイル Worker に認証なし**: `/api/files` は誰でも POST/GET 可能（メタデータ登録側の Convex は認証必須）。本番公開前に Worker 側で Convex トークン検証を足すこと。
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
@@ -232,11 +232,19 @@ npm run env:dec -- production   # 復号の確認（平文は捨てる）
 
 ### Environments と wrangler
 
-- preview: `wrangler versions upload --preview-alias pr-<番号>`（環境 `preview`、PR に URL コメント）
+- preview: `wrangler versions upload --env preview --preview-alias pr-<番号>`（Worker `tahcode-preview` + R2 `team-harness-files-preview`、PR に URL コメント）
 - staging: `wrangler deploy --env staging`（Worker `tahcode-staging` → `tahcode-staging.gawara.workers.dev` + R2 `team-harness-files-staging`）
 - production: `wrangler deploy --env=""`（トップレベル Worker `tahcode` → `tahcode.gawara.workers.dev` + R2 `team-harness-files`）+ `convex --prod`
 
-R2 バケット（`team-harness-files` / `team-harness-files-staging`）は初回デプロイ前に作成すること。 `wrangler versions upload`（preview）は既存の Worker にしか上げられないため、Worker 名を変えた直後は production を一度 `wrangler deploy` して `tahcode` Worker を作ってから preview が通る。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
+R2 バケットは環境ごとに分かれており、**Wrangler はバケットを作らない**。初回デプロイ前に ops が作成する:
+
+```bash
+npx wrangler r2 bucket create team-harness-files
+npx wrangler r2 bucket create team-harness-files-preview
+npx wrangler r2 bucket create team-harness-files-staging
+```
+
+`wrangler versions upload` は既存 Worker にしかバージョンを上げられない。preview 用 Worker `tahcode-preview` が未作成のときは、`deploy-stack` が Wrangler の stderr を含む出力を見て一度 `wrangler deploy --env preview` してから upload し直す。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
 
 ## 開発コマンド
 

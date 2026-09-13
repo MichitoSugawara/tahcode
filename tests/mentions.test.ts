@@ -11,6 +11,7 @@ import {
 import {
   formatAgentMention,
   isValidModelSlug,
+  providerKindFromHandle,
   resolveModelSlug,
 } from "../shared/providers.ts";
 
@@ -72,6 +73,13 @@ describe(parseMentions, () => {
 
   it("treats @agent/anything as the chat agent", () => {
     expect(classifyMention("agent/whatever").kind).toBe("agent");
+  });
+
+  it("does not treat prototype property names as providers", () => {
+    expect(providerKindFromHandle("__proto__")).toBeUndefined();
+    expect(providerKindFromHandle("constructor")).toBeUndefined();
+    expect(parseMentions("@__proto__")[0]?.kind).toBe("user");
+    expect(parseMentions("@constructor")[0]?.kind).toBe("user");
   });
 });
 

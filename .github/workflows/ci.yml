@@ -23,9 +23,11 @@ jobs:
       - name: Convex ESLint
         run: npm run lint:convex
 
-      # `npm run typecheck` needs `convex/_generated` from `npx convex dev`.
-      # That codegen is not available on PRs without deploy keys, so CI keeps
-      # the local script and does not fail the gate on missing generated types.
+      # Offline codegen writes convex/_generated so typecheck and convex-test
+      # can run without a deploy key (`npm run typecheck` / `npm test` do this).
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Test
         run: npm test

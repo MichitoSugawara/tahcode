@@ -1,6 +1,6 @@
 import { classifyMention, parseMentions } from "@shared/mentions.ts";
 import type { ParsedMention } from "@shared/mentions.ts";
-import { MENTION_TO_PROVIDER } from "@shared/providers.ts";
+import { providerKindFromHandle } from "@shared/providers.ts";
 import type { ProviderDriverKind } from "@shared/providers.ts";
 
 export { parseMentions };
@@ -91,7 +91,7 @@ export function activeAgentToken(draft: string): AgentToken | null {
   if (handle === "agent" || handle === "harness") {
     return null;
   }
-  const providerKind = MENTION_TO_PROVIDER[handle];
+  const providerKind = providerKindFromHandle(handle);
   if (!providerKind) {
     return null;
   }

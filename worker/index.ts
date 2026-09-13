@@ -1,18 +1,19 @@
+import {
+  MAX_FILE_BYTES,
+  normalizeContentType,
+  sanitizeFileName,
+} from "../shared/files.ts";
+import {
+  callConvexJson,
+  corsHeaders,
+  downloadHeaders,
+  fileKeyFromPath,
+} from "./lib.ts";
+
 export interface Env {
-  FILES: R2Bucket;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
-}
-
-const MAX_BYTES = 20 * 1024 * 1024;
-
-function corsHeaders(request: Request): HeadersInit {
-  const origin = request.headers.get("Origin") ?? "*";
-  return {
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Max-Age": "86400",
-  };
+  CONVEX_SITE_URL?: string;
+  FILES: R2Bucket;
 }
 
 function json(request: Request, body: unknown, status = 200): Response {
@@ -25,6 +26,11 @@ function json(request: Request, body: unknown, status = 200): Response {
   });
 }
 
+function requireSiteUrl(env: Env): string | null {
+  const url = env.CONVEX_SITE_URL?.trim();
+  return url && /^https?:\/\//.test(url) ? url : null;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -34,46 +40,11 @@ export default {
     }
 
     if (url.pathname === "/api/files" && request.method === "POST") {
-      const contentType =
-        request.headers.get("Content-Type") ?? "application/octet-stream";
-      const fileName = request.headers.get("X-File-Name") ?? "upload.bin";
-      const bytes = await request.arrayBuffer();
-      if (bytes.byteLength === 0) {
-        return json(request, { error: "Empty file" }, 400);
-      }
-      if (bytes.byteLength > MAX_BYTES) {
-        return json(request, { error: "File exceeds 20MB" }, 413);
-      }
-      const key = `${crypto.randomUUID()}/${sanitizeName(fileName)}`;
-      await env.FILES.put(key, bytes, {
-        customMetadata: { fileName },
-        httpMetadata: { contentType },
-      });
-      return json(request, {
-        contentType,
-        key,
-        name: fileName,
-        size: bytes.byteLength,
-        url: `/api/files/${encodeURIComponent(key)}`,
-      });
+      return await handleUpload(request, env);
     }
 
     if (url.pathname.startsWith("/api/files/") && request.method === "GET") {
-      const key = decodeURIComponent(url.pathname.slice("/api/files/".length));
-      const object = await env.FILES.get(key);
-      if (!object) {
-        return json(request, { error: "Not found" }, 404);
-      }
-      const headers = new Headers(corsHeaders(request));
-      headers.set(
-        "Content-Type",
-        object.httpMetadata?.contentType ?? "application/octet-stream"
-      );
-      headers.set(
-        "Content-Disposition",
-        `inline; filename="${object.customMetadata?.fileName ?? "file"}"`
-      );
-      return new Response(object.body, { headers });
+      return await handleDownload(request, env, url);
     }
 
     if (url.pathname.startsWith("/api/")) {
@@ -84,6 +55,109 @@ export default {
   },
 };
 
-function sanitizeName(name: string): string {
-  return name.replaceAll(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload.bin";
+async function handleUpload(request: Request, env: Env): Promise<Response> {
+  const siteUrl = requireSiteUrl(env);
+  if (!siteUrl) {
+    return json(request, { error: "File server is not configured" }, 503);
+  }
+  const ticket = request.headers.get("X-Upload-Ticket")?.trim();
+  if (!ticket) {
+    return json(request, { error: "Upload ticket required" }, 401);
+  }
+  const claimed = await callConvexJson(siteUrl, "/files/consume-upload", {
+    ticket,
+  });
+  if (!claimed.ok || typeof claimed.data.key !== "string") {
+    return json(
+      request,
+      { error: claimed.data.error ?? "Unauthorized" },
+      claimed.status || 401
+    );
+  }
+  const bytes = await request.arrayBuffer();
+  if (bytes.byteLength === 0) {
+    return json(request, { error: "Empty file" }, 400);
+  }
+  if (bytes.byteLength > MAX_FILE_BYTES) {
+    return json(request, { error: "File exceeds 20MB" }, 413);
+  }
+  if (
+    typeof claimed.data.size === "number" &&
+    claimed.data.size > 0 &&
+    bytes.byteLength !== claimed.data.size
+  ) {
+    return json(
+      request,
+      { error: "File size does not match upload ticket" },
+      400
+    );
+  }
+  const fileName = sanitizeFileName(
+    decodeURIComponent(request.headers.get("X-File-Name") ?? "") ||
+      (typeof claimed.data.name === "string" ? claimed.data.name : "upload.bin")
+  );
+  const contentType = normalizeContentType(
+    request.headers.get("Content-Type") ??
+      (typeof claimed.data.contentType === "string"
+        ? claimed.data.contentType
+        : undefined)
+  );
+  await env.FILES.put(claimed.data.key, bytes, {
+    customMetadata: { fileName },
+    httpMetadata: { contentType },
+  });
+  return json(request, {
+    contentType,
+    key: claimed.data.key,
+    name: fileName,
+    size: bytes.byteLength,
+    url: `/api/files/${encodeURIComponent(claimed.data.key)}`,
+  });
+}
+
+async function handleDownload(
+  request: Request,
+  env: Env,
+  url: URL
+): Promise<Response> {
+  const siteUrl = requireSiteUrl(env);
+  if (!siteUrl) {
+    return json(request, { error: "File server is not configured" }, 503);
+  }
+  const ticket = url.searchParams.get("ticket")?.trim();
+  if (!ticket) {
+    return json(request, { error: "Download ticket required" }, 401);
+  }
+  const key = fileKeyFromPath(url.pathname);
+  if (!key) {
+    return json(request, { error: "Not found" }, 404);
+  }
+  const authorized = await callConvexJson(
+    siteUrl,
+    "/files/authorize-download",
+    { key, ticket }
+  );
+  if (!authorized.ok) {
+    return json(
+      request,
+      { error: authorized.data.error ?? "Unauthorized" },
+      authorized.status || 401
+    );
+  }
+  const object = await env.FILES.get(key);
+  if (!object) {
+    return json(request, { error: "Not found" }, 404);
+  }
+  const contentType = normalizeContentType(
+    (typeof authorized.data.contentType === "string"
+      ? authorized.data.contentType
+      : undefined) ?? object.httpMetadata?.contentType
+  );
+  const fileName =
+    (typeof authorized.data.name === "string" && authorized.data.name) ||
+    object.customMetadata?.fileName ||
+    "file";
+  return new Response(object.body, {
+    headers: downloadHeaders(request, contentType, fileName),
+  });
 }

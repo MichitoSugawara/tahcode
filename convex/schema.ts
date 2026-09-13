@@ -40,6 +40,23 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_org_and_owner_kind", ["orgId", "ownerId", "kind"]),
 
+  fileTickets: defineTable({
+    kind: v.union(v.literal("upload"), v.literal("download")),
+    orgId: v.id("orgs"),
+    chatId: v.optional(v.id("chats")),
+    fileId: v.optional(v.id("files")),
+    key: v.string(),
+    tokenHash: v.string(),
+    userId: v.id("users"),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+    name: v.optional(v.string()),
+    contentType: v.optional(v.string()),
+    size: v.optional(v.number()),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_key", ["key"]),
+
   files: defineTable({
     orgId: v.id("orgs"),
     chatId: v.optional(v.id("chats")),
@@ -93,6 +110,9 @@ export default defineSchema({
     error: v.optional(v.string()),
     claimedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.number()),
+    attempt: v.optional(v.number()),
+    leaseId: v.optional(v.string()),
   })
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_chat", ["chatId"])

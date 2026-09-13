@@ -127,8 +127,10 @@ export function GrantAccessDialog({
   ];
 
   const canSubmit = segment === "メンバー" ? !!userId : !!role;
-  const showAdd = canManage && !(segment === "メンバー" && memberOptions.length === 0);
-  const skipLabel = (runtime?.grants.length ?? 0) === 0 ? "今は追加しない" : "閉じる";
+  const showAdd =
+    canManage && !(segment === "メンバー" && memberOptions.length === 0);
+  const skipLabel =
+    (runtime?.grants.length ?? 0) === 0 ? "今は追加しない" : "閉じる";
 
   const submit = async () => {
     if (!runtime || busy) {

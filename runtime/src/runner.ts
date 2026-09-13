@@ -59,7 +59,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       console.log(
         `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""})`
       );
-      await executeJob(client, options, job, probes);
+      await executeJob(client, options, job, probes, heartbeatMs);
     } catch (error) {
       console.error(
         "[runtime] loop error",
@@ -75,12 +75,14 @@ async function executeJob(
   options: RunnerOptions,
   job: {
     _id: string;
+    contextJson: string;
     driverKind: ProviderDriverKind;
+    leaseId: string;
     model?: string;
     prompt: string;
-    contextJson: string;
   },
-  probes: ProviderProbe[]
+  probes: ProviderProbe[],
+  heartbeatMs: number
 ): Promise<void> {
   const controller = new AbortController();
   // `tahcode start --provider <kind>` pins every job to one CLI on this
@@ -103,6 +105,7 @@ async function executeJob(
     try {
       await client.appendEvent({
         jobId: job._id,
+        leaseId: job.leaseId,
         runtimeId: options.runtimeId,
         text: text.slice(0, 8000),
         token: options.token,
@@ -132,6 +135,7 @@ async function executeJob(
       error: message,
       finalText: message,
       jobId: job._id,
+      leaseId: job.leaseId,
       runtimeId: options.runtimeId,
       token: options.token,
     });
@@ -144,6 +148,27 @@ async function executeJob(
     "thinking",
     `Running ${probe.kind}${model ? ` (${model})` : ""} via ${probe.binary}…`
   );
+
+  const keepAlive = setInterval(() => {
+    void client
+      .heartbeat({
+        hostname: os.hostname(),
+        providers: probes.map((probe) => ({
+          available: probe.available,
+          binaryPath: probe.binary ?? undefined,
+          driverKind: probe.kind,
+          version: probe.version ?? undefined,
+        })),
+        runtimeId: options.runtimeId,
+        token: options.token,
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[runtime] mid-job heartbeat failed",
+          error instanceof Error ? error.message : error
+        );
+      });
+  }, heartbeatMs);
 
   try {
     const started = Date.now();
@@ -165,6 +190,7 @@ async function executeJob(
       await client.complete({
         finalText: `${result.output}\n\n_${probe.displayName}${model ? ` · ${model}` : ""} · ${elapsed}s · ${probe.binary}_`,
         jobId: job._id,
+        leaseId: job.leaseId,
         runtimeId: options.runtimeId,
         token: options.token,
       });
@@ -172,6 +198,7 @@ async function executeJob(
       await client.complete({
         finalText: `Done in ${elapsed}s, but the provider returned no text.`,
         jobId: job._id,
+        leaseId: job.leaseId,
         runtimeId: options.runtimeId,
         token: options.token,
       });
@@ -182,6 +209,7 @@ async function executeJob(
           result.output ||
           `${probe.displayName} failed (exit ${result.exitCode}).`,
         jobId: job._id,
+        leaseId: job.leaseId,
         runtimeId: options.runtimeId,
         token: options.token,
       });
@@ -192,9 +220,12 @@ async function executeJob(
       error: message.slice(0, 2000),
       finalText: `Runtime error: ${message}`.slice(0, 10_000),
       jobId: job._id,
+      leaseId: job.leaseId,
       runtimeId: options.runtimeId,
       token: options.token,
     });
+  } finally {
+    clearInterval(keepAlive);
   }
 }
 

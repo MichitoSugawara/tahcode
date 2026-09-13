@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 
-import { assertProjectVisible, getMembership, requireRole } from "./lib/access";
+import {
+  assertProjectVisible,
+  canSeeProject,
+  getMembership,
+  isProjectMember,
+  requireRole,
+} from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { slugify } from "./lib/ids";
 import { projectSummary, userSummary, visibility } from "./lib/validators";
@@ -53,21 +59,17 @@ export const list = authedQuery({
       .take(100);
     const visible = [];
     for (const project of projects) {
-      if (project.visibility === "org") {
-        visible.push(project);
-        continue;
-      }
-      if (membership.role === "owner" || membership.role === "admin") {
-        visible.push(project);
-        continue;
-      }
-      const member = await ctx.db
-        .query("projectMembers")
-        .withIndex("by_project_and_user", (q) =>
-          q.eq("projectId", project._id).eq("userId", ctx.user._id)
-        )
-        .unique();
-      if (member || String(project.createdBy) === String(ctx.user._id)) {
+      const member = await isProjectMember(ctx, project._id, ctx.user._id);
+      if (
+        canSeeProject({
+          isAdmin: membership.role === "admin" || membership.role === "owner",
+          isOrgMember: true,
+          isOwner:
+            membership.role === "owner" || project.createdBy === ctx.user._id,
+          isProjectMember: member,
+          visibility: project.visibility,
+        })
+      ) {
         visible.push(project);
       }
     }

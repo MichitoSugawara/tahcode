@@ -7,6 +7,7 @@ export interface ClaimedJob {
   chatId: string;
   triggerMessageId: string;
   assistantMessageId: string;
+  leaseId: string;
   runtimeId: string;
   driverKind: ProviderDriverKind;
   /** `@provider/model` slug for the CLI's model flag; absent = CLI default */
@@ -59,21 +60,23 @@ export class RuntimeClient {
   }
 
   async appendEvent(input: {
-    runtimeId: string;
-    token: string;
     jobId: string;
-    type: "thinking" | "tool" | "text" | "error" | "done";
+    leaseId: string;
+    runtimeId: string;
     text: string;
+    token: string;
+    type: "thinking" | "tool" | "text" | "error" | "done";
   }): Promise<void> {
     await this.client.mutation("jobs:appendEvent" as never, input as never);
   }
 
   async complete(input: {
+    error?: string;
+    finalText?: string;
+    jobId: string;
+    leaseId: string;
     runtimeId: string;
     token: string;
-    jobId: string;
-    finalText?: string;
-    error?: string;
   }): Promise<void> {
     await this.client.mutation("jobs:complete" as never, input as never);
   }
