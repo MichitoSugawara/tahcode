@@ -322,6 +322,7 @@ export async function runHeadless(
 
   let output = "";
   let emittedText = false;
+  let lastEmitted = "";
   const lineBuffer = createUtf8LineBuffer();
   const stderrBuffer = createUtf8LineBuffer();
 
@@ -333,7 +334,12 @@ export async function runHeadless(
     if (kind === "codex" || kind === "claudeAgent" || kind === "cursor") {
       const parsed = tryParseJson(trimmed);
       if (parsed !== null) {
-        const classified = classifyStreamEvent(parsed, emittedText, output);
+        const classified = classifyStreamEvent(
+          parsed,
+          emittedText,
+          output,
+          lastEmitted
+        );
         if (events.onArtifact) {
           for (const artifact of extractStreamArtifacts(parsed)) {
             await events.onArtifact(artifact);
@@ -341,6 +347,7 @@ export async function runHeadless(
         }
         if (classified.kind === "text" && classified.text) {
           emittedText = true;
+          lastEmitted = classified.text;
           output += `${classified.text}\n`;
           await events.onText(`${classified.text}\n`);
         } else if (classified.kind === "tool") {
@@ -436,9 +443,10 @@ type StreamEvent =
  *
  * Shapes handled (mirroring what t3code's adapters normalize):
  * - Claude / Cursor (claude-style): {type:"assistant",message:{content:[{type:"text",text}]}}
- *   and the final {type:"result",result}. Cursor may also emit a full-message
- *   assistant flush (same snapshot) before `result` — skip if it already
- *   equals accumulated text; treat a longer snapshot as replace (delta only).
+ *   and the final {type:"result",result}. Multiple `assistant` events may each
+ *   carry the full message snapshot (not a delta). Skip when the new text
+ *   equals accumulated text or is a prefix/suffix duplicate of the last
+ *   emitted snapshot; treat a longer snapshot as replace (delta only).
  * - Codex exec --json: {type:"item.completed",item:{item_type|type:"agent_message"|"assistant_message",text}}
  *   with command/tool items surfaced as tool chips; turn/thread lifecycle
  *   events are trace-only.
@@ -450,7 +458,8 @@ type StreamEvent =
 export function classifyStreamEvent(
   parsed: unknown,
   alreadyEmittedText = false,
-  accumulatedText = ""
+  accumulatedText = "",
+  lastEmitted = ""
 ): StreamEvent {
   if (typeof parsed !== "object" || parsed === null) {
     return { kind: "trace" };
@@ -462,7 +471,10 @@ export function classifyStreamEvent(
   if (type === "result" && typeof record.result === "string") {
     // Claude/Cursor emit the full text again as `result` after streaming
     // assistant deltas — do not append a second copy.
-    if (hasEmitted || isRedundantStreamText(record.result, accumulatedText)) {
+    if (
+      hasEmitted ||
+      isRedundantStreamText(record.result, accumulatedText, lastEmitted)
+    ) {
       return { kind: "trace" };
     }
     return { kind: "text", text: record.result };
@@ -480,7 +492,11 @@ export function classifyStreamEvent(
       ?.filter((item) => item.type === "text" && item.text)
       .map((item) => item.text ?? "");
     if (texts && texts.length > 0) {
-      return classifyEmittedText(texts.join("\n"), accumulatedText);
+      return classifyEmittedText(
+        joinAssistantTexts(texts),
+        accumulatedText,
+        lastEmitted
+      );
     }
     return { kind: "trace" };
   }
@@ -497,7 +513,7 @@ export function classifyStreamEvent(
       typeof item.text === "string" &&
       type.endsWith("completed")
     ) {
-      return classifyEmittedText(item.text, accumulatedText);
+      return classifyEmittedText(item.text, accumulatedText, lastEmitted);
     }
     if (/command|tool|file|patch|mcp|image_gen/.test(itemType)) {
       const label =
@@ -513,7 +529,7 @@ export function classifyStreamEvent(
     typeof record.text === "string" &&
     /message|output|content|delta/.test(type)
   ) {
-    return classifyEmittedText(record.text, accumulatedText);
+    return classifyEmittedText(record.text, accumulatedText, lastEmitted);
   }
   if (typeof record.error === "string") {
     return { kind: "text", text: `error: ${record.error}` };
@@ -521,29 +537,67 @@ export function classifyStreamEvent(
   return { kind: "trace" };
 }
 
-/** True when `incoming` is a full snapshot already sitting in `accumulated`. */
+/** True when `incoming` is a snapshot already shown in `accumulated` / last emit. */
 export function isRedundantStreamText(
   incoming: string,
-  accumulated: string
+  accumulated: string,
+  lastEmitted = ""
 ): boolean {
   const next = incoming.trim();
-  const prior = accumulated.trim();
-  if (next.length === 0 || prior.length === 0) {
+  if (next.length === 0) {
     return false;
   }
-  if (prior === next) {
+  const prior = accumulated.trim();
+  const last = lastEmitted.trim();
+  if (prior.length > 0 && sameSnapshotText(prior, next)) {
     return true;
   }
-  const compactPrior = prior.replaceAll("\n", "");
-  const compactNext = next.replaceAll("\n", "");
-  return compactPrior === compactNext;
+  if (last.length > 0 && sameSnapshotText(last, next)) {
+    return true;
+  }
+  if (last.length > 0 && isPrefixOrSuffixDuplicate(next, last)) {
+    return true;
+  }
+  if (prior.length > 0 && isPrefixOrSuffixDuplicate(next, prior)) {
+    return true;
+  }
+  return false;
+}
+
+function sameSnapshotText(left: string, right: string): boolean {
+  return (
+    left === right || left.replaceAll("\n", "") === right.replaceAll("\n", "")
+  );
+}
+
+function isPrefixOrSuffixDuplicate(
+  incoming: string,
+  reference: string
+): boolean {
+  if (incoming.length >= reference.length) {
+    return false;
+  }
+  return reference.startsWith(incoming) || reference.endsWith(incoming);
+}
+
+function joinAssistantTexts(texts: string[]): string {
+  const unique: string[] = [];
+  for (const text of texts) {
+    const prev = unique.at(-1) ?? "";
+    if (prev && isRedundantStreamText(text, prev, prev)) {
+      continue;
+    }
+    unique.push(text);
+  }
+  return unique.join("\n");
 }
 
 function classifyEmittedText(
   incoming: string,
-  accumulated: string
+  accumulated: string,
+  lastEmitted: string
 ): StreamEvent {
-  if (isRedundantStreamText(incoming, accumulated)) {
+  if (isRedundantStreamText(incoming, accumulated, lastEmitted)) {
     return { kind: "trace" };
   }
   const prior = accumulated.trim();

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCompletedMessageBody } from "../shared/jobs.ts";
+import {
+  collapseDuplicatedMessageBody,
+  resolveCompletedMessageBody,
+} from "../shared/jobs.ts";
 
 describe(resolveCompletedMessageBody, () => {
   const greeting = "こんにちは！今日はどんなお手伝いをしましょうか？";
@@ -25,5 +28,15 @@ describe(resolveCompletedMessageBody, () => {
 
   it("keeps the current body when finalText is empty", () => {
     expect(resolveCompletedMessageBody("kept", "")).toBe("kept");
+  });
+
+  it("collapses a doubled snapshot inside finalText", () => {
+    expect(collapseDuplicatedMessageBody(`${greeting}\n${greeting}`)).toBe(
+      greeting
+    );
+    const doubled = `${greeting}\n${greeting}\n\n${footer}`;
+    expect(resolveCompletedMessageBody(`${greeting}\n`, doubled)).toBe(
+      `${greeting}\n\n${footer}`
+    );
   });
 });

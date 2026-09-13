@@ -20,6 +20,7 @@ import {
   sanitizeFileName,
 } from "../../shared/files.ts";
 import { usesCodexImagegen } from "../../shared/harnessFeatures.ts";
+import { collapseDuplicatedMessageBody } from "../../shared/jobs.ts";
 import type { RuntimeClient } from "./convexClient.ts";
 
 export type ResolvedArtifact = {
@@ -229,7 +230,12 @@ export function composeFinalText(input: {
   probeName: string;
 }): string {
   const footer = `_${input.probeName}${input.model ? ` · ${input.model}` : ""} · ${input.elapsed}s · ${input.probeBinary}_`;
-  return [input.output, input.artifactMarkdown, input.fallbackMarkdown, footer]
+  return [
+    collapseDuplicatedMessageBody(input.output),
+    input.artifactMarkdown,
+    input.fallbackMarkdown,
+    footer,
+  ]
     .filter((part) => part.length > 0)
     .join("\n\n");
 }
