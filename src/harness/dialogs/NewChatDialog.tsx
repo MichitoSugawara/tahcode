@@ -1,3 +1,4 @@
+import { useQuery } from "convex/react";
 import { Folder, Lock, MessageSquare, Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -6,11 +7,13 @@ import { Button } from "@/components/atoms/Button";
 import {
   useCreateProjectChat,
   useSetChatAgent,
+  useSetChatProfile,
 } from "@/harness/optimisticMutations";
 import { useOrg } from "@/harness/OrgContext";
 import { AgentPicker } from "@/harness/ui/AgentPicker";
 import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
+import { ProfilePicker } from "@/harness/ui/ProfilePicker";
 import { errorSummary } from "@/lib/format";
 import { agentMention } from "@/lib/providers";
 import type {
@@ -18,6 +21,7 @@ import type {
   ProviderOptionSelection,
 } from "@/lib/providers";
 
+import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 /* ─────────────────────────────────────────────────────────
@@ -45,6 +49,8 @@ export function NewChatDialog({
   const { projects, dmId, goChat, goPendingChat, openDialog } = org;
   const createChat = useCreateProjectChat();
   const bindChat = useSetChatAgent();
+  const bindProfile = useSetChatProfile();
+  const profiles = useQuery(api.skillProfiles.list, { orgId: org.org._id });
   const [target, setTarget] = useState<Target | null>(initialProjectId ?? null);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"inherit" | "private">(
@@ -57,18 +63,24 @@ export function NewChatDialog({
   const [options, setOptions] = useState<ProviderOptionSelection[] | undefined>(
     org.options
   );
+  const [profileId, setProfileId] = useState<Id<"skillProfiles"> | null>(null);
 
   useEffect(() => {
     if (open) {
-      setTarget(
+      const nextTarget =
         initialProjectId ??
-          (projects && projects.length > 0 ? (projects[0]?._id ?? null) : null)
-      );
+        (projects && projects.length > 0 ? (projects[0]?._id ?? null) : null);
+      setTarget(nextTarget);
       setTitle("");
       setVisibility("inherit");
       setDriverKind(org.provider);
       setModel(org.model);
       setOptions(org.options);
+      const project =
+        nextTarget && nextTarget !== "dm"
+          ? projects?.find((item) => item._id === nextTarget)
+          : undefined;
+      setProfileId(project?.profileId ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialProjectId, projects]);
@@ -152,6 +164,14 @@ export function NewChatDialog({
                   description: errorSummary(error),
                 });
               });
+              bindProfile({
+                chatId: dmId,
+                profileId,
+              }).catch((error: unknown) => {
+                toast.error("DM のプロファイルを設定できませんでした", {
+                  description: errorSummary(error),
+                });
+              });
             }
             onOpenChange(false);
             return;
@@ -161,6 +181,7 @@ export function NewChatDialog({
             driverKind,
             model: model ?? undefined,
             options,
+            profileId: profileId ?? undefined,
             projectId: target,
             title: chatTitle,
             visibility,
@@ -190,7 +211,14 @@ export function NewChatDialog({
           </Label>
           <ChoiceList<Target>
             value={target}
-            onChange={setTarget}
+            onChange={(next) => {
+              setTarget(next);
+              if (next === "dm") {
+                return;
+              }
+              const project = projects?.find((item) => item._id === next);
+              setProfileId(project?.profileId ?? null);
+            }}
             options={[
               ...projectOptions,
               {
@@ -263,6 +291,19 @@ export function NewChatDialog({
                     : (nextOptions ?? undefined)
                 );
               }}
+            />
+          </div>
+        )}
+
+        {target && (
+          <div>
+            <Label hint="ジョブ開始時にマシンへ同期。本文はプロンプトに入れません">
+              スキルプロファイル
+            </Label>
+            <ProfilePicker
+              profiles={profiles}
+              value={profileId}
+              onChange={setProfileId}
             />
           </div>
         )}

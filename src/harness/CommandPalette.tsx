@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
+  BookOpen,
   Cpu,
   Folder,
   Home,
@@ -138,9 +139,17 @@ export function CommandPalette({
       {
         icon: <Settings size={14} />,
         key: "settings",
-        keywords: "settings 設定 members runtimes",
+        keywords: "settings 設定 members runtimes skills スキル プロファイル",
         label: "Org 設定",
         onSelect: run(org.goSettings),
+      },
+      {
+        hint: "#skills",
+        icon: <BookOpen size={14} />,
+        key: "skills",
+        keywords: "skills スキルライブラリ プロファイル skills.sh",
+        label: "スキルライブラリ",
+        onSelect: run(() => org.goSettings("skills")),
       },
     ];
     return [...chats, ...projects, ...actions];

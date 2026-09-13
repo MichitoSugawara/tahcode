@@ -42,10 +42,12 @@ export default defineSchema({
     model: v.optional(v.string()),
     /* t3code ModelSelection.options — effort / traits for this chat's agent */
     options: v.optional(v.array(optionSelection)),
+    profileId: v.optional(v.id("skillProfiles")),
   })
     .index("by_org", ["orgId"])
     .index("by_project", ["projectId"])
-    .index("by_org_and_owner_kind", ["orgId", "ownerId", "kind"]),
+    .index("by_org_and_owner_kind", ["orgId", "ownerId", "kind"])
+    .index("by_profile", ["profileId"]),
 
   fileTickets: defineTable({
     kind: v.union(v.literal("upload"), v.literal("download")),
@@ -172,9 +174,47 @@ export default defineSchema({
     cwd: v.optional(v.string()),
     repoUrl: v.optional(v.string()),
     createdBy: v.id("users"),
+    profileId: v.optional(v.id("skillProfiles")),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_and_slug", ["orgId", "slug"])
+    .index("by_profile", ["profileId"]),
+
+  librarySkills: defineTable({
+    orgId: v.id("orgs"),
+    slug: v.string(),
+    name: v.string(),
+    description: v.string(),
+    body: v.string(),
+    sourceKind: v.union(
+      v.literal("manual"),
+      v.literal("url"),
+      v.literal("skills_sh")
+    ),
+    sourceUrl: v.optional(v.string()),
+    createdBy: v.id("users"),
+    updatedAt: v.number(),
   })
     .index("by_org", ["orgId"])
     .index("by_org_and_slug", ["orgId", "slug"]),
+
+  skillProfiles: defineTable({
+    orgId: v.id("orgs"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    createdBy: v.id("users"),
+    updatedAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
+  skillProfileItems: defineTable({
+    orgId: v.id("orgs"),
+    profileId: v.id("skillProfiles"),
+    skillId: v.id("librarySkills"),
+  })
+    .index("by_profile", ["profileId"])
+    .index("by_skill", ["skillId"])
+    .index("by_profile_and_skill", ["profileId", "skillId"])
+    .index("by_org", ["orgId"]),
 
   /* owner-triggered maintenance the bridge executes from its allowlist (CLI update / model refresh) */
   runtimeCommands: defineTable({
