@@ -23,7 +23,7 @@ Expose **harness-native** capabilities (for example Codex imagegen, provider-spe
 - **UI:** Vite + React 19 + Tailwind v4 + Beautiful UI
 - **Data / realtime / auth:** Convex (`convex/`) + Convex Auth
 - **Hosting / files:** Cloudflare Workers (`worker/`, `wrangler.jsonc`) + R2
-- **Runtime:** `packages/cli` (`tahcode`) wraps Multica daemon + `runtime/` bridges jobs to local CLIs
+- **Runtime:** `packages/cli` (`tahcode`) starts the tahcode bridge; `runtime/` invokes local provider CLIs
 
 Prefer **Japanese** for user-facing product copy (toasts, empty states, validation, dialogs) when the surrounding UI is already Japanese. Keep code identifiers, commits, and technical comments in English unless the file is already Japanese.
 

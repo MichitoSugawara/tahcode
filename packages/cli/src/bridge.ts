@@ -54,7 +54,7 @@ export interface BridgeState {
 export interface BridgeLaunchOptions {
   cwd: string;
   provider?: string;
-  /** Skip `multica daemon start` inside the bridge process (`--no-daemon`). */
+  /** Default true: do not start a Multica daemon (bridge-only). `--daemon` clears this. */
   noDaemon?: boolean;
 }
 

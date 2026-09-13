@@ -339,7 +339,7 @@ export default function LoginPage() {
               <code className="bg-inset rounded-[4px] px-1 font-mono text-[12px]">
                 npm i -g tahcode
               </code>{" "}
-              で接続し、Multica daemon が動かします。
+              で接続し、tahcode ブリッジが動かします。
             </li>
             <li className="flex items-start gap-3">
               <span className="bg-accent-tint text-accent-ink mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px]">

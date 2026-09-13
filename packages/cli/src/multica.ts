@@ -1,11 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
 
 /* ─────────────────────────────────────────────────────────
- * Multica CLI / daemon adapter. tahcode does not ship its own
- * execution daemon: the Multica daemon detects agent CLIs and
- * owns the machine's task execution; tahcode wraps its
- * lifecycle with tahcode branding and links the machine to a
- * tahcode org.
+ * Optional Multica CLI leftover. tahcode jobs run through the
+ * tahcode bridge (`tahcode start`); Multica is not required.
+ * `--daemon` / `tahcode multica` / `install-multica` still use
+ * this adapter. Do not embed or vendor Multica.
  * ───────────────────────────────────────────────────────── */
 
 export const MULTICA_BIN = process.env.MULTICA_BIN ?? "multica";

@@ -150,7 +150,7 @@ Multica の型（daemon がランタイムごとに CLI を検出してバージ
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
 - Hosting/files: Cloudflare（`worker/` + `wrangler.jsonc`、R2 バケット `FILES`）。ファイル本体は Worker（`/api/files`）経由で R2、メタデータは Convex `files`
 - Providers: t3code の6ドライバを `shared/providers.ts`（カタログ）+ `runtime/src/providers.ts`（headless 実行）に移植
-- Runtime: `tahcode` CLI（`packages/cli`）= Multica CLI/daemon の薄いラッパー + Convex をポーリングするブリッジ（`runtime/`）。headless CLI 起動は t3code 由来
+- Runtime: `tahcode` CLI（`packages/cli`）= Convex をポーリングする tahcode ブリッジ（`runtime/`）。headless CLI 起動は t3code 由来。Multica daemon は不要
 
 ## ローカルで動かす
 
@@ -176,20 +176,20 @@ npm run dev:files  # http://127.0.0.1:43174（Vite が /api/files をプロキ�
 
 ### マシンランタイム（`npm i -g tahcode`）
 
-エージェントはあなたのマシンで、**Multica daemon** 経由で動きます。tahcode は独自の常駐デーモンを持たず、 [Multica CLI/daemon](https://multica.ai/docs/daemon-runtimes) を薄くラップします（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。
+エージェントはあなたのマシンで、**tahcode ブリッジ**経由で動きます。`tahcode start` が Convex をポーリングし、検出したプロバイダ CLI を headless で起動します（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。Multica daemon は不要です。
 
 1. Web UI → 右レール **Runtime** タブ →「このマシンを登録」。ブラウザでは一度だけ表示されるトークン入りのコマンド 3 行が発行されます。デスクトップアプリ（`apps/desktop`）では **この Mac を登録** が一発で同じ手順を実行します（詳細は [`apps/desktop/README.md`](apps/desktop/README.md)）:
 
 ```bash
 npm i -g tahcode
 tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token "th_…" --name "office-mac"
-tahcode start        # Multica daemon を起動 → tahcode のジョブブリッジをフォアグラウンドで実行
+tahcode start        # tahcode ブリッジをバックグラウンドで常駐（Multica 不要）
 ```
 
-2. Multica CLI が未導入なら `tahcode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
-3. 確認: `tahcode doctor`（Node / Multica / 検出 CLI / tahcode 接続 / `tahcode tool`）、`tahcode status`、`tahcode logs -f`。モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。エージェントツール（`@linear` 含む）には **tahcode CLI 0.1.1+**。`npm i -g tahcode@0.1.1` のあと `tahcode restart`（`service install` は launchd 環境を消すので使わない）。
+2. エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
+3. 確認: `tahcode doctor`（Node / 検出 CLI / tahcode 接続 / `tahcode tool`）、`tahcode status`、`tahcode logs -f`。モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。エージェントツール（`@linear` 含む）には **tahcode CLI 0.1.1+**。`npm i -g tahcode@0.1.1` のあと `tahcode restart`（`service install` は launchd 環境を消すので使わない）。
 
-役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。 `tahcode multica <args>` で Multica CLI をそのまま呼べます（例: `tahcode multica login`）。
+役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。
 
 リポジトリ内での開発: `npm run cli -- doctor`（tsx でソース実行）、`npm run cli:build`（`packages/cli/dist/tahcode.mjs` にバンドル）。公開手順は [`packages/cli/README.md`](packages/cli/README.md)。CI や 1 回限りの実行では環境変数 `TAHCODE_URL` / `TAHCODE_RUNTIME_ID` / `TAHCODE_TOKEN` でもリンクできます。
 
@@ -205,7 +205,7 @@ Web と Desktop を **1 つのモノレポ**に置き、共有パッケージ + 
 | `apps/desktop`（Electron + electron-vite） | [`apps/desktop`](apps/desktop) = `@tahcode/desktop` | Electron + electron-vite の**薄いシェル**。renderer をバンドルせず、デプロイ済み Web を URL で読む |
 | `packages/core` | [`packages/core`](packages/core) = `@tahcode/core`（現在は `./desktop` のみ）+ `shared/` | フレームワーク非依存のロジック。`@tahcode/core/desktop` は deep link / OAuth リダイレクトの契約（Web・Convex・Desktop の 3 者が同じ TS ソースを取り込む）。`shared/`（mentions / access / auth / providers）は次の移設候補 |
 | `packages/ui` / `packages/views` | `src/components` / `src/harness`（未分離） | Desktop が renderer をバンドルする段階になったら切り出す。今は Web 側からのみ参照されるため分離しない（重複を作らない） |
-| `server`（Go）+ CLI | `convex/` + `runtime/` + [`packages/cli`](packages/cli)（`tahcode`） | バックエンドは Convex、ランタイムは Multica daemon をラップする CLI |
+| `server`（Go）+ CLI | `convex/` + `runtime/` + [`packages/cli`](packages/cli)（`tahcode`） | バックエンドは Convex、ランタイムは tahcode ブリッジ + headless CLI |
 
 Desktop が「Web を URL で読む」方式なのは、共有 UI の切り出しを **必要になった分だけ**に留めて Vite/React アプリを二重化しないため。Web に手を入れれば Desktop にも即反映され、Desktop 固有のコードは main / preload と `@tahcode/core/desktop` だけになる。 `apps/web` への物理的な移設（`src/` 一式 + `wrangler.jsonc` の `assets.directory` + `cf:build` + `tsconfig` の参照）は Cloudflare deploy に触るため、Web CI のリスクを切り離した別 PR で行う。
 
@@ -228,7 +228,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 2. DM / プロジェクトチャット → DM は Org 参加時に自動作成、プロジェクトチャットは「新しいチャット」ダイアログ / プロジェクト行の ＋
 3. DM 常時 / 他はメンション時のみ → `shared/mentions.ts`（`@provider/model` 文法）+ `convex/messages.ts:send`
 4. Context = 履歴 + メンション + プロジェクトリンク → `convex/lib/context.ts`（ジョブに JSON 同梱、ランタイムがプロンプトに付与）
-5. t3code 由来プロバイダで実行 → `tahcode start`（Multica daemon + ブリッジ）→ `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）
+5. t3code 由来プロバイダで実行 → `tahcode start`（tahcode ブリッジ）→ `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）
 6. 最小ロール + ランタイム許可 → Org ロール + `runtimeGrants`（default deny、machine owner 付与）
 7. Convex + Cloudflare → Convex が全データ/リアルタイム、Worker + R2 がホスティング/ファイル
 

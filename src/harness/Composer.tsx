@@ -676,7 +676,7 @@ export function Composer({
     {
       ariaLabel: "プロバイダを選択",
       footer:
-        "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start / Multica daemon）",
+        "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start のブリッジ）",
       id: "provider",
       icon: <ProviderMark kind={agent.driverKind} />,
       items: Object.entries(PROVIDERS).map(([kind, info]) => ({

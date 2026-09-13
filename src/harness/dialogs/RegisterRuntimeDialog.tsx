@@ -173,10 +173,10 @@ export function RegisterRuntimeDialog({
         desktop
           ? showIssued
             ? "この Mac の tahcode CLI を接続しました。ハートビートが届くとオンラインになります。"
-            : "ワンクリックでこの Mac を org に登録し、tahcode CLI と Multica daemon を起動します。"
+            : "ワンクリックでこの Mac を org に登録し、tahcode CLI のブリッジを起動します。"
           : issued
-            ? "下の 3 行をエージェントを動かすマシンのターミナルで実行してください。tahcode CLI が Multica daemon を起動し、接続されるとこの画面が自動で更新されます。"
-            : "エージェントはあなたのマシン上の Multica daemon 経由で動きます。登録すると一度だけ表示されるトークンと、tahcode CLI の起動コマンドが発行されます。"
+            ? "下の 3 行をエージェントを動かすマシンのターミナルで実行してください。tahcode CLI がブリッジを起動し、接続されるとこの画面が自動で更新されます。"
+            : "エージェントはあなたのマシン上の tahcode ブリッジ経由で動きます。登録すると一度だけ表示されるトークンと、tahcode CLI の起動コマンドが発行されます。"
       }
       width={560}
       footer={
@@ -346,13 +346,6 @@ export function RegisterRuntimeDialog({
                   {cliLabel ? ` — ${cliLabel}` : " をこのアプリが探します"}
                 </li>
                 <li>
-                  · Multica CLI（未導入なら{" "}
-                  <code className="bg-field rounded-[4px] px-1 font-mono text-[11.5px]">
-                    tahcode install-multica
-                  </code>
-                  ）
-                </li>
-                <li>
                   · いずれかのエージェント CLI にログイン済み:{" "}
                   {Object.values(PROVIDERS)
                     .map((provider) => provider.binary)
@@ -366,13 +359,6 @@ export function RegisterRuntimeDialog({
                   <code className="bg-field rounded-[4px] px-1 font-mono text-[11.5px]">
                     npm i -g tahcode
                   </code>
-                </li>
-                <li>
-                  · Multica CLI（未導入なら{" "}
-                  <code className="bg-field rounded-[4px] px-1 font-mono text-[11.5px]">
-                    tahcode install-multica
-                  </code>{" "}
-                  が案内）
                 </li>
                 <li>
                   · いずれかのエージェント CLI にログイン済み:{" "}
@@ -540,7 +526,7 @@ function IssuedView({
           </Notice>
           <div>
             <SectionLabel>
-              ターミナルで実行（tahcode CLI → Multica daemon）
+              ターミナルで実行（tahcode CLI → ブリッジ）
             </SectionLabel>
             <CodeBlock
               fill

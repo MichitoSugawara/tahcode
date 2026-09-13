@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 
 /**
- * Best-effort stop for a Multica issue task. tahcode jobs usually spawn the
- * provider CLI directly; when a job recorded a Multica task id, cancel that
- * path too so the daemon does not keep the agent running.
+ * Leftover best-effort stop for a Multica issue task id. tahcode jobs spawn
+ * the provider CLI through the bridge; Multica is not on the default path.
+ * If a historic job still recorded `multicaTaskId`, cancel that too.
  */
 export function cancelMulticaTask(taskId: string): {
   detail: string;
