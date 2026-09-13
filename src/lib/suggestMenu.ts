@@ -85,6 +85,30 @@ export interface SuggestMenuItem {
   desc?: string;
   insert?: string;
   name: string;
+  /** Extra haystack (aliases, slugs) that should rank with the visible label. */
+  search?: string;
+}
+
+function queryNeedles(query: string): string[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return [];
+  }
+  const parts = needle.split("/").filter((part) => part.length > 0);
+  const tail = parts.at(-1) ?? "";
+  if (tail.length > 0 && tail !== needle) {
+    return [needle, tail];
+  }
+  return [needle];
+}
+
+function itemScore(item: SuggestMenuItem, needle: string): number {
+  return Math.max(
+    fuzzyFieldScore(item.name, needle),
+    fuzzyFieldScore(item.desc ?? "", needle),
+    fuzzyFieldScore(item.insert ?? "", needle),
+    fuzzyFieldScore(item.search ?? "", needle)
+  );
 }
 
 /** Ranked fuzzy filter. Empty query keeps the original order. */
@@ -92,19 +116,15 @@ export function filterSuggestItems<T extends SuggestMenuItem>(
   items: readonly T[],
   query: string
 ): T[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) {
+  const needles = queryNeedles(query);
+  if (needles.length === 0) {
     return [...items];
   }
   return items
     .map((item, index) => ({
       index,
       item,
-      score: Math.max(
-        fuzzyFieldScore(item.name, needle),
-        fuzzyFieldScore(item.desc ?? "", needle),
-        fuzzyFieldScore(item.insert ?? "", needle)
-      ),
+      score: Math.max(...needles.map((needle) => itemScore(item, needle))),
     }))
     .filter((row) => row.score > 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)

@@ -135,7 +135,11 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
       { slug: "auto", name: "Auto（Cursor が選択）" },
       { slug: "composer-2.5", name: "Composer 2.5" },
       { slug: "composer-2.5-fast", name: "Composer 2.5 Fast" },
-      { slug: "cursor-grok-4.6", name: "Grok 4.6 (Cursor)" },
+      {
+        slug: "cursor-grok-4.6",
+        name: "Grok 4.6 (Cursor)",
+        aliases: ["grok", "grok-4.6"],
+      },
       { slug: "muse-spark-1.3", name: "Muse Spark 1.3" },
       { slug: "claude-fable-5-1", name: "Claude Fable 5.1" },
       { slug: "claude-opus-5", name: "Claude Opus 5" },

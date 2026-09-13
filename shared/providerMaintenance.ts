@@ -451,6 +451,8 @@ function dedupe(models: LiveModel[]): LiveModel[] {
 export type CatalogModel = LiveModel & {
   source: ModelSource;
   legacy?: boolean;
+  /** Static-catalog short spellings (`grok` → `cursor-grok-4.6`), when the slug matches. */
+  aliases?: readonly string[];
 };
 
 /**
@@ -463,17 +465,33 @@ export function mergeModelCatalog(
   live: readonly LiveModel[] | null | undefined
 ): { models: CatalogModel[]; source: ModelSource } {
   const statics = catalogFor(kind).models;
+  const aliasesBySlug = new Map(
+    statics.flatMap((model) =>
+      model.aliases && model.aliases.length > 0
+        ? ([[model.slug, model.aliases]] as const)
+        : []
+    )
+  );
+  const withAliases = (model: CatalogModel, slug: string): CatalogModel => {
+    const aliases = aliasesBySlug.get(slug);
+    return aliases ? { ...model, aliases } : model;
+  };
   if (live && live.length > 0) {
     const named = new Map(
       statics.map((model) => [model.slug, model.name] as const)
     );
     return {
       source: "live",
-      models: live.map((model) => ({
-        ...model,
-        name: model.name ?? named.get(model.slug) ?? model.slug,
-        source: "live",
-      })),
+      models: live.map((model) =>
+        withAliases(
+          {
+            ...model,
+            name: model.name ?? named.get(model.slug) ?? model.slug,
+            source: "live",
+          },
+          model.slug
+        )
+      ),
     };
   }
   return {
@@ -481,19 +499,29 @@ export function mergeModelCatalog(
     models: [
       ...statics
         .filter((model) => !model.legacy)
-        .map((model) => ({
-          slug: model.slug,
-          name: model.name,
-          source: "static" as const,
-        })),
+        .map((model) =>
+          withAliases(
+            {
+              name: model.name,
+              slug: model.slug,
+              source: "static",
+            },
+            model.slug
+          )
+        ),
       ...statics
         .filter((model) => model.legacy)
-        .map((model) => ({
-          slug: model.slug,
-          name: model.name,
-          legacy: true,
-          source: "static" as const,
-        })),
+        .map((model) =>
+          withAliases(
+            {
+              legacy: true,
+              name: model.name,
+              slug: model.slug,
+              source: "static",
+            },
+            model.slug
+          )
+        ),
     ],
   };
 }

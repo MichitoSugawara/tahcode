@@ -24,4 +24,13 @@ describe(fuzzyFieldScore, () => {
     expect(fuzzyFieldScore("@codex", "cod")).toBeGreaterThan(0);
     expect(fuzzyFieldScore("@cursor/muse-spark-1.3", "mus")).toBeGreaterThan(0);
   });
+
+  it("matches a model slug from a provider/query path", () => {
+    expect(
+      fuzzyFieldScore("@cursor/cursor-grok-4.6", "cursor/grok")
+    ).toBeGreaterThan(0);
+    expect(
+      fuzzyFieldScore("@cursor/cursor-grok-4.6", "cursor/grok")
+    ).toBeGreaterThan(fuzzyFieldScore("@cursor/muse-spark-1.3", "cursor/grok"));
+  });
 });

@@ -435,6 +435,9 @@ export function Composer({
         insert: `@${modelToken.handle}/${model.slug} `,
         key: `m-${kind}-${model.slug}`,
         name: `@${modelToken.handle}/${model.slug}`,
+        search: [model.slug, model.name, ...(model.aliases ?? [])]
+          .filter((part): part is string => Boolean(part))
+          .join(" "),
         trailing: model.default
           ? "CLI の既定"
           : model.legacy

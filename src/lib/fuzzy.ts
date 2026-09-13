@@ -139,8 +139,7 @@ export function fuzzyScore(haystack: string, needle: string): number {
 
 const TOKEN_SPLIT = /[\s@/_.:-]+/;
 
-/** Best score across the raw field, a stripped copy, and its tokens. */
-export function fuzzyFieldScore(field: string, needle: string): number {
+function tokenFieldScore(field: string, needle: string): number {
   const haystack = field.toLowerCase();
   if (!haystack) {
     return 0;
@@ -157,4 +156,58 @@ export function fuzzyFieldScore(field: string, needle: string): number {
     best = Math.max(best, fuzzyScore(token, needle));
   }
   return best;
+}
+
+/**
+ * `@cursor/grok` vs `@cursor/cursor-grok-4.6`: match each slash-separated
+ * query part against a later path segment (handle, then model slug).
+ */
+function pathFieldScore(field: string, needle: string): number {
+  if (!needle.includes("/")) {
+    return 0;
+  }
+  const needleParts = needle.split("/").filter((part) => part.length > 0);
+  const hayParts = field
+    .toLowerCase()
+    .replace(/^[@/]+/, "")
+    .split("/")
+    .filter((part) => part.length > 0);
+  if (needleParts.length === 0 || hayParts.length === 0) {
+    return 0;
+  }
+  let hayIndex = 0;
+  let total = 0;
+  for (const part of needleParts) {
+    let found = 0;
+    while (hayIndex < hayParts.length) {
+      const current = hayParts[hayIndex] ?? "";
+      const rest = hayParts.slice(hayIndex).join("/");
+      hayIndex += 1;
+      const partScore = Math.max(
+        tokenFieldScore(current, part),
+        tokenFieldScore(rest, part)
+      );
+      if (partScore > 0) {
+        found = partScore;
+        break;
+      }
+    }
+    if (found === 0) {
+      return 0;
+    }
+    total += found;
+  }
+  return total;
+}
+
+/** Best score across the raw field, tokens, and `@provider/model` path parts. */
+export function fuzzyFieldScore(field: string, needle: string): number {
+  const normalized = needle.toLowerCase();
+  if (!normalized) {
+    return field ? 1 : 0;
+  }
+  return Math.max(
+    tokenFieldScore(field, normalized),
+    pathFieldScore(field, normalized)
+  );
 }
