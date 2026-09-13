@@ -129,6 +129,27 @@ function withFallbackOptions(
   return { ...target, options: fallback.options };
 }
 
+/**
+ * Rewrite `@cursor/<family>` (and aliases like `@cursor/grok`) to the
+ * CLI-valid id so the mention chip matches `agent --model`. Pass the
+ * machine's live slugs when known so the chip uses the same pick as the job.
+ */
+export function expandResolvedMentions(
+  text: string,
+  liveSlugs?: readonly string[] | null
+): string {
+  return text.replaceAll(
+    /(^|[^A-Za-z0-9_@.+-])@(cursor)\/([A-Za-z0-9_.\-/]+)/gi,
+    (full, boundary: string, handle: string, slug: string) => {
+      const resolved = resolveModelSlug("cursor", slug, liveSlugs);
+      if (!resolved || resolved === slug) {
+        return full;
+      }
+      return `${boundary}@${handle}/${resolved}`;
+    }
+  );
+}
+
 export function preferredTarget(
   mentions: readonly ParsedMention[],
   fallback: AgentTarget

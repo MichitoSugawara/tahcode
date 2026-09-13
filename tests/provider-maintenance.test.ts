@@ -250,6 +250,17 @@ describe(mergeModelCatalog, () => {
     });
   });
 
+  it("attaches family aliases onto a live effort-suffixed slug", () => {
+    const merged = mergeModelCatalog("cursor", [
+      { slug: "cursor-grok-4.6-medium" },
+    ]);
+    expect(merged.models[0]).toMatchObject({
+      aliases: ["grok", "grok-4.6"],
+      name: "Grok 4.6 (Cursor)",
+      slug: "cursor-grok-4.6-medium",
+    });
+  });
+
   it("prefers the live list and borrows display names from the static snapshot", () => {
     const merged = mergeModelCatalog("cursor", [
       { slug: "composer-2.5", default: true },

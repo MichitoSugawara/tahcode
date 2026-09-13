@@ -1,9 +1,13 @@
-import { classifyMention, parseMentions } from "@shared/mentions.ts";
+import {
+  classifyMention,
+  expandResolvedMentions,
+  parseMentions,
+} from "@shared/mentions.ts";
 import type { ParsedMention } from "@shared/mentions.ts";
 import { providerKindFromHandle } from "@shared/providers.ts";
 import type { ProviderDriverKind } from "@shared/providers.ts";
 
-export { parseMentions };
+export { expandResolvedMentions, parseMentions };
 export type { ParsedMention };
 
 /* What may precede an @: the start of the text or anything that can't be

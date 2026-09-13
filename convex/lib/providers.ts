@@ -3,6 +3,7 @@
  * server, the web app and the machine runtime agree on driver kinds, mention
  * handles and model slugs.
  */
+export { resolveCursorCliModel } from "../../shared/cursorModels.ts";
 export {
   MENTION_TO_PROVIDER,
   MODEL_SLUG_MAX_LENGTH,

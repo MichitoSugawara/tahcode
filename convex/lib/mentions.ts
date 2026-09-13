@@ -4,6 +4,7 @@
  */
 export {
   classifyMention,
+  expandResolvedMentions,
   parseMentions,
   preferredProvider,
   preferredTarget,

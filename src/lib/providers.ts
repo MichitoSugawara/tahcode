@@ -1,4 +1,9 @@
 import {
+  cursorMentionSuggestItems,
+  resolveCursorCliModel,
+} from "@shared/cursorModels.ts";
+import type { CursorMentionSuggestItem } from "@shared/cursorModels.ts";
+import {
   effortFooterFor,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
@@ -41,6 +46,7 @@ import type { ProviderDriverKind, ProviderModel } from "@shared/providers.ts";
 
 export type {
   CatalogModel,
+  CursorMentionSuggestItem,
   InstallMethod,
   LiveModel,
   MaintenanceKind,
@@ -55,6 +61,7 @@ export {
   PROVIDER_MAINTENANCE,
   STALE_RUNNING_MS,
   canRequestMaintenance,
+  cursorMentionSuggestItems,
   effortFooterFor,
   formatAgentMention,
   getProviderOptionCurrentLabel,
@@ -65,6 +72,7 @@ export {
   modelsCommandLabel,
   optionDescriptorsFor,
   primaryOptionDescriptor,
+  resolveCursorCliModel,
   resolveModelSlug,
   retainValidOptions,
   sanitizeOptionSelections,
