@@ -59,9 +59,29 @@ runs:
         if [ -n "$site_url" ]; then
           extra+=(--var "CONVEX_SITE_URL:${site_url}")
         fi
+        set +e
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
           "${extra[@]}" \
           | tee /tmp/wrangler.out
+        status=${PIPESTATUS[0]}
+        set -e
+        if [ "$status" -ne 0 ]; then
+          if grep -q "does not yet exist" /tmp/wrangler.out; then
+            echo "Named Worker is missing; deploying once so versions upload can target it."
+            bootstrap=()
+            if [ "${{ inputs.name }}" != "production" ]; then
+              bootstrap+=(--env "${{ inputs.name }}")
+            fi
+            npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler deploy \
+              "${bootstrap[@]}" \
+              "${extra[@]}"
+            npx dotenvx run -f "${{ inputs.dotenv_file }}" -- npx wrangler ${{ inputs.wrangler_args }} \
+              "${extra[@]}" \
+              | tee /tmp/wrangler.out
+          else
+            exit "$status"
+          fi
+        fi
         node scripts/extract-preview-url.mjs < /tmp/wrangler.out
 
     # Validates JWT_PRIVATE_KEY / JWKS with jose, repairs dotenv escaping and

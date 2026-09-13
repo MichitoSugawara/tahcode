@@ -21,6 +21,9 @@
   "env": {
     "preview": {
       "name": "tahcode-preview",
+      "vars": {
+        "CONVEX_SITE_URL": "https://unset.invalid",
+      },
       "r2_buckets": [
         {
           "binding": "FILES",
@@ -30,6 +33,9 @@
     },
     "staging": {
       "name": "tahcode-staging",
+      "vars": {
+        "CONVEX_SITE_URL": "https://unset.invalid",
+      },
       "r2_buckets": [
         {
           "binding": "FILES",
