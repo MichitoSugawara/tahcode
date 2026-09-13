@@ -82,7 +82,7 @@ export interface RuntimeProvider {
 }
 export interface Runtime {
   _id: Id<"runtimes">;
-  /** tahcode CLI version + capabilities ("maintenance", "liveModels") the bridge reported; empty for old bridges */
+  /** tahcode CLI version + capabilities ("maintenance", "liveModels", "agentTools") the bridge reported; empty for old bridges */
   bridgeVersion?: string;
   canUse: boolean;
   capabilities: string[];

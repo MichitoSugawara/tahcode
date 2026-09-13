@@ -12,6 +12,7 @@
 import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 
+import { agentToolsMcpFlags } from "../../shared/agentTools.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import { planHeadlessEffort } from "../../shared/modelOptions.ts";
 import type { InstallMethod } from "../../shared/providerMaintenance.ts";
@@ -188,10 +189,12 @@ export function headlessArgs(
   kind: ProviderDriverKind,
   prompt: string,
   model?: string,
-  options?: readonly ProviderOptionSelection[]
+  options?: readonly ProviderOptionSelection[],
+  mcpConfigPath?: string
 ): string[] {
   const effort = planHeadlessEffort(kind, prompt, model, options);
   const modelFlag = model ? ["--model", model] : [];
+  const toolFlags = agentToolsMcpFlags(kind, mcpConfigPath);
   switch (kind) {
     case "codex": {
       return ["exec", ...modelFlag, ...effort.flags, "--json", effort.prompt];
@@ -203,6 +206,7 @@ export function headlessArgs(
         "-p",
         ...modelFlag,
         ...effort.flags,
+        ...toolFlags,
         "--output-format",
         "stream-json",
         "--verbose",
@@ -242,12 +246,19 @@ export async function runHeadless(
   events: RunEvents,
   signal: AbortSignal,
   model?: string,
-  options?: readonly ProviderOptionSelection[]
+  options?: readonly ProviderOptionSelection[],
+  extras?: { env?: NodeJS.ProcessEnv; mcpConfigPath?: string }
 ): Promise<{ exitCode: number; output: string }> {
-  const args = headlessArgs(kind, prompt, model, options);
+  const args = headlessArgs(
+    kind,
+    prompt,
+    model,
+    options,
+    extras?.mcpConfigPath
+  );
   const child = spawn(binary, args, {
     cwd,
-    env: process.env,
+    env: extras?.env ?? process.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 

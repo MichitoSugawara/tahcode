@@ -1,6 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { BRIDGE_CAPABILITY_AGENT_TOOLS } from "../../shared/agentTools.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
   BRIDGE_CAPABILITY_LIVE_MODELS,
@@ -11,6 +13,12 @@ import {
   updateCommandLabel,
 } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
+import {
+  agentToolsPromptSuffix,
+  jobAgentToolEnv,
+  writeAgentToolShim,
+  writeAgentToolsMcpConfig,
+} from "./agentToolsHost.ts";
 import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
@@ -38,6 +46,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_MAINTENANCE,
   BRIDGE_CAPABILITY_LIVE_MODELS,
+  BRIDGE_CAPABILITY_AGENT_TOOLS,
 ];
 
 /**
@@ -418,7 +427,40 @@ async function executeJob(
   }
 
   const contextSummary = summarizeContext(job.contextJson);
-  const prompt = `${job.prompt}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}`;
+  const prompt = `${job.prompt}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}`;
+  const toolAuth = {
+    jobId: job._id,
+    leaseId: job.leaseId,
+    runtimeId: options.runtimeId,
+    token: options.token,
+    url: options.convexUrl,
+  };
+  let jobEnv: NodeJS.ProcessEnv = jobAgentToolEnv(toolAuth);
+  let mcpConfigPath: string | undefined;
+  try {
+    const jobDir = await mkdtemp(path.join(os.tmpdir(), "tahcode-job-"));
+    const cliEntry = process.argv[1] ?? "tahcode";
+    const bin = await writeAgentToolShim({
+      cliEntry,
+      dir: jobDir,
+      nodePath: process.execPath,
+    });
+    mcpConfigPath = await writeAgentToolsMcpConfig({
+      auth: toolAuth,
+      cliEntry,
+      dir: jobDir,
+      nodePath: process.execPath,
+    });
+    jobEnv = {
+      ...jobEnv,
+      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+    };
+  } catch (error) {
+    await send(
+      "thinking",
+      `tahcode tools host skipped: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
   const effortTag = jobOptions?.find(
     (item) => typeof item.value === "string"
   )?.value;
@@ -480,7 +522,8 @@ async function executeJob(
       },
       controller.signal,
       model,
-      jobOptions
+      jobOptions,
+      { env: jobEnv, mcpConfigPath }
     );
     const elapsed = ((Date.now() - started) / 1000).toFixed(1);
     if (result.exitCode === 0 && result.output) {

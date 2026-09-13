@@ -13,7 +13,7 @@ import { slugify } from "./lib/ids";
 import { requireOrgProfile } from "./lib/skills";
 import { projectSummary, userSummary, visibility } from "./lib/validators";
 
-function summarizeProject(project: Doc<"projects">) {
+export function summarizeProject(project: Doc<"projects">) {
   return {
     _id: project._id,
     cwd: project.cwd,

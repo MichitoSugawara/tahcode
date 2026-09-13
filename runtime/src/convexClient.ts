@@ -142,6 +142,20 @@ export class RuntimeClient {
     await this.client.mutation("jobs:appendEvent" as never, input as never);
   }
 
+  async invokeTool(input: {
+    argsJson: string;
+    jobId: string;
+    leaseId: string;
+    name: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<{ name: string; resultJson: string }> {
+    return await this.client.mutation(
+      "agentTools:invoke" as never,
+      input as never
+    );
+  }
+
   async complete(input: {
     error?: string;
     finalText?: string;

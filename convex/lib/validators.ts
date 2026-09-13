@@ -83,6 +83,18 @@ export const messageAuthorType = v.union(
   v.literal("system")
 );
 
+export const agentToolName = v.union(
+  v.literal("list_orgs"),
+  v.literal("list_projects"),
+  v.literal("list_sessions"),
+  v.literal("get_session"),
+  v.literal("create_session"),
+  v.literal("switch_session"),
+  v.literal("send_message"),
+  v.literal("list_runtimes"),
+  v.literal("get_runtime_status")
+);
+
 export const jobStatus = v.union(
   v.literal("queued"),
   v.literal("running"),
