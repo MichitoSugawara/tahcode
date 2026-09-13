@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "team-harness",
+  "name": "tahcode",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-12",
   "assets": {
@@ -16,7 +16,7 @@
   ],
   "env": {
     "staging": {
-      "name": "team-harness-staging",
+      "name": "tahcode-staging",
       "r2_buckets": [
         {
           "binding": "FILES",

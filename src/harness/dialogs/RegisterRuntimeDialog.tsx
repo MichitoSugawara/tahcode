@@ -52,9 +52,9 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
     () =>
       issued
         ? [
-            "npm i -g dalecode",
-            `dalecode link --url "${convexUrl}" --runtime "${String(issued.runtimeId)}" --token "${issued.token}" --name "${name.trim() || "machine"}"`,
-            "dalecode start",
+            "npm i -g tahcode",
+            `tahcode link --url "${convexUrl}" --runtime "${String(issued.runtimeId)}" --token "${issued.token}" --name "${name.trim() || "machine"}"`,
+            "tahcode start",
           ]
         : [],
     [issued, convexUrl, name],
@@ -67,8 +67,8 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
       title={issued ? "このマシンで runtime を起動" : "マシンランタイムを登録"}
       description={
         issued
-          ? "下の 3 行をエージェントを動かすマシンのターミナルで実行してください。dalecode CLI が Multica daemon を起動し、接続されるとこの画面が自動で更新されます。"
-          : "エージェントはあなたのマシン上の Multica daemon 経由で動きます。登録すると一度だけ表示されるトークンと、dalecode CLI の起動コマンドが発行されます。"
+          ? "下の 3 行をエージェントを動かすマシンのターミナルで実行してください。tahcode CLI が Multica daemon を起動し、接続されるとこの画面が自動で更新されます。"
+          : "エージェントはあなたのマシン上の Multica daemon 経由で動きます。登録すると一度だけ表示されるトークンと、tahcode CLI の起動コマンドが発行されます。"
       }
       width={560}
       footer={
@@ -134,9 +134,9 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           <div className="rounded-card bg-inset p-3 shadow-hairline">
             <SectionLabel className="mb-1.5">起動前に必要なもの</SectionLabel>
             <ul className="flex flex-col gap-1 text-[12.5px] leading-relaxed text-ink-2">
-              <li>· Node 20+ と <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">npm i -g dalecode</code></li>
+              <li>· Node 20+ と <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">npm i -g tahcode</code></li>
               <li>
-                · Multica CLI（未導入なら <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">dalecode install-multica</code> が案内）
+                · Multica CLI（未導入なら <code className="rounded-[4px] bg-field px-1 font-mono text-[11.5px]">tahcode install-multica</code> が案内）
               </li>
               <li>
                 · いずれかのエージェント CLI にログイン済み:{" "}
@@ -155,10 +155,10 @@ export function RegisterRuntimeDialog({ open, onOpenChange }: { open: boolean; o
           </Notice>
 
           <div>
-            <SectionLabel>ターミナルで実行（dalecode CLI → Multica daemon）</SectionLabel>
+            <SectionLabel>ターミナルで実行（tahcode CLI → Multica daemon）</SectionLabel>
             <CodeBlock fill variant="Code" filename="install-and-start.sh" lines={lines} code={lines.join("\n")} labels={{ copy: "コピー", copied: "コピーしました" }} />
             <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-              困ったら <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode doctor</code>。状態は <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode status</code> / <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">dalecode logs -f</code>。
+              困ったら <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode doctor</code>。状態は <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode status</code> / <code className="rounded-[4px] bg-field px-1 font-mono text-[11px]">tahcode logs -f</code>。
             </p>
           </div>
 

@@ -5,16 +5,16 @@ import path from "node:path";
 import { CONFIG_DIR } from "./config.ts";
 
 /* ─────────────────────────────────────────────────────────
- * dalecode bridge process management.
+ * tahcode bridge process management.
  *
  * The bridge (runtime/src/runner.ts runLoop) is a long-running
  * poller. It can run
- *   - foreground   `dalecode start --foreground` (Ctrl+C to stop)
- *   - detached     `dalecode start` — re-spawns this CLI with
- *                  --foreground, stdio → ~/.dalecode/bridge.log
- *   - launchd      macOS user agent (`dalecode service install`)
+ *   - foreground   `tahcode start --foreground` (Ctrl+C to stop)
+ *   - detached     `tahcode start` — re-spawns this CLI with
+ *                  --foreground, stdio → ~/.tahcode/bridge.log
+ *   - launchd      macOS user agent (`tahcode service install`)
  * Whatever the mode, the bridge process itself owns
- * ~/.dalecode/bridge.json (pid + how it was started) so that
+ * ~/.tahcode/bridge.json (pid + how it was started) so that
  * status / stop / restart / logs can find it.
  * ───────────────────────────────────────────────────────── */
 
@@ -38,7 +38,7 @@ export type BridgeLaunchOptions = {
 
 export const BRIDGE_STATE_PATH = path.join(CONFIG_DIR, "bridge.json");
 export const BRIDGE_LOG_PATH = path.join(CONFIG_DIR, "bridge.log");
-export const LAUNCHD_LABEL = "com.dalecode.bridge";
+export const LAUNCHD_LABEL = "com.tahcode.bridge";
 export const LAUNCHD_PLIST_PATH = path.join(os.homedir(), "Library", "LaunchAgents", `${LAUNCHD_LABEL}.plist`);
 
 const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
@@ -185,7 +185,7 @@ export async function spawnDetachedBridge(options: BridgeLaunchOptions): Promise
     detached: true,
     stdio: ["ignore", logFd, logFd],
     windowsHide: true,
-    env: { ...process.env, DALECODE_BRIDGE_MODE: "detached" },
+    env: { ...process.env, TAHCODE_BRIDGE_MODE: "detached" },
   });
   closeSync(logFd);
   const pid = child.pid;
@@ -323,9 +323,9 @@ export function launchdPlist(options: BridgeLaunchOptions): string {
   const env: Record<string, string> = {
     PATH: pathEntries.join(path.delimiter),
     HOME: os.homedir(),
-    DALECODE_BRIDGE_MODE: "launchd",
+    TAHCODE_BRIDGE_MODE: "launchd",
   };
-  for (const key of ["DALECODE_HOME", "MULTICA_BIN"]) {
+  for (const key of ["TAHCODE_HOME", "MULTICA_BIN"]) {
     const value = process.env[key];
     if (value) env[key] = value;
   }

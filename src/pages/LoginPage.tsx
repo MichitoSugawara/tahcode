@@ -32,7 +32,7 @@ type FlowLabel = (typeof FLOWS)[number];
 
 /* set right before leaving for Google; if we come back without a session
  * the callback failed (denied consent, misconfigured client, expired code) */
-const OAUTH_PENDING_KEY = "dalecode:oauth-pending";
+const OAUTH_PENDING_KEY = "tahcode:oauth-pending";
 const OAUTH_PENDING_TTL_MS = 15 * 60 * 1000;
 /* a WebSocket action never rejects while the client is offline — it waits
  * for a reconnect — so bound the wait ourselves */
@@ -246,7 +246,7 @@ export default function LoginPage() {
               <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent-tint text-accent-ink">
                 <Cpu size={13} />
               </span>
-              Codex / Claude / Cursor などの CLI をあなたのマシンで実行。<code className="rounded-[4px] bg-inset px-1 font-mono text-[12px]">npm i -g dalecode</code> で接続し、Multica daemon が動かします。
+              Codex / Claude / Cursor などの CLI をあなたのマシンで実行。<code className="rounded-[4px] bg-inset px-1 font-mono text-[12px]">npm i -g tahcode</code> で接続し、Multica daemon が動かします。
             </li>
             <li className="flex items-start gap-3">
               <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-accent-tint text-accent-ink">

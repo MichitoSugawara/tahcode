@@ -55,5 +55,5 @@ if (!hasFlag("--help")) {
     process.exit(1);
   });
 } else {
-  console.log("dalecode runtime: providers | run");
+  console.log("tahcode runtime: providers | run");
 }

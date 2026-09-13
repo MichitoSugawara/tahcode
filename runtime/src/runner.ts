@@ -74,7 +74,7 @@ async function executeJob(
   probes: ProviderProbe[],
 ): Promise<void> {
   const controller = new AbortController();
-  // `dalecode start --provider <kind>` pins every job to one CLI on this
+  // `tahcode start --provider <kind>` pins every job to one CLI on this
   // machine; a pinned provider ignores the mention's model, since model slugs
   // are provider-specific.
   const pinned = options.preferredKind !== undefined && options.preferredKind !== job.driverKind;

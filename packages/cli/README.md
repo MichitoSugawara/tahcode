@@ -1,56 +1,58 @@
-# dalecode
+# tahcode
 
-Machine CLI for [dalecode](../../README.md): link this computer to a dalecode org and run coding agents on it through the **Multica daemon**.
+Machine CLI for [tahcode](../../README.md) (ターコード — *team agent harness*): link this computer to a tahcode org and run coding agents on it through the **Multica daemon**.
+
+> Renamed from the `dalecode` npm package (last release `dalecode@0.1.1`). See [Migrating from dalecode](#migrating-from-dalecode).
 
 ```bash
-npm i -g dalecode
-dalecode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token "th_…" --name "office-mac"
-dalecode start
+npm i -g tahcode
+tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token "th_…" --name "office-mac"
+tahcode start
 ```
 
-The `link` line is issued by the dalecode web UI (Runtime タブ →「このマシンを登録」); the token is shown once.
+The `link` line is issued by the tahcode web UI (Runtime タブ →「このマシンを登録」); the token is shown once.
 
 ## What it does
 
-`dalecode` is a thin wrapper — it does not ship its own execution daemon.
+`tahcode` is a thin wrapper — it does not ship its own execution daemon.
 
 | Responsibility | Owner |
 | --- | --- |
-| Org / runtime identity, one-time token, default-deny grants | dalecode backend (Convex) |
+| Org / runtime identity, one-time token, default-deny grants | tahcode backend (Convex) |
 | Agent CLI detection, machine lifecycle (`daemon start/stop/status/logs`), Multica login | [Multica CLI/daemon](https://multica.ai/docs/daemon-runtimes) |
-| Bridging dalecode chat jobs to a local agent CLI (Codex / Claude / Cursor / Grok / OpenCode) | `dalecode start` (the dalecode **bridge**, resident in the background) |
+| Bridging tahcode chat jobs to a local agent CLI (Codex / Claude / Cursor / Grok / OpenCode) | `tahcode start` (the tahcode **bridge**, resident in the background) |
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `dalecode link --url … --runtime … --token … [--name …]` | Store the link in `~/.dalecode/config.json` (0600) after verifying it against the backend. Also accepts the env block on stdin. |
-| `dalecode start [--foreground] [--no-daemon] [--cwd dir] [--provider kind]` | Start the Multica daemon (device name = machine name), then start the dalecode bridge **in the background** and return. `--foreground` keeps the bridge in this terminal (Ctrl+C to stop). `--detach` is the explicit default. `run` is an alias. |
-| `dalecode status` | Link status, bridge status (pid / mode / uptime / log file, launchd registration on macOS) and `multica daemon status`. |
-| `dalecode stop [bridge\|multica\|all]` | Stop the bridge (SIGTERM → SIGKILL after 5 s) and/or `multica daemon stop`. Default `all`. |
-| `dalecode restart [bridge\|multica\|all]` | Restart; the bridge comes back detached with its previous `--cwd` / `--provider` (override with flags). Default `all`. |
-| `dalecode logs [bridge\|multica\|all] [-f] [-n N]` | Bridge log (`~/.dalecode/bridge.log`, default) or `multica daemon logs`. `-f` follows, `-n` sets the line count (50). |
-| `dalecode service install\|uninstall\|status` | **macOS only.** Register the bridge as a launchd user agent (`~/Library/LaunchAgents/com.dalecode.bridge.plist`, RunAtLoad + KeepAlive) so it starts at login and is restarted if it dies. `install` accepts the same `--cwd` / `--provider` / `--no-daemon` as `start`. |
-| `dalecode doctor` | Node, Multica install/login/daemon, detected agent CLIs, backend connectivity, bridge status. |
-| `dalecode providers` | Agents seen by the Multica daemon + the t3code provider set the bridge can launch directly. |
-| `dalecode install-multica [--yes]` | Print (or with `--yes` run) the Multica install command: Homebrew tap, official install script, or PowerShell on Windows. |
-| `dalecode multica <args…>` | Anything else on the Multica CLI, unchanged (e.g. `dalecode multica login --token mul_…`). |
-| `dalecode unlink` | Remove the stored link. |
+| `tahcode link --url … --runtime … --token … [--name …]` | Store the link in `~/.tahcode/config.json` (0600) after verifying it against the backend. Also accepts the env block on stdin. |
+| `tahcode start [--foreground] [--no-daemon] [--cwd dir] [--provider kind]` | Start the Multica daemon (device name = machine name), then start the tahcode bridge **in the background** and return. `--foreground` keeps the bridge in this terminal (Ctrl+C to stop). `--detach` is the explicit default. `run` is an alias. |
+| `tahcode status` | Link status, bridge status (pid / mode / uptime / log file, launchd registration on macOS) and `multica daemon status`. |
+| `tahcode stop [bridge\|multica\|all]` | Stop the bridge (SIGTERM → SIGKILL after 5 s) and/or `multica daemon stop`. Default `all`. |
+| `tahcode restart [bridge\|multica\|all]` | Restart; the bridge comes back detached with its previous `--cwd` / `--provider` (override with flags). Default `all`. |
+| `tahcode logs [bridge\|multica\|all] [-f] [-n N]` | Bridge log (`~/.tahcode/bridge.log`, default) or `multica daemon logs`. `-f` follows, `-n` sets the line count (50). |
+| `tahcode service install\|uninstall\|status` | **macOS only.** Register the bridge as a launchd user agent (`~/Library/LaunchAgents/com.tahcode.bridge.plist`, RunAtLoad + KeepAlive) so it starts at login and is restarted if it dies. `install` accepts the same `--cwd` / `--provider` / `--no-daemon` as `start`. |
+| `tahcode doctor` | Node, Multica install/login/daemon, detected agent CLIs, backend connectivity, bridge status. |
+| `tahcode providers` | Agents seen by the Multica daemon + the t3code provider set the bridge can launch directly. |
+| `tahcode install-multica [--yes]` | Print (or with `--yes` run) the Multica install command: Homebrew tap, official install script, or PowerShell on Windows. |
+| `tahcode multica <args…>` | Anything else on the Multica CLI, unchanged (e.g. `tahcode multica login --token mul_…`). |
+| `tahcode unlink` | Remove the stored link. |
 
-Environment fallback (CI / containers): `DALECODE_URL`, `DALECODE_RUNTIME_ID`, `DALECODE_TOKEN` (legacy `CONVEX_URL` / `HARNESS_RUNTIME_ID` / `HARNESS_RUNTIME_TOKEN` still work). `DALECODE_HOME` overrides the config directory; `MULTICA_BIN` overrides the Multica binary.
+Environment fallback (CI / containers): `TAHCODE_URL`, `TAHCODE_RUNTIME_ID`, `TAHCODE_TOKEN` (legacy `DALECODE_*`, `CONVEX_URL` / `HARNESS_RUNTIME_ID` / `HARNESS_RUNTIME_TOKEN` still work). `TAHCODE_HOME` overrides the config directory; `MULTICA_BIN` overrides the Multica binary.
 
 ## Running the bridge in the background
 
 ```bash
-dalecode start              # Multica daemon + bridge detached; prints the pid and returns
-dalecode status             # ✓ 起動中（pid 12345 · バックグラウンド · 2h3m · cwd …）
-dalecode logs -f            # follow ~/.dalecode/bridge.log
-dalecode stop               # bridge + Multica daemon
-dalecode stop bridge        # bridge only
-dalecode start --foreground # old behaviour: bridge in this terminal, Ctrl+C to stop
+tahcode start              # Multica daemon + bridge detached; prints the pid and returns
+tahcode status             # ✓ 起動中（pid 12345 · バックグラウンド · 2h3m · cwd …）
+tahcode logs -f            # follow ~/.tahcode/bridge.log
+tahcode stop               # bridge + Multica daemon
+tahcode stop bridge        # bridge only
+tahcode start --foreground # old behaviour: bridge in this terminal, Ctrl+C to stop
 ```
 
-Files under `~/.dalecode/` (or `$DALECODE_HOME`):
+Files under `~/.tahcode/` (or `$TAHCODE_HOME`):
 
 | File | Purpose |
 | --- | --- |
@@ -63,21 +65,21 @@ Only one bridge runs per config directory: `start` is a no-op (exit 0) when one 
 ### macOS: start at login (launchd)
 
 ```bash
-dalecode service install [--cwd dir] [--provider kind] [--no-daemon]
-dalecode service status
-dalecode stop               # unloads the agent for now (RunAtLoad brings it back at next login; `dalecode start` resumes it immediately)
-dalecode restart            # launchctl kickstart -k
-dalecode service uninstall  # unload + remove the plist
+tahcode service install [--cwd dir] [--provider kind] [--no-daemon]
+tahcode service status
+tahcode stop               # unloads the agent for now (RunAtLoad brings it back at next login; `tahcode start` resumes it immediately)
+tahcode restart            # launchctl kickstart -k
+tahcode service uninstall  # unload + remove the plist
 ```
 
-The plist runs `node <this cli> start --foreground …` with `PATH` extended by the node directory, `/opt/homebrew/bin` and `/usr/local/bin`, and `DALECODE_HOME` / `MULTICA_BIN` if they were set when installing. Because the launchd agent also runs `start` (without `--no-daemon`), the Multica daemon is brought up at login too.
+The plist runs `node <this cli> start --foreground …` with `PATH` extended by the node directory, `/opt/homebrew/bin` and `/usr/local/bin`, and `TAHCODE_HOME` / `MULTICA_BIN` if they were set when installing. Because the launchd agent also runs `start` (without `--no-daemon`), the Multica daemon is brought up at login too.
 
-## Development (in the dalecode repo)
+## Development (in the tahcode repo)
 
 ```bash
 npm run cli -- doctor          # run from source (tsx)
-npm run cli:build              # bundle to packages/cli/dist/dalecode.mjs (esbuild, convex external)
-node packages/cli/dist/dalecode.mjs --help
+npm run cli:build              # bundle to packages/cli/dist/tahcode.mjs (esbuild, convex external)
+node packages/cli/dist/tahcode.mjs --help
 ```
 
 The bridge reuses `runtime/src/*` and `shared/providers.ts` from the repo; `build.mjs` bundles them so the published package is self-contained.
@@ -90,4 +92,26 @@ npm version patch             # keep VERSION in src/index.ts in sync
 npm publish --access public   # prepublishOnly runs the bundle
 ```
 
-Current version: `0.1.1` (background bridge, `stop` / `restart` / `logs` for both processes, `service` for launchd).
+Current version: `0.1.0` under the new name (feature-equivalent to `dalecode@0.1.1`: background bridge, `stop` / `restart` / `logs` for both processes, `service` for launchd).
+
+## Migrating from dalecode
+
+The package, bin, config directory, launchd label and env vars were renamed; behaviour is unchanged.
+
+| `dalecode` ≤ 0.1.1 | `tahcode` |
+| --- | --- |
+| `npm i -g dalecode` / `dalecode …` | `npm i -g tahcode` / `tahcode …` |
+| `~/.dalecode/` (`config.json`, `bridge.json`, `bridge.log`) | `~/.tahcode/` |
+| `DALECODE_URL` / `DALECODE_RUNTIME_ID` / `DALECODE_TOKEN` / `DALECODE_HOME` / `DALECODE_CWD` | `TAHCODE_URL` / `TAHCODE_RUNTIME_ID` / `TAHCODE_TOKEN` / `TAHCODE_HOME` / `TAHCODE_CWD` |
+| launchd label `com.dalecode.bridge` | `com.tahcode.bridge` |
+
+Steps on a machine that already runs `dalecode`:
+
+```bash
+dalecode stop && dalecode service uninstall   # if the launchd agent was installed
+npm rm -g dalecode && npm i -g tahcode
+tahcode start                                  # reads the existing ~/.dalecode/config.json link
+tahcode service install                        # optional; re-registers under com.tahcode.bridge
+```
+
+`tahcode` keeps reading an existing `~/.dalecode/config.json` (read-only fallback, shown by `tahcode status`) until you run `tahcode link …` again, which writes `~/.tahcode/config.json`. `DALECODE_URL` / `DALECODE_RUNTIME_ID` / `DALECODE_TOKEN` are still honoured as env fallbacks. `tahcode unlink` removes both locations.

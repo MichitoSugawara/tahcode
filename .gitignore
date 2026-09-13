@@ -23,7 +23,7 @@ agent-tools/
 convex/_generated/
 
 # Runtime credentials (never commit real tokens)
-.team-harness/
+.tahcode/
 
 # Decrypted deploy env (plaintext; commit only the .enc files)
 .env.preview

@@ -242,7 +242,7 @@ export function Composer({
         /* model slugs are provider-specific, so a provider change resets to that CLI's default */
         if (isProviderKind(key) && key !== agent.driverKind) setAgent(key, null);
       },
-      footer: "t3code 由来のプロバイダ配線 · CLI はランタイム側（dalecode start / Multica daemon）",
+      footer: "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start / Multica daemon）",
     },
     {
       id: "model",
@@ -277,7 +277,7 @@ export function Composer({
       value: org.runtimeId ? String(org.runtimeId) : "auto",
       onChange: (key) => org.setRuntimeId(key === "auto" ? null : (key as Id<"runtimes">)),
       emptyHint: "ランタイムがありません",
-      footer: (org.runtimes ?? []).length === 0 ? "「/runtime」でこのマシンを登録（npm i -g dalecode）" : "default deny — 許可のないマシンは選べません",
+      footer: (org.runtimes ?? []).length === 0 ? "「/runtime」でこのマシンを登録（npm i -g tahcode）" : "default deny — 許可のないマシンは選べません",
     },
   ];
 
