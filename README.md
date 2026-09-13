@@ -81,6 +81,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — 「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start` → 最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き
+   **プロバイダ設定** — マシンカードの「プロバイダ設定」で、検出 CLI ごとの使えるモデル（ライブ / 静的）・バージョン・インストール方法を確認し、所有者は「CLI を更新」「モデルを再取得」を実行（進行ログ・結果はその場に表示）
 9. **チャット** — 返信はジョブ受付待ち → トレース → ストリーミング Markdown → CodeBlock / 表。`@` ピッカー（`@cursor/` と打つとそのプロバイダのモデル候補）、プロバイダ / モデル / ランタイムピッカー（変更はチャットに保存）、プロジェクトリンクは Context タブ
 10. **右レール** — Context（渡すもの・実行履歴・参加メンバー） / Runtime（マシンと許可、使用マシンの指定） / Team（名簿とロール） **⌘K** — コマンドパレットからチャット・プロジェクト・各操作へ
 11. **権限の行き止まり** — Member には「招待」が無効表示 + 理由、使えるマシンがなければコンポーザ上に理由と次の一手、見えないチャットは説明付きの空状態
@@ -94,6 +95,31 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 - **既定モデル（後方互換）** — `@cursor` のようにプロバイダだけの指名は、そのプロバイダの既定モデル = **CLI 側の設定に従う**（`--model` を付けない）。これまでの `@codex` / `@claude` はそのまま同じ動きをする。チャットが `cursor/muse-spark-1.3` に結びついているときは素の `@cursor` もそのモデルで動く（別プロバイダを素で指名したときはその CLI の既定）。
 - **チャットへの結びつけ** — `chats.driverKind` / `chats.model`。「新しいチャット」ダイアログで選ぶか、コンポーザのプロバイダ / モデルピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。
 - **ランタイム** — ジョブが `model` を持つときだけ CLI にフラグを付ける: `codex exec --model`、`claude -p --model`、`agent -p --model`、`opencode run --model provider/model`、`grok --model`（Grok の headless 引数は暫定のまま）。指名されたプロバイダの CLI がそのマシンに無いときは別の CLI で黙って実行せず、「未インストール」を返信として返す。サーバ側も指名プロバイダが検出済みのマシンを優先して選ぶ。`tahcode start --provider <kind>` で固定した場合はメンションのモデル指定は無視される（モデル名はプロバイダ固有のため）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
+
+### マシンのプロバイダ設定（モデル・バージョン・CLI 更新）
+
+Multica の「ランタイムごとに使えるエージェントとモデルを見せる」型を踏襲した、マシン単位の設定画面。右レール Runtime タブ / Org 設定のマシンカードの **「プロバイダ設定」**（または CLI チップのクリック）で開く。
+
+![Machine provider settings: live models per CLI, versions, allowlisted update](docs/ui-screenshots/provider-settings/04-cursor-live-models.png)
+
+- **見えるもの** — 6 プロバイダごとに: 検出状態・バージョン・インストール方法（npm / Homebrew / 公式インストーラ）・バイナリのパス、**使えるモデル一覧**（ライブか静的かのバッジ、取得時刻、失敗理由）、ブリッジが実行する更新コマンドのプレビュー（`$ agent update`）。チャットを作らなくても常に一覧が見える。
+- **モデル一覧のライブ取得** — ブリッジ（`tahcode start`）が起動時と 30 分ごと、更新後・再取得指示後に各 CLI の一覧コマンドを叩き、ハートビートで報告する。コンポーザのモデルピッカー・`@cursor/` のメンション候補・「新しいチャット」のモデル選択も、接続中のマシンがライブ一覧を報告していればそれに差し替わる（フッターに `live: agent models の結果（office-mac）`）。マシンが 1 台もなければ静的カタログ。
+
+| プロバイダ | モデル一覧 | 更新コマンド（ブリッジの許可リスト） |
+|---|---|---|
+| Cursor | **live** `agent models` | `agent update` |
+| OpenCode | **live** `opencode models`（`provider/model`） | `opencode upgrade`（CLI 側がインストール方法を判別） |
+| Grok | **live** `grok models` | npm 導入なら `npm i -g @xai-official/grok@latest`、それ以外 `grok update` |
+| Claude | 静的（一覧コマンドなし） | npm `npm i -g @anthropic-ai/claude-code@latest` / Homebrew `brew upgrade claude-code` / それ以外 `claude update` |
+| Codex | 静的（一覧コマンドなし） | npm `npm i -g @openai/codex@latest` / Homebrew `brew upgrade codex` / 判別不能なら手動案内 |
+| Antigravity | 静的 | なし（アプリ側で更新） |
+
+- **更新の流れ** — 「CLI を更新」→ Convex の `runtimeCommands` に `(updateCli, provider)` がキューされる → ブリッジが claim し、**マシン側の許可リスト**からインストール方法に応じた argv を解決して shell なしで spawn → 出力をログとして流しつつ実行 → 終了後にバージョンを再検出（`0.9.0 → 0.9.1`）、モデル一覧も再取得。UI は待機中 / 実行中（ログの末尾）/ 完了 / 失敗（終了コードと最終行、ログ展開）を同じカード内に出す。サーバはコマンド文字列を送らないので、サーバが乗っ取られても許可リスト外は走らない。「モデルを再取得」は同じ経路で一覧コマンドだけを実行する。ブリッジが落ちて 15 分報告がない実行は自動で失敗扱い（取り消しも可）。
+- **権限（default deny を維持）** — 「CLI を更新」は**マシンの所有者のみ**。所有者が設定画面の「Org の Owner / Admin にも CLI の更新を許可」をオンにした場合だけ Admin 以上も実行できる（既定オフ、`runtimes.maintenanceByAdmins`）。「モデルを再取得」は読み取り専用なので、そのマシンの利用許可を持つ人も実行できる。実行ログ（ローカルパスを含む）は更新権限のある人にだけ返す。閲覧（検出 CLI・モデル・バージョン）は Org メンバー全員。ルールは `shared/providerMaintenance.ts:canRequestMaintenance`（テスト付き）。
+- **古いブリッジ** — 更新機能はブリッジが `capabilities: ["maintenance","liveModels"]` を報告したときだけ有効。旧バージョンには「`npm i -g tahcode@latest && tahcode restart`」の案内を出す。
+- **CLI からも同じこと** — `tahcode models [provider]`（ライブ一覧 / 静的フォールバック）、`tahcode update <provider|all> [--yes]`（同じ許可リストのコマンドを表示 → `--yes` で実行）。
+
+スクリーンショット: `docs/ui-screenshots/provider-settings/`（接続 → カードのモデル数 → 設定画面 → 更新の実行中 / 完了 / 失敗 → モデル再取得 → 権限トグル → 履歴 → ピッカーのライブ表示 → Member 視点の読み取り専用）。
 
 ## Stack
 
@@ -141,6 +167,7 @@ tahcode start        # Multica daemon を起動 → tahcode のジョブブリ�
 
 2. Multica CLI が未導入なら `tahcode install-multica`（Homebrew / 公式インストールスクリプト）。エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
 3. 確認: `tahcode doctor`（Node / Multica / 検出 CLI / tahcode 接続）、`tahcode status`、`tahcode logs -f`。
+   モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。
 
 役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、Multica daemon が CLI 検出とマシンのライフサイクルを持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。 `tahcode multica <args>` で Multica CLI をそのまま呼べます（例: `tahcode multica login`）。
 
@@ -162,7 +189,8 @@ DM で話しかけると常時応答、プロジェクトチャットでは `@co
 
 - **Antigravity**: headless CLI がないためランタイムは「未対応」表示 + ガイド文。カタログには含む。
 - **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`、モデルは `--model`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
-- **モデル一覧は静的**: `shared/providers.ts` のカタログは t3code / Multica / Cursor ドキュメントのスナップショット。ランタイム側で `agent models` / `grok models` / `opencode models` を叩いて一覧を同期するのは後続フェーズ（一覧外のスラッグは `@provider/<slug>` でそのまま指名できる）。
+- **Codex / Claude のモデル一覧は静的**: 両 CLI にはモデル一覧コマンドがないため `shared/providers.ts` のスナップショット（t3code model-manifest）のまま。Cursor / Grok / OpenCode は接続中のマシンから `agent models` / `grok models` / `opencode models` の結果をライブ表示する（[マシンのプロバイダ設定](#マシンのプロバイダ設定モデルバージョンcli-更新)）。一覧外のスラッグは引き続き `@provider/<slug>` でそのまま指名できる。
+- **CLI 更新は許可リストのコマンドのみ**: `shared/providerMaintenance.ts` にある各 CLI の公式更新コマンドだけをブリッジが実行する。Antigravity（CLI なし）と、インストール方法を判別できない Codex は手動更新の案内のみ。`curl | sh` 型のインストーラは実行しない。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー招待・ロール・ランタイム許可まで。
 - **Org 名変更 / 削除なし**: 設定ページは表示のみ（Owner 向けの変更は後続フェーズ）。
 - **ファイル配信**: 各環境の R2 バインディング必須（`wrangler deploy` / `versions upload` 前にバケット作成。Wrangler はバケットを作らない）。本番 `team-harness-files`、staging `team-harness-files-staging`、preview `team-harness-files-preview`。ローカルは `wrangler dev` のローカル永続化。
