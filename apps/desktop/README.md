@@ -165,7 +165,7 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 
 配布ソースは GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.0`）。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。
 
-- **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。
+- **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。新しいシェル + 古い Web（未デプロイ）のときはメニュー確認がネイティブダイアログにフォールバックする。
 - **自動アップデート**: `~/Library/Application Support/tahcode/settings.json` の `autoUpdateEnabled`。**既定オフ**（未署名のため安全側）。オンなら起動約 20 秒後と 4 時間ごとに確認し、更新があればトースト / ダイアログ。適用はユーザー確認のまま。
 - **未署名の制約**: Gatekeeper 下ではアプリ内差し替え（electron-updater の `quitAndInstall`）が信頼できない。ダウンロードした `.dmg` を開き、tahcode を Applications にコピーする。初回は **右クリック → 開く**（または `xattr -dr com.apple.quarantine`）。
 - **開発ビルド**（`npm run desktop:dev`）: 確認とダウンロードはできるが、実行中の Electron には適用しない。

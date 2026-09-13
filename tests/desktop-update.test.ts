@@ -225,6 +225,15 @@ describe("update service", () => {
     expect(service.getState().canInstallInApp).toBeFalsy();
   });
 
+  it("tracks whether the renderer mounted the update UI", () => {
+    const service = createUpdateService(serviceDeps({}));
+    expect(service.isRendererUiReady()).toBeFalsy();
+    service.markRendererUiReady(true);
+    expect(service.isRendererUiReady()).toBeTruthy();
+    service.markRendererUiReady(false);
+    expect(service.isRendererUiReady()).toBeFalsy();
+  });
+
   it("reports an available GitHub release", async () => {
     const service = createUpdateService(
       serviceDeps({

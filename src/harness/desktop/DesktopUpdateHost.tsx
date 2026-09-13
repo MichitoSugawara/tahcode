@@ -17,6 +17,7 @@ export function DesktopUpdateHost() {
   const toastedVersion = useRef<string | null>(null);
 
   useEffect(() => {
+    void getDesktopBridge()?.markUpdateUiReady?.();
     const unsubscribe = getDesktopBridge()?.onOpenUpdateUi?.(() => {
       setOpen(true);
     });

@@ -127,6 +127,13 @@ export function installUpdaterIpc(
     }
     await updater.openLatestRelease();
   });
+
+  ipcMain.handle(DESKTOP_IPC.updateUiReady, (event) => {
+    if (!isTrustedSender(event, getConfig())) {
+      return;
+    }
+    updater.markRendererUiReady(true);
+  });
 }
 
 function sendRegisterProgress(

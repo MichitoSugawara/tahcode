@@ -57,6 +57,7 @@ export interface TahcodeDesktopBridge {
   ) => Promise<DesktopUpdateState>;
   downloadUpdate?: () => Promise<DesktopUpdateState>;
   getUpdateState?: () => Promise<DesktopUpdateState>;
+  markUpdateUiReady?: () => Promise<void>;
   onOpenUpdateUi?: (listener: () => void) => () => void;
   onUpdateState?: (listener: (state: DesktopUpdateState) => void) => () => void;
   openLatestRelease?: () => Promise<void>;

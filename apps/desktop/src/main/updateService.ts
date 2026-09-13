@@ -49,6 +49,8 @@ export interface DesktopUpdateService {
   download: () => Promise<DesktopUpdateState>;
   getPendingAsset: () => PendingDesktopAsset | null;
   getState: () => DesktopUpdateState;
+  isRendererUiReady: () => boolean;
+  markRendererUiReady: (ready: boolean) => void;
   onState: (listener: (state: DesktopUpdateState) => void) => () => void;
   openLatestRelease: () => Promise<void>;
   setAutoUpdate: (enabled: boolean) => DesktopUpdateState;
@@ -72,6 +74,7 @@ export function createUpdateService(
     deps.readAutoUpdateEnabled() ?? DEFAULT_AUTO_UPDATE_ENABLED;
   let pending: PendingDesktopAsset | null = null;
   let busy = false;
+  let rendererUiReady = false;
   const listeners = new Set<(state: DesktopUpdateState) => void>();
   let fields: MutableFields = {
     availableVersion: null,
@@ -268,6 +271,10 @@ export function createUpdateService(
     download,
     getPendingAsset: () => pending,
     getState: snapshot,
+    isRendererUiReady: () => rendererUiReady,
+    markRendererUiReady: (ready) => {
+      rendererUiReady = ready;
+    },
     onState: (listener) => {
       listeners.add(listener);
       return () => {

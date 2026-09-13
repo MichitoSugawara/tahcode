@@ -21,6 +21,7 @@ export const DESKTOP_IPC = {
   registerProgress: "tahcode:desktop:registerProgress",
   setAutoUpdate: "tahcode:desktop:setAutoUpdate",
   updateState: "tahcode:desktop:updateState",
+  updateUiReady: "tahcode:desktop:updateUiReady",
 } as const;
 
 /** Allow-listed progress steps sent on `DESKTOP_IPC.registerProgress`. */

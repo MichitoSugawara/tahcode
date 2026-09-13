@@ -50,6 +50,7 @@ let win: BrowserWindow | null = null;
 let pendingDeepLink: string | null = findDeepLink(process.argv);
 let quitting = false;
 let menuHandlers: MenuHandlers | null = null;
+let desktopUpdater: ReturnType<typeof createDesktopUpdater> | null = null;
 
 const gotLock = app.requestSingleInstanceLock();
 if (gotLock) {
@@ -107,6 +108,7 @@ if (gotLock) {
       () => config,
       () => win
     );
+    desktopUpdater = updater;
     menuHandlers = {
       checkForUpdates: () => {
         void runMenuUpdateCheck(
@@ -256,6 +258,10 @@ function createWindow(): void {
   if (config.smokeScreenshotPath) {
     armSmokeTest(win, config.smokeScreenshotPath);
   }
+
+  win.webContents.on("did-navigate", () => {
+    desktopUpdater?.markRendererUiReady(false);
+  });
 
   void win.loadURL(config.appUrl);
 }

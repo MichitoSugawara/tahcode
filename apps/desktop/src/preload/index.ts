@@ -81,6 +81,8 @@ const bridge: TahcodeDesktopBridge = {
     ipcRenderer.invoke(
       DESKTOP_IPC.getUpdateState
     ) as Promise<DesktopUpdateState>,
+  markUpdateUiReady: () =>
+    ipcRenderer.invoke(DESKTOP_IPC.updateUiReady) as Promise<void>,
   onOpenUpdateUi: (listener) => {
     const wrapped = () => {
       listener();

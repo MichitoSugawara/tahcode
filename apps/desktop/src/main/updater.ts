@@ -164,9 +164,14 @@ export async function runMenuUpdateCheck(
   getConfig: () => ShellConfig,
   getWindow: () => BrowserWindow | null
 ): Promise<void> {
-  const showedUi = requestUpdateUi(getConfig, getWindow);
+  /* Production web may still be an older deploy. Only skip the native
+   * dialog when this page actually mounted the update host. */
+  const useWebUi = updater.isRendererUiReady();
+  if (useWebUi) {
+    requestUpdateUi(getConfig, getWindow);
+  }
   const state = await updater.check("user");
-  if (!showedUi) {
+  if (!useWebUi) {
     await presentNativeUpdateResult(state, updater);
   }
 }
