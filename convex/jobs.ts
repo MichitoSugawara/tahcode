@@ -5,7 +5,8 @@ import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
 import { authedQuery } from "./lib/customFunctions";
-import { randomToken, sha256Hex } from "./lib/ids";
+import { randomToken } from "./lib/ids";
+import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
 import { loadJobSkills } from "./lib/skills";
@@ -46,25 +47,10 @@ const claimView = v.union(
     triggerMessageId: v.id("messages"),
     leaseId: v.string(),
     skills: v.array(jobSkillPayload),
+    toolChatId: v.optional(v.id("chats")),
   }),
   v.null()
 );
-
-async function getRuntimeByToken(
-  ctx: MutationCtx,
-  runtimeId: Id<"runtimes">,
-  token: string
-) {
-  const runtime = await ctx.db.get("runtimes", runtimeId);
-  if (!runtime) {
-    throw new Error("Runtime not found");
-  }
-  const hash = await sha256Hex(token);
-  if (hash !== runtime.tokenHash) {
-    throw new Error("Invalid runtime token");
-  }
-  return runtime;
-}
 
 async function recoverStaleJobs(
   ctx: MutationCtx,
@@ -120,26 +106,6 @@ async function touchRunningJobs(
   }
 }
 
-async function requireJobLease(
-  ctx: MutationCtx,
-  args: { jobId: Id<"jobs">; leaseId?: string; runtimeId: Id<"runtimes"> }
-) {
-  const job = await ctx.db.get("jobs", args.jobId);
-  if (!job) {
-    throw new Error("Job not found");
-  }
-  if (String(job.runtimeId) !== String(args.runtimeId)) {
-    throw new Error("Job belongs to another runtime");
-  }
-  if (job.status !== "running") {
-    throw new Error("Job is not running");
-  }
-  if (job.leaseId && args.leaseId !== job.leaseId) {
-    throw new Error("Job lease expired");
-  }
-  return job;
-}
-
 export const claimNext = mutation({
   args: {
     runtimeId: v.id("runtimes"),
@@ -187,6 +153,7 @@ export const claimNext = mutation({
       runtimeId: job.runtimeId,
       skills,
       status: "running" as const,
+      toolChatId: job.toolChatId,
       triggerMessageId: job.triggerMessageId,
     };
   },

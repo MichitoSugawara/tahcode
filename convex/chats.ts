@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import {
   assertChatVisible,
   assertProjectVisible,
@@ -48,7 +49,7 @@ function normalizeAgentBinding(input: {
   };
 }
 
-function summarize(chat: Doc<"chats">) {
+export function summarizeChat(chat: Doc<"chats">) {
   return {
     _id: chat._id,
     driverKind: chat.driverKind,
@@ -64,33 +65,98 @@ function summarize(chat: Doc<"chats">) {
   };
 }
 
+export async function ensureDmForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  orgId: Id<"orgs">
+): Promise<Id<"chats">> {
+  const membership = await getMembership(ctx, orgId, user._id);
+  if (!membership) {
+    throw new Error("Not a member of this organization");
+  }
+  const existing = await ctx.db
+    .query("chats")
+    .withIndex("by_org_and_owner_kind", (q) =>
+      q.eq("orgId", orgId).eq("ownerId", user._id).eq("kind", "dm")
+    )
+    .unique();
+  if (existing) {
+    return existing._id;
+  }
+  return await ctx.db.insert("chats", {
+    createdBy: user._id,
+    kind: "dm",
+    orgId,
+    ownerId: user._id,
+    title: "Personal DM",
+    visibility: "inherit",
+  });
+}
+
 export const ensureDm = authedMutation({
   args: { orgId: v.id("orgs") },
-  handler: async (ctx, args) => {
-    const membership = await getMembership(ctx, args.orgId, ctx.user._id);
-    if (!membership) {
-      throw new Error("Not a member of this organization");
-    }
-    const existing = await ctx.db
-      .query("chats")
-      .withIndex("by_org_and_owner_kind", (q) =>
-        q.eq("orgId", args.orgId).eq("ownerId", ctx.user._id).eq("kind", "dm")
-      )
-      .unique();
-    if (existing) {
-      return existing._id;
-    }
-    return await ctx.db.insert("chats", {
-      orgId: args.orgId,
-      kind: "dm",
-      title: "Personal DM",
-      visibility: "inherit",
-      ownerId: ctx.user._id,
-      createdBy: ctx.user._id,
-    });
-  },
+  handler: async (ctx, args) =>
+    await ensureDmForUser(ctx, ctx.user, args.orgId),
   returns: v.id("chats"),
 });
+
+export async function createProjectChatForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    driverKind?: ProviderDriverKind;
+    memberIds?: Id<"users">[];
+    model?: string;
+    options?: ProviderOptionSelection[];
+    profileId?: Id<"skillProfiles">;
+    projectId: Id<"projects">;
+    title: string;
+    visibility: "inherit" | "private";
+  }
+): Promise<Id<"chats">> {
+  const project = await ctx.db.get("projects", args.projectId);
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  const membership = await getMembership(ctx, project.orgId, user._id);
+  if (!membership) {
+    throw new Error("Not a member of this organization");
+  }
+  await assertProjectVisible(ctx, project, user._id, membership.role);
+  const requested = args.memberIds ?? [];
+  if (requested.length > 50) {
+    throw new Error("Too many chat members");
+  }
+  const members = new Set<Id<"users">>([user._id, ...requested]);
+  for (const memberId of members) {
+    const target = await getMembership(ctx, project.orgId, memberId);
+    if (!target) {
+      throw new Error("All chat members must belong to this organization");
+    }
+  }
+  const title = args.title.trim().slice(0, 80) || "Untitled chat";
+  const agent = normalizeAgentBinding(args);
+  const requestedProfile = args.profileId ?? project.profileId;
+  if (requestedProfile) {
+    await requireOrgProfile(ctx, project.orgId, requestedProfile);
+  }
+  const chatId = await ctx.db.insert("chats", {
+    createdBy: user._id,
+    driverKind: agent.driverKind,
+    kind: "project",
+    model: agent.model,
+    options: agent.options,
+    orgId: project.orgId,
+    profileId: requestedProfile,
+    projectId: args.projectId,
+    title,
+    visibility: args.visibility,
+  });
+  for (const memberId of members) {
+    await ctx.db.insert("chatMembers", { chatId, userId: memberId });
+  }
+  return chatId;
+}
 
 export const createProjectChat = authedMutation({
   args: {
@@ -103,50 +169,8 @@ export const createProjectChat = authedMutation({
     title: v.string(),
     visibility: chatVisibility,
   },
-  handler: async (ctx, args) => {
-    const project = await ctx.db.get("projects", args.projectId);
-    if (!project) {
-      throw new Error("Project not found");
-    }
-    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
-    if (!membership) {
-      throw new Error("Not a member of this organization");
-    }
-    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
-    const requested = args.memberIds ?? [];
-    if (requested.length > 50) {
-      throw new Error("Too many chat members");
-    }
-    const members = new Set<Id<"users">>([ctx.user._id, ...requested]);
-    for (const memberId of members) {
-      const target = await getMembership(ctx, project.orgId, memberId);
-      if (!target) {
-        throw new Error("All chat members must belong to this organization");
-      }
-    }
-    const title = args.title.trim().slice(0, 80) || "Untitled chat";
-    const agent = normalizeAgentBinding(args);
-    const requestedProfile = args.profileId ?? project.profileId;
-    if (requestedProfile) {
-      await requireOrgProfile(ctx, project.orgId, requestedProfile);
-    }
-    const chatId = await ctx.db.insert("chats", {
-      orgId: project.orgId,
-      projectId: args.projectId,
-      kind: "project",
-      title,
-      visibility: args.visibility,
-      createdBy: ctx.user._id,
-      driverKind: agent.driverKind,
-      model: agent.model,
-      options: agent.options,
-      profileId: requestedProfile,
-    });
-    for (const memberId of members) {
-      await ctx.db.insert("chatMembers", { chatId, userId: memberId });
-    }
-    return chatId;
-  },
+  handler: async (ctx, args) =>
+    await createProjectChatForUser(ctx, ctx.user, args),
   returns: v.id("chats"),
 });
 
@@ -180,7 +204,7 @@ export const list = authedQuery({
         continue;
       }
     }
-    return visible.map(summarize);
+    return visible.map(summarizeChat);
   },
   returns: v.array(chatSummary),
 });
@@ -201,7 +225,7 @@ export const get = authedQuery({
     } catch {
       return null;
     }
-    return summarize(chat);
+    return summarizeChat(chat);
   },
   returns: v.union(chatSummary, v.null()),
 });

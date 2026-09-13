@@ -123,6 +123,8 @@ export default defineSchema({
     lastHeartbeatAt: v.optional(v.number()),
     attempt: v.optional(v.number()),
     leaseId: v.optional(v.string()),
+    /* active chat for in-job tahcode tools; defaults to chatId */
+    toolChatId: v.optional(v.id("chats")),
   })
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_chat", ["chatId"])

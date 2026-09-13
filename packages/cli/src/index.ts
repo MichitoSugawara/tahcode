@@ -2,6 +2,10 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  runAgentToolCli,
+  runAgentToolMcp,
+} from "../../../runtime/src/agentToolsHost.ts";
 import { RuntimeClient } from "../../../runtime/src/convexClient.ts";
 import {
   discoverModels,
@@ -157,6 +161,8 @@ ${bold("使い方")}
   ${code("tahcode install-multica [--yes]")}   Multica CLI のインストールコマンドを表示（--yes で実行）
   ${code("tahcode multica <args…>")}          multica CLI にそのまま渡す（例: tahcode multica login）
   ${code("tahcode unlink")}     このマシンのリンクを削除
+  ${code("tahcode tool [name] [--args JSON]")}  実行中ジョブから Org / プロジェクト / チャット / ランタイムを操作する（引数なしで一覧）
+  ${code("tahcode tool-mcp")}   ハーネスが stdio で同じツールを呼ぶためのホスト（ジョブ中）
 
 ${bold("オプション")}
   --foreground        start: ブリッジをバックグラウンドにせず、このターミナルで実行（旧来の動作）
@@ -1051,6 +1057,19 @@ async function main(): Promise<void> {
     }
     case "install-multica": {
       await cmdInstallMultica(flags);
+      return;
+    }
+    case "tool": {
+      process.exit(
+        await runAgentToolCli({
+          argsJson: flagString(flags, "args"),
+          name: positional[0],
+        })
+      );
+      return;
+    }
+    case "tool-mcp": {
+      await runAgentToolMcp();
       return;
     }
     case "multica": {

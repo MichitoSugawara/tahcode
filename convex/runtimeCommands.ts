@@ -5,13 +5,13 @@ import { mutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { canUseRuntime, getMembership, listRuntimeGrants } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
-import { sha256Hex } from "./lib/ids";
 import {
   BRIDGE_CAPABILITY_MAINTENANCE,
   STALE_RUNNING_MS,
   canRequestMaintenance,
   supportsLiveModels,
 } from "./lib/providerMaintenance";
+import { getRuntimeByToken } from "./lib/runtimeAuth";
 import {
   maintenanceKind,
   maintenanceStatus,
@@ -61,21 +61,6 @@ const claimedView = v.union(
   }),
   v.null()
 );
-
-async function getRuntimeByToken(
-  ctx: MutationCtx,
-  runtimeId: Id<"runtimes">,
-  token: string
-) {
-  const runtime = await ctx.db.get("runtimes", runtimeId);
-  if (!runtime) {
-    throw new Error("Runtime not found");
-  }
-  if ((await sha256Hex(token)) !== runtime.tokenHash) {
-    throw new Error("Invalid runtime token");
-  }
-  return runtime;
-}
 
 async function actorFor(
   ctx: QueryCtx | MutationCtx,
