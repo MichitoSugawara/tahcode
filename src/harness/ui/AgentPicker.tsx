@@ -5,12 +5,12 @@ import { useMemo, useState } from "react";
 import { Monogram } from "@/components/atoms/EntityChip";
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { isLive, useOrg } from "@/harness/OrgContext";
+import { relativeTime } from "@/lib/format";
 import {
   PROVIDERS,
   agentMention,
+  modelCatalogFor,
   modelDisplayName,
-  modelSourceHint,
-  modelsFor,
   supportsModelPick,
 } from "@/lib/providers";
 import type { ProviderDriverKind } from "@/lib/providers";
@@ -48,7 +48,12 @@ export function AgentPicker({
   const anyLive = (org.runtimes ?? []).some((runtime) =>
     isLive(runtime, org.now)
   );
-  const models = modelsFor(driverKind);
+  /* live list from a connected machine (`agent models` …) when one reported it, static snapshot otherwise */
+  const catalog = useMemo(
+    () => modelCatalogFor(driverKind, org.runtimes),
+    [driverKind, org.runtimes]
+  );
+  const models = catalog.models;
   const pickable = supportsModelPick(driverKind);
   const provider = PROVIDERS[driverKind];
 
@@ -152,6 +157,7 @@ export function AgentPicker({
             >
               {[
                 {
+                  default: false,
                   legacy: false,
                   name: `既定モデル · ${provider.label} CLI の設定に従う`,
                   slug: "",
@@ -172,13 +178,20 @@ export function AgentPicker({
                   >
                     <span className="min-w-0 flex-1">
                       <span className="text-ink block truncate text-[12.5px] font-medium">
-                        {option.slug ? option.name : "既定モデル"}
+                        {option.slug
+                          ? (option.name ?? option.slug)
+                          : "既定モデル"}
                       </span>
                       <span className="text-ink-3 block truncate font-mono text-[11px]">
                         {option.slug ||
                           `${provider.label} CLI の設定に従う（@${provider.handle} だけの指名）`}
                       </span>
                     </span>
+                    {option.default && (
+                      <span className="text-green shrink-0 text-[10.5px]">
+                        CLI の既定
+                      </span>
+                    )}
                     {option.legacy && (
                       <span className="text-ink-3 shrink-0 text-[10.5px]">
                         legacy
@@ -194,7 +207,18 @@ export function AgentPicker({
               })}
             </GlideMenu>
             <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px] leading-relaxed">
-              出典: {modelSourceHint(driverKind)}。一覧にないスラッグも{" "}
+              {catalog.source === "live" ? (
+                <>
+                  <span className="text-green">live</span> · {catalog.note}
+                  {catalog.checkedAt
+                    ? `（${relativeTime(catalog.checkedAt, org.now)}）`
+                    : ""}
+                  。
+                </>
+              ) : (
+                <>{catalog.note}。</>
+              )}{" "}
+              一覧にないスラッグも{" "}
               <code className="font-mono">@{provider.handle}/&lt;slug&gt;</code>{" "}
               で直接指名できます。
             </div>

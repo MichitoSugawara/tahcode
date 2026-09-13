@@ -12,7 +12,11 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { isPlaceholderId, trackPlaceholder } from "@/lib/optimistic";
-import type { ProviderDriverKind } from "@/lib/providers";
+import type {
+  InstallMethod,
+  LiveModel,
+  ProviderDriverKind,
+} from "@/lib/providers";
 import { isProviderKind } from "@/lib/providers";
 import { useStoredState } from "@/lib/storage";
 
@@ -55,28 +59,41 @@ export interface Chat {
   driverKind?: ProviderDriverKind;
   model?: string;
 }
+export interface RuntimeProvider {
+  available: boolean;
+  binaryPath?: string;
+  driverKind: ProviderDriverKind;
+  installMethod?: InstallMethod;
+  /** live catalog from the CLI's `models` command; undefined = never checked, [] = checked, none (see modelsError) */
+  models?: LiveModel[];
+  modelsCheckedAt?: number;
+  modelsError?: string;
+  /** display form of the allowlisted update the bridge would run; undefined = manual only */
+  updateCommand?: string;
+  version?: string;
+}
 export interface Runtime {
   _id: Id<"runtimes">;
-  name: string;
-  slug: string;
-  hostname?: string;
-  cwd?: string;
-  status: "online" | "offline";
-  lastSeenAt?: number;
-  ownerUserId: Id<"users">;
+  /** tahcode CLI version + capabilities ("maintenance", "liveModels") the bridge reported; empty for old bridges */
+  bridgeVersion?: string;
   canUse: boolean;
-  providers: {
-    driverKind: ProviderDriverKind;
-    available: boolean;
-    version?: string;
-    binaryPath?: string;
-  }[];
+  capabilities: string[];
+  cwd?: string;
   grants: {
     _id: Id<"runtimeGrants">;
     targetType: "user" | "role";
     targetUserId?: Id<"users">;
     targetRole?: OrgRole;
   }[];
+  hostname?: string;
+  lastSeenAt?: number;
+  /** owner setting: org Owner/Admin may trigger CLI updates here */
+  maintenanceByAdmins: boolean;
+  name: string;
+  ownerUserId: Id<"users">;
+  providers: RuntimeProvider[];
+  slug: string;
+  status: "online" | "offline";
 }
 export interface Member {
   user: Me;
@@ -89,6 +106,7 @@ export type DialogState =
   | { kind: "newChat"; projectId?: Id<"projects"> }
   | { kind: "registerRuntime" }
   | { kind: "grant"; runtimeId: Id<"runtimes"> }
+  | { kind: "runtimeProviders"; runtimeId: Id<"runtimes">; focus?: ProviderDriverKind }
   | { kind: "invite" }
   | null;
 

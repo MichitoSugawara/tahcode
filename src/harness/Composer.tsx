@@ -34,10 +34,9 @@ import {
   PROVIDERS,
   agentMention,
   isProviderKind,
+  modelCatalogFor,
   modelDisplayName,
   modelMentionExample,
-  modelSourceHint,
-  modelsFor,
   supportsModelPick,
 } from "@/lib/providers";
 import type { ProviderDriverKind } from "@/lib/providers";
@@ -289,13 +288,20 @@ export function Composer({
     if (modelToken) {
       const kind = modelToken.providerKind;
       const info = PROVIDERS[kind];
-      return modelsFor(kind).map((model) => ({
-        desc: model.name,
+      const catalog = modelCatalogFor(kind, org.runtimes);
+      return catalog.models.map((model) => ({
+        desc: model.name ?? model.slug,
         icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
         insert: `@${modelToken.handle}/${model.slug} `,
         key: `m-${kind}-${model.slug}`,
         name: `@${modelToken.handle}/${model.slug}`,
-        trailing: model.legacy ? "legacy" : undefined,
+        trailing: model.default
+          ? "CLI の既定"
+          : model.legacy
+            ? "legacy"
+            : catalog.source === "live"
+              ? "live"
+              : undefined,
       }));
     }
     const agents: PromptMenuItem[] = [
@@ -335,7 +341,7 @@ export function Composer({
           String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
     return [...agents, ...people];
-  }, [modelToken, org.members, org.me._id, installed, liveRuntimes.length]);
+  }, [modelToken, org.members, org.me._id, org.runtimes, installed, liveRuntimes.length]);
 
   const commands: PromptMenuItem[] = [
     {
@@ -389,7 +395,9 @@ export function Composer({
     },
   ];
 
-  const models = modelsFor(agent.driverKind);
+  /* live list from a connected machine when one reported it, static snapshot otherwise */
+  const catalog = useMemo(() => modelCatalogFor(agent.driverKind, org.runtimes), [agent.driverKind, org.runtimes]);
+  const models = catalog.models;
   const pickers: PromptPicker[] = [
     {
       ariaLabel: "プロバイダを選択",
@@ -417,7 +425,7 @@ export function Composer({
     {
       ariaLabel: "モデルを選択",
       footer: supportsModelPick(agent.driverKind)
-        ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · 出典: ${modelSourceHint(agent.driverKind)}`
+        ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · ${catalog.source === "live" ? "live: " : ""}${catalog.note}`
         : `${provider.label} は headless CLI がなく、モデルは選べません`,
       id: "model",
       items: [
@@ -425,8 +433,12 @@ export function Composer({
         ...(supportsModelPick(agent.driverKind)
           ? models.map((model) => ({
               key: model.slug,
-              name: model.name,
-              tag: model.legacy ? "legacy" : undefined,
+              name: model.name ?? model.slug,
+              tag: model.default
+                ? "CLI の既定"
+                : model.legacy
+                  ? "legacy"
+                  : undefined,
             }))
           : []),
       ],
