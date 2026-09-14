@@ -2,29 +2,32 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
 import { Shimmer } from "@/components/atoms/Shimmer";
-import { StatusPill } from "@/components/atoms/StatusPill";
 import { useOrg } from "@/harness/OrgContext";
 import { Dialog } from "@/harness/ui/Dialog";
 import { Notice } from "@/harness/ui/Notice";
 import type {
   ConnectorCardLocalPhase,
   ConnectorCardPhase,
+  ConnectorCatalogEntry,
   ConnectorScope,
 } from "@/lib/connectorCard";
 import {
   CONNECTOR_CARD_COPY,
+  CONNECTOR_CATALOG,
   LINEAR_CONNECTOR,
   connectionMeta,
-  connectorStatusLabel,
-  connectorStatusTone,
+  filterConnectorCatalog,
+  linearConnectReturnScope,
   partitionConnectorConnections,
   resolveConnectorCardPhase,
+  stripLinearConnectReturnSearch,
 } from "@/lib/connectorCard";
-import { errorSummary, relativeTime } from "@/lib/format";
+import { errorSummary } from "@/lib/format";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -33,33 +36,130 @@ type Connection = FunctionReturnType<
   typeof api.connectorConnections.listByOrg
 >[number];
 
+const LINEAR_CONNECT_POLL_MS = 2000;
+const LINEAR_CONNECT_MAX_POLLS = 15;
+
+/** Official Linear logomark (perspective chevron). */
+const LINEAR_MARK_PATH =
+  "M1.22541 61.5228c-.2225-.9485.9463-1.4546 1.7022-.8004l39.3448 34.0541c.7837.678 1.9583.559 2.2459-.2481L83.639 5.425c.3163-.888-1.0114-1.49-1.716-1.0774L1.6906 60.1195c-.3904.2284-.5464.6602-.4652 1.4033z";
+
+function useLinearConnectReturn({
+  enabled,
+  orgId,
+  scope,
+  setConfirming,
+  setLocalPhase,
+}: {
+  enabled: boolean;
+  orgId: Id<"orgs">;
+  scope: ConnectorScope;
+  setConfirming: (value: boolean) => void;
+  setLocalPhase: (phase: ConnectorCardLocalPhase) => void;
+}) {
+  const completeConnect = useAction(api.connectorConnect.completeLinearConnect);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const returningScope = linearConnectReturnScope(location.search);
+
+  useEffect(() => {
+    if (!enabled || returningScope !== scope) {
+      return;
+    }
+    let cancelled = false;
+    let polls = 0;
+    let timer: ReturnType<typeof window.setTimeout> | undefined;
+    const finishSearch = stripLinearConnectReturnSearch(location.search);
+    const clearReturnQuery = () => {
+      navigate(
+        {
+          pathname: location.pathname,
+          search: finishSearch,
+        },
+        { replace: true }
+      );
+    };
+    const run = async () => {
+      setConfirming(true);
+      setLocalPhase("waiting");
+      try {
+        const result = await completeConnect({ orgId, scope });
+        if (cancelled) {
+          return;
+        }
+        if (result.status === "pending" && polls < LINEAR_CONNECT_MAX_POLLS) {
+          polls += 1;
+          timer = window.setTimeout(() => {
+            void run();
+          }, LINEAR_CONNECT_POLL_MS);
+          return;
+        }
+        if (result.status === "connected") {
+          setLocalPhase("idle");
+          toast.success("Linear を接続しました");
+        } else {
+          setLocalPhase("failed");
+          toast.error("Linear の認可を確認できませんでした");
+        }
+        setConfirming(false);
+        clearReturnQuery();
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+        setConfirming(false);
+        setLocalPhase("failed");
+        toast.error("Linear の認可を確認できませんでした", {
+          description: errorSummary(error),
+        });
+        clearReturnQuery();
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [
+    completeConnect,
+    enabled,
+    location.pathname,
+    location.search,
+    navigate,
+    orgId,
+    returningScope,
+    scope,
+    setConfirming,
+    setLocalPhase,
+  ]);
+}
+
 function LinearMark() {
   return (
     <span
       aria-hidden
-      className="flex size-8 shrink-0 items-center justify-center rounded-[8px]"
+      className="flex size-9 shrink-0 items-center justify-center rounded-[10px]"
       style={{ background: "#5E6AD2" }}
     >
       <svg
-        className="size-4 text-white"
-        fill="none"
-        viewBox="0 0 16 16"
+        className="size-[18px] text-white"
+        fill="currentColor"
+        viewBox="0 0 100 100"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path
-          d="M3.2 10.4 10.4 3.2c.7-.7 1.9-.2 1.9.8v6.4c0 .4-.4.8-.8.8H5.1c-1 0-1.5-1.2-.8-1.9Z"
-          fill="currentColor"
-        />
+        <path d={LINEAR_MARK_PATH} />
       </svg>
     </span>
   );
 }
 
 /** Grok marketplace / `sand-connector-card__header`: action/status sits
- *  to the right of the text block, never stacked under the description. */
-function ConnectorCardActions({
+ *  to the right of the text block, vertically centered on the row. */
+function ConnectorRowActions({
   busy,
   canManage,
+  confirming,
   displayName,
   onDisconnect,
   onStart,
@@ -68,6 +168,7 @@ function ConnectorCardActions({
 }: {
   busy: boolean;
   canManage: boolean;
+  confirming: boolean;
   displayName: string;
   onDisconnect: () => void;
   onStart: () => void;
@@ -108,9 +209,11 @@ function ConnectorCardActions({
 
   if (phase === "waiting") {
     return (
-      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1.5 text-right">
+      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1 text-right">
         <span className="text-ink-2 text-[12px] leading-snug" role="status">
-          {CONNECTOR_CARD_COPY.waiting(displayName)}
+          {confirming
+            ? CONNECTOR_CARD_COPY.confirming(displayName)
+            : CONNECTOR_CARD_COPY.waiting(displayName)}
         </span>
         <Button
           type="button"
@@ -127,7 +230,7 @@ function ConnectorCardActions({
 
   if (phase === "retry") {
     return (
-      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1.5 text-right">
+      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1 text-right">
         <span className="text-ink-2 text-[12px] leading-snug" role="status">
           {CONNECTOR_CARD_COPY.retryHint(displayName)}
         </span>
@@ -166,16 +269,18 @@ function ConnectorCardActions({
   );
 }
 
-function ConnectorCard({
+function ConnectorRow({
+  actorUserId,
   canManage,
+  catalog,
   connection,
-  now,
   orgId,
   scope,
 }: {
+  actorUserId: Id<"users">;
   canManage: boolean;
+  catalog: ConnectorCatalogEntry;
   connection?: Connection;
-  now: number;
   orgId: Id<"orgs">;
   scope: ConnectorScope;
 }) {
@@ -183,10 +288,21 @@ function ConnectorCard({
   const disconnect = useMutation(api.connectorConnections.disconnect);
   const [localPhase, setLocalPhase] = useState<ConnectorCardLocalPhase>("idle");
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  useLinearConnectReturn({
+    enabled:
+      canManage &&
+      (scope === "org" || String(connection?.userId) === String(actorUserId)),
+    orgId,
+    scope,
+    setConfirming,
+    setLocalPhase,
+  });
   useEffect(() => {
     if (connection?.status === "connected") {
       setLocalPhase("idle");
+      setConfirming(false);
     }
   }, [connection?.status]);
   const phase = resolveConnectorCardPhase({
@@ -194,13 +310,9 @@ function ConnectorCard({
     localPhase,
     status: connection?.status,
   });
-  const catalog = LINEAR_CONNECTOR;
   const team = scope === "org";
   const meta = connection ? connectionMeta(connection) : "";
-  const verified =
-    connection?.lastVerifiedAt === undefined
-      ? undefined
-      : relativeTime(connection.lastVerifiedAt, now);
+  const description = meta.length > 0 ? meta : catalog.description;
 
   const runStart = async () => {
     if (!canManage || busy) {
@@ -211,14 +323,14 @@ function ConnectorCard({
     try {
       const result = await startConnect({ orgId, scope });
       if (result.ready && result.authorizeUrl) {
-        window.open(result.authorizeUrl, "_blank", "noopener,noreferrer");
+        window.location.assign(result.authorizeUrl);
         return;
       }
       setLocalPhase("failed");
       toast.message(
         result.reason === "oauth_not_configured"
           ? CONNECTOR_CARD_COPY.notConfigured
-          : CONNECTOR_CARD_COPY.oauthPending
+          : CONNECTOR_CARD_COPY.authorizeHint
       );
     } catch (error: unknown) {
       setLocalPhase("failed");
@@ -255,51 +367,33 @@ function ConnectorCard({
     connection.status !== "disconnected";
 
   return (
-    <article className="rounded-card bg-surface shadow-card overflow-hidden">
-      <div className="connector-card-header primitive-card-bar flex items-start gap-3">
-        <LinearMark />
-        <div className="connector-card-text min-w-0 flex-1">
-          <div className="text-ink flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
-            <h3 className="truncate">{catalog.displayName}</h3>
-            {team ? (
-              <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
-                {CONNECTOR_CARD_COPY.team}
-              </span>
-            ) : null}
-            {connection && phase !== "connected" ? (
-              <StatusPill tone={connectorStatusTone(connection.status)}>
-                {connectorStatusLabel(connection.status)}
-              </StatusPill>
-            ) : null}
-          </div>
-          <p className="text-ink-3 mt-0.5 text-[12px] leading-relaxed">
-            {catalog.description}
-          </p>
-          {meta || verified ? (
-            <p className="text-ink-3 mt-1 text-[11.5px]">
-              {meta}
-              {meta && verified ? " · " : ""}
-              {verified ? `確認 ${verified}` : ""}
-            </p>
-          ) : null}
-          {canManage && phase !== "connected" ? (
-            <p className="text-ink-3 mt-1 text-[11.5px] leading-relaxed">
-              {CONNECTOR_CARD_COPY.oauthPending}
-            </p>
+    <article className="connector-marketplace-row flex items-center gap-3 py-2.5">
+      <LinearMark />
+      <div className="connector-card-text min-w-0 flex-1">
+        <div className="text-ink flex items-center gap-1.5 text-[13px] font-medium">
+          <h3 className="truncate">{catalog.displayName}</h3>
+          {team ? (
+            <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
+              {CONNECTOR_CARD_COPY.team}
+            </span>
           ) : null}
         </div>
-        <ConnectorCardActions
-          busy={busy}
-          canManage={canManage}
-          displayName={catalog.displayName}
-          phase={phase}
-          showDisconnect={showDisconnect}
-          onDisconnect={() => setConfirmOpen(true)}
-          onStart={() => {
-            void runStart();
-          }}
-        />
+        <p className="text-ink-3 mt-0.5 truncate text-[12px] leading-snug">
+          {description}
+        </p>
       </div>
+      <ConnectorRowActions
+        busy={busy}
+        canManage={canManage}
+        confirming={confirming}
+        displayName={catalog.displayName}
+        phase={phase}
+        showDisconnect={showDisconnect}
+        onDisconnect={() => setConfirmOpen(true)}
+        onStart={() => {
+          void runStart();
+        }}
+      />
 
       <Dialog
         open={confirmOpen}
@@ -342,8 +436,8 @@ function ConnectorCard({
   );
 }
 
-export function ConnectorsPane() {
-  const { org, isAdmin, now, me } = useOrg();
+export function ConnectorsPane({ query = "" }: { query?: string }) {
+  const { org, isAdmin, me } = useOrg();
   const connections = useQuery(api.connectorConnections.listByOrg, {
     orgId: org._id,
     provider: LINEAR_CONNECTOR.provider,
@@ -352,36 +446,50 @@ export function ConnectorsPane() {
     connections ?? [],
     LINEAR_CONNECTOR.provider
   );
+  const visibleCatalog = filterConnectorCatalog(CONNECTOR_CATALOG, query);
+  const showLinear = visibleCatalog.some(
+    (entry) => entry.provider === LINEAR_CONNECTOR.provider
+  );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {connections === undefined ? (
-        <div className="rounded-card bg-surface shadow-card px-3 py-3 text-[13px]">
+        <div className="px-0 py-2 text-[13px]">
           <Shimmer>コネクタを読み込んでいます</Shimmer>
         </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <ConnectorCard
+      ) : null}
+
+      {connections !== undefined && visibleCatalog.length === 0 ? (
+        <p className="text-ink-3 py-6 text-center text-[13px]">
+          {CONNECTOR_CARD_COPY.emptySearch}
+        </p>
+      ) : null}
+
+      {connections !== undefined && showLinear ? (
+        <div className="connector-marketplace grid grid-cols-1 gap-x-12 md:grid-cols-2">
+          <ConnectorRow
+            actorUserId={me._id}
             canManage={isAdmin}
+            catalog={LINEAR_CONNECTOR}
             connection={primary}
-            now={now}
             orgId={org._id}
             scope="org"
           />
           {extras.map((connection) => (
-            <ConnectorCard
+            <ConnectorRow
               key={String(connection._id)}
+              actorUserId={me._id}
               canManage={
                 isAdmin || String(connection.userId) === String(me._id)
               }
+              catalog={LINEAR_CONNECTOR}
               connection={connection}
-              now={now}
               orgId={org._id}
               scope="user"
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       {isAdmin ? null : (
         <Notice

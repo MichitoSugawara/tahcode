@@ -21,6 +21,40 @@ export const MAX_CONNECTOR_PROVIDER = 64;
 export const MAX_CONNECTOR_ACCOUNT_ID = 256;
 export const MAX_CONNECTOR_CONFIG_ID = 128;
 export const MAX_CONNECTOR_DISPLAY_LABEL = 120;
+export const MAX_CONNECTOR_OAUTH_REQUEST_ID = 64;
+export const MAX_CONNECTOR_OAUTH_ALIAS = 128;
+export const LINEAR_CONNECT_QUERY = "linear";
+
+export function linearConnectReturnScope(
+  search: string
+): ConnectorScope | null {
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  if (params.get("connector") !== LINEAR_CONNECT_QUERY) {
+    return null;
+  }
+  return params.get("scope") === "user" ? "user" : "org";
+}
+
+export function stripLinearConnectReturnSearch(search: string): string {
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  for (const key of [
+    "code",
+    "connectedAccountId",
+    "connector",
+    "message",
+    "scope",
+    "service",
+    "status",
+  ]) {
+    params.delete(key);
+  }
+  const next = params.toString();
+  return next.length > 0 ? `?${next}` : "";
+}
 
 const PROVIDER_RE = /^[a-z][a-z0-9-]{0,63}$/;
 const SECRET_FIELD_RE = /access_token|refresh_token|client_secret|Bearer\s/i;

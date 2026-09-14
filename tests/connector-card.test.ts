@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 import type { ConnectorStatus } from "../shared/connectors.ts";
 import {
   CONNECTOR_CARD_COPY,
+  CONNECTOR_CATALOG,
   LINEAR_CONNECTOR,
   connectionMeta,
   connectorStatusLabel,
   connectorStatusTone,
+  filterConnectorCatalog,
   partitionConnectorConnections,
   resolveConnectorCardPhase,
 } from "../src/lib/connectorCard.ts";
@@ -86,34 +88,57 @@ describe(partitionConnectorConnections, () => {
   });
 });
 
+describe(filterConnectorCatalog, () => {
+  it("filters the catalog by name, description, or provider", () => {
+    expect({
+      empty: filterConnectorCatalog(CONNECTOR_CATALOG, ""),
+      linear: filterConnectorCatalog(CONNECTOR_CATALOG, "linear"),
+      description: filterConnectorCatalog(CONNECTOR_CATALOG, "課題"),
+      miss: filterConnectorCatalog(CONNECTOR_CATALOG, "github"),
+    }).toStrictEqual({
+      empty: [LINEAR_CONNECTOR],
+      linear: [LINEAR_CONNECTOR],
+      description: [LINEAR_CONNECTOR],
+      miss: [],
+    });
+  });
+});
+
 describe("connector card copy", () => {
   it("keeps Japanese CTAs and the Grok Bot Team badge", () => {
     expect(LINEAR_CONNECTOR.provider).toBe("linear");
-    expect(LINEAR_CONNECTOR.description).toContain("Linear を org に接続");
+    expect(LINEAR_CONNECTOR.description).toContain("課題とプロジェクト");
     expect(CONNECTOR_CARD_COPY).toMatchObject({
       add: "追加",
       authorize: "認可",
+      authorizeHint: expect.stringContaining("Linear に移動"),
       connected: "接続済み",
       disconnect: "切断",
       notConfigured: "認可を開始できません。管理者に連絡してください。",
       reopen: "再表示",
       retry: "再試行",
+      searchLabel: "コネクタを検索",
       team: "Team",
     });
-    expect(CONNECTOR_CARD_COPY.waiting("Linear")).toContain(
-      "認可を待っています"
+    expect(JSON.stringify(CONNECTOR_CARD_COPY)).not.toContain(
+      "認可の開始は準備中です"
     );
-    expect(CONNECTOR_CARD_COPY.retryHint("Linear")).toContain(
-      "認可が完了しませんでした"
-    );
+    expect({
+      retry: CONNECTOR_CARD_COPY.retryHint("Linear"),
+      waiting: CONNECTOR_CARD_COPY.waiting("Linear"),
+    }).toStrictEqual({
+      retry: expect.stringContaining("認可が完了しませんでした"),
+      waiting: expect.stringContaining("認可を待っています"),
+    });
   });
 
   it("does not mention infrastructure names in card copy", () => {
     const haystack = [
       LINEAR_CONNECTOR.description,
+      CONNECTOR_CARD_COPY.authorizeHint,
       CONNECTOR_CARD_COPY.disconnectDetail,
       CONNECTOR_CARD_COPY.notConfigured,
-      CONNECTOR_CARD_COPY.oauthPending,
+      CONNECTOR_CARD_COPY.searchLabel,
     ].join(" ");
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
@@ -162,13 +187,39 @@ describe("connector card copy", () => {
   });
 });
 
-describe("connector card layout", () => {
-  it("puts CTA/status on the header row, not under the description", () => {
-    const source = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
-    expect(source).toContain("connector-card-header");
-    expect(source).toContain("connector-card-text");
-    expect(source).toContain("connector-card-actions");
-    expect(source).toContain("sand-connector-card__header");
-    expect(source).not.toMatch(/flex flex-col gap-2 px-3 py-2\.5/);
+describe("connector marketplace layout", () => {
+  it("uses compact rows with a vertically centered CTA", () => {
+    const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    const page = readFileSync("src/pages/ConnectorsPage.tsx", "utf-8");
+    expect({
+      actions: pane.includes("connector-card-actions"),
+      assign: pane.includes("location.assign"),
+      centered: pane.includes("flex items-center gap-3"),
+      complete: pane.includes("completeLinearConnect"),
+      grok: pane.includes("sand-connector-card__header"),
+      mark: pane.includes("M1.22541 61.5228"),
+      row: pane.includes("connector-marketplace-row"),
+      search: page.includes(CONNECTOR_CARD_COPY.searchLabel),
+      text: pane.includes("connector-card-text"),
+    }).toStrictEqual({
+      actions: true,
+      assign: true,
+      centered: true,
+      complete: true,
+      grok: true,
+      mark: true,
+      row: true,
+      search: true,
+      text: true,
+    });
+    expect({
+      banned: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(pane),
+      paddedCard: /rounded-card bg-surface shadow-card/.test(pane),
+      stackedCta: /flex flex-col gap-2 px-3 py-2\.5/.test(pane),
+    }).toStrictEqual({
+      banned: false,
+      paddedCard: false,
+      stackedCta: false,
+    });
   });
 });

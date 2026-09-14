@@ -3,6 +3,12 @@ import type {
   ConnectorStatus,
 } from "../../shared/connectors.ts";
 
+export {
+  LINEAR_CONNECT_QUERY,
+  linearConnectReturnScope,
+  stripLinearConnectReturnSearch,
+} from "../../shared/connectors.ts";
+
 export type { ConnectorScope, ConnectorStatus };
 
 export type ConnectorCardPhase =
@@ -63,24 +69,45 @@ export function partitionConnectorConnections<
 }
 
 export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
-  description: "Linear を org に接続します。課題とプロジェクトを扱えます。",
+  description: "課題とプロジェクトを org から接続します。",
   displayName: "Linear",
   provider: "linear",
 };
 
+export const CONNECTOR_CATALOG: readonly ConnectorCatalogEntry[] = [
+  LINEAR_CONNECTOR,
+];
+
+export function filterConnectorCatalog<T extends ConnectorCatalogEntry>(
+  entries: readonly T[],
+  query: string
+): T[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) {
+    return [...entries];
+  }
+  return entries.filter((entry) => {
+    const haystack =
+      `${entry.displayName} ${entry.description} ${entry.provider}`.toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
 export const CONNECTOR_CARD_COPY = {
   add: "追加",
   authorize: "認可",
+  authorizeHint: "認可すると Linear に移動し、完了後この画面に戻ります。",
+  confirming: (name: string) => `${name} の認可を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
   disconnectDetail:
     "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
+  emptySearch: "該当するコネクタがありません",
   notConfigured: "認可を開始できません。管理者に連絡してください。",
-  oauthPending:
-    "認可の開始は準備中です。切断と状態表示はこの画面で利用できます。",
   reopen: "再表示",
   retry: "再試行",
   retryHint: (name: string) => `${name} の認可が完了しませんでした`,
+  searchLabel: "コネクタを検索",
   team: "Team",
   waiting: (name: string) => `${name} の認可を待っています…`,
 } as const;
