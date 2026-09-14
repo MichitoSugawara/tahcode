@@ -32,6 +32,10 @@ Claude の headless CLI には、同じツールを stdio で渡すための一�
 
 ジョブ外（対話ターミナルだけ）では呼べません。ユーザー JWT ではなく、**ランタイムトークン + ジョブリース**で認証し、トリガーしたユーザーとして認可します。
 
+## 必要な CLI バージョン
+
+`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。更新: `npm i -g tahcode@0.1.1` のあと `tahcode restart`。`tahcode service install` は launchd の環境を上書きするので、この更新では使わない（TAH-60）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
+
 ## ツール
 
 | 名前 | 動き |

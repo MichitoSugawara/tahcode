@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { stdin, stdout } from "node:process";
@@ -17,6 +18,7 @@ import type {
   AgentToolJobAuth,
   InvocableToolName,
 } from "../../shared/agentTools.ts";
+import { classifyToolSubcommandOutput } from "../../shared/cliVersion.ts";
 import { LINEAR_AGENT_TOOLS } from "../../shared/linearAgentTools.ts";
 import type {
   JobConnectorSnapshot,
@@ -97,6 +99,27 @@ exec ${posixShellQuote(input.nodePath)} ${posixShellQuote(input.cliEntry)} "$@"
 
 export function agentToolsPromptSuffix(includeLinear = false): string {
   return formatAgentToolCatalog({ includeLinear });
+}
+
+export function probeToolSubcommand(command: readonly string[]): {
+  output: string;
+  status: "ok" | "unknown-command" | "indeterminate";
+} {
+  const [bin, ...args] = command;
+  if (!bin) {
+    return { output: "", status: "indeterminate" };
+  }
+  const result = spawnSync(bin, args, {
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      TAHCODE_JOB_ID: "",
+      TAHCODE_LEASE_ID: "",
+    },
+    timeout: 8000,
+  });
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  return { output, status: classifyToolSubcommandOutput(output) };
 }
 
 function jobIncludesLinearTools(): boolean {

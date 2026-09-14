@@ -9,7 +9,7 @@
 | ハーネス | ブリッジの起動 | tahcode ops の渡し方 |
 | --- | --- | --- |
 | Claude | `claude -p --output-format stream-json --verbose` | **`--mcp-config`** + **`--allowedTools mcp__tahcode__*`**（stdio: `tahcode tool-mcp`。`-p` の既定 permission だと MCP が権限未承認になる） |
-| Cursor | `agent -p --trust --output-format stream-json` | **未配線。** `agent -p` に `--mcp-config` 相当はない。`tahcode tool` + プロンプトカタログ |
+| Cursor | `agent -p --trust --output-format stream-json` | **未配線。** `agent -p` に `--mcp-config` 相当はない。`tahcode tool` + プロンプトカタログ。CLI が 0.1.0 だと `tool` 自体が 「不明なコマンド」になり `@linear` が届かない（0.1.1+ が必要） |
 | Codex | `codex exec --json` | `tahcode tool` + プロンプトカタログ |
 | OpenCode | `opencode run` | 同上 |
 | Grok | `grok --prompt` | 同上 |

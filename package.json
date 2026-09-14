@@ -30,6 +30,7 @@
     "env:dec": "node scripts/env.mjs decrypt",
     "cli": "tsx packages/cli/src/index.ts",
     "cli:build": "node packages/cli/build.mjs",
+    "cli:verify": "node packages/cli/build.mjs && node scripts/verify-cli-agent-tools.mjs",
     "desktop:dev": "npm run dev -w @tahcode/desktop",
     "desktop:typecheck": "npm run typecheck -w @tahcode/desktop",
     "desktop:pack": "npm run pack -w @tahcode/desktop",

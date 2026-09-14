@@ -33,7 +33,7 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 | `tahcode restart [bridge\|multica\|all]` | Restart; the bridge comes back detached with its previous `--cwd` / `--provider` (override with flags). Default `all`. |
 | `tahcode logs [bridge\|multica\|all] [-f] [-n N]` | Bridge log (`~/.tahcode/bridge.log`, default) or `multica daemon logs`. `-f` follows, `-n` sets the line count (50). |
 | `tahcode service install\|uninstall\|status` | **macOS only.** Register the bridge as a launchd user agent (`~/Library/LaunchAgents/com.tahcode.bridge.plist`, RunAtLoad + KeepAlive) so it starts at login and is restarted if it dies. `install` accepts the same `--cwd` / `--provider` / `--no-daemon` as `start`. |
-| `tahcode doctor` | Node, Multica install/login/daemon, detected agent CLIs, backend connectivity, bridge status. |
+| `tahcode doctor` | Node, Multica install/login/daemon, detected agent CLIs, backend connectivity, bridge status, and whether this CLI has `tahcode tool` / `tool-mcp` (fails if older than 0.1.1). |
 | `tahcode providers` | Agents seen by the Multica daemon + the t3code provider set the bridge can launch directly. |
 | `tahcode models [provider]` | Models each CLI can use, fetched live where the CLI has a list command (`agent models`, `opencode models`, `grok models`); Codex / Claude / Antigravity fall back to the static catalog. |
 | `tahcode update <provider\|all> [--yes]` | Update an agent CLI with the **same allowlisted command the web UI's「CLI を更新」runs**: npm / Homebrew installs via `npm i -g …@latest` / `brew upgrade …`, everything else via the CLI's own updater (`claude update`, `agent update`, `grok update`, `opencode upgrade`). Prints the command and exits unless `--yes`. |
@@ -90,15 +90,27 @@ The bridge reuses `runtime/src/*` and `shared/providers.ts` from the repo; `buil
 
 ## Publishing
 
+Version lives in `packages/cli/package.json` and `shared/cliVersion.ts` (`CLI_VERSION`). Keep them in sync. Dist is not committed; `prepublishOnly` / CI run `build.mjs`.
+
+CI: [`.github/workflows/publish-cli.yml`](../../.github/workflows/publish-cli.yml) builds, verifies `tahcode tool` is not 「不明なコマンド」, and publishes to npm on push to `main` when the version is new. Needs repository secret `NPM_TOKEN`. `workflow_dispatch` can dry-run.
+
+If the secret is missing, one-shot from a machine with npm publish rights:
+
 ```bash
-cd packages/cli
-npm version patch             # keep VERSION in src/index.ts in sync
-npm publish --access public   # prepublishOnly runs the bundle
+npm run cli:verify
+npm publish --workspace tahcode --access public
 ```
 
-Current version: `0.1.0` under the new name (feature-equivalent to `dalecode@0.1.1`: background bridge, `stop` / `restart` / `logs` for both processes, `service` for launchd).
+Current version: `0.1.1` (`tahcode tool` / `tool-mcp`, leaseId on `jobs:appendEvent` / `jobs:complete`). `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`.
 
-`tahcode@0.1.0` omits `leaseId` on `jobs:appendEvent` / `jobs:complete`. Server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) accepts that payload so production chat works without an immediate CLI upgrade. This tree always sends the claim `leaseId` (`runtime/src/runner.ts`). **Republish as `0.1.1`** so Mac bridges stop relying on the server fallback (`npm version patch`, keep `VERSION` in `src/index.ts` in sync, then `npm publish --access public`). Existing installs: `npm i -g tahcode@latest` and `tahcode restart`.
+Mac upgrade (do **not** run `tahcode service install` just to pick up the binary — it rewrites the launchd plist and can drop Cursor/Claude auth; see TAH-60):
+
+```bash
+npm i -g tahcode@0.1.1
+tahcode restart
+tahcode doctor          # エージェントツール must be ✓
+tahcode tool            # must NOT print 不明なコマンド: tool
+```
 
 ## Migrating from dalecode
 

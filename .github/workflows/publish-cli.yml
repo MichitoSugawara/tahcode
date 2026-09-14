@@ -1,0 +1,67 @@
+name: Publish CLI
+
+# Ships packages/cli to npm as `tahcode` so `npm i -g tahcode` gets
+# `tahcode tool` / `tool-mcp`. Dist is not committed; this job builds it.
+# Requires repository secret NPM_TOKEN. If it is missing the job verifies
+# the artifact and prints the one-shot publish command instead of failing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - "shared/cliVersion.ts"
+      - "shared/agentTools.ts"
+      - "runtime/src/**"
+      - "scripts/verify-cli-agent-tools.mjs"
+      - ".github/workflows/publish-cli.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify only; do not publish
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: npm publish tahcode
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - name: Verify CLI artifact
+        run: npm run cli:verify
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
+        run: |
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not set. Skipping publish."
+            echo "One-shot (from a machine with npm publish rights):"
+            echo "  npm run cli:verify"
+            echo "  npm publish --workspace tahcode --access public"
+            echo "Mac upgrade after publish: npm i -g tahcode@${version} && tahcode restart"
+            echo "Do not run tahcode service install (rewrites launchd env; see TAH-60)."
+            exit 0
+          fi
+          published="$(npm view tahcode version 2>/dev/null || true)"
+          if [ "$published" = "$version" ]; then
+            echo "tahcode@${version} is already on npm; nothing to publish."
+            exit 0
+          fi
+          if [ -n "$DRY_RUN" ]; then
+            echo "Dry run: would publish tahcode@${version} (npm has ${published:-none})"
+            npm pack --workspace tahcode
+            exit 0
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> "${HOME}/.npmrc"
+          npm publish --workspace tahcode --access public
+          echo "Published tahcode@${version}"

@@ -22,6 +22,7 @@ import {
   reportFor,
   runLoop,
 } from "../../../runtime/src/runner.ts";
+import { CLI_VERSION as VERSION } from "../../../shared/cliVersion.ts";
 import {
   mergeModelCatalog,
   PROVIDER_MAINTENANCE,
@@ -33,6 +34,10 @@ import {
   isProviderDriverKind,
   PROVIDER_CATALOG,
 } from "../../../shared/providers.ts";
+import {
+  reportDoctorAgentTools,
+  warnStaleAgentToolsOnStart,
+} from "./agentToolsCheck.ts";
 import {
   BRIDGE_LOG_PATH,
   LAUNCHD_LABEL,
@@ -91,10 +96,9 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  * agent-CLI detection and machine execution.
  *
  * tahcode (ターコード, "team agent harness") is the renamed successor of the
- * `dalecode` npm package (last release 0.1.1); the version restarts at 0.1.0.
+ * `dalecode` npm package (last release 0.1.1). tahcode started at 0.1.0;
+ * 0.1.1 adds `tahcode tool` / `tool-mcp` and leaseId on job events.
  * ───────────────────────────────────────────────────────── */
-
-const VERSION = "0.1.0";
 
 type Flags = Record<string, string | boolean>;
 
@@ -378,6 +382,7 @@ async function cmdStart(flags: Flags): Promise<void> {
   console.log(
     `${BRAND} ${dim(`v${VERSION}`)} — ${link.name ?? os.hostname()} を ${link.url} に接続`
   );
+  warnStaleAgentToolsOnStart();
   await ensureDaemon(link, flags);
 
   if (foreground) {
@@ -498,11 +503,13 @@ async function cmdStatus(): Promise<void> {
 }
 
 async function cmdDoctor(): Promise<void> {
+  let toolsFailed = false;
   heading("環境");
   const major = Number(process.versions.node.split(".")[0]);
   (major >= 20 ? ok : fail)(
     `Node ${process.versions.node}${major >= 20 ? "" : "（20 以上が必要）"}`
   );
+  toolsFailed = reportDoctorAgentTools();
 
   heading("Multica");
   const version = multicaVersion();
@@ -543,6 +550,9 @@ async function cmdDoctor(): Promise<void> {
   const link = resolveLink();
   if (!link) {
     fail("未リンク。Web UI「このマシンを登録」のコマンドを実行してください。");
+    if (toolsFailed) {
+      process.exitCode = 1;
+    }
     return;
   }
   try {
@@ -566,6 +576,9 @@ async function cmdDoctor(): Promise<void> {
       ? `ブリッジ起動中（${describeBridge(bridge)}）`
       : `ブリッジ停止中（${code("tahcode start")} で起動）`
   );
+  if (toolsFailed) {
+    process.exitCode = 1;
+  }
 }
 
 async function cmdProviders(): Promise<void> {
