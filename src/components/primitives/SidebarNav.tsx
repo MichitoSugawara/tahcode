@@ -1,6 +1,7 @@
 import {
   Check,
   ChevronDown,
+  ChevronUp,
   LogOut,
   Moon,
   PanelLeft,
@@ -15,12 +16,14 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { Monogram } from "@/components/atoms/EntityChip";
 import GlideMenu from "@/components/primitives/GlideMenu";
 
 /* ─────────────────────────────────────────────────────────
  * SIDEBAR NAV — ported from Beautiful UI (beautifului.dev/r/sidebar-nav)
  * Compact workspace switcher, primary rail, searchable grouped
- * chat tree, and a collapse that preserves icon alignment.
+ * chat tree, a bottom account menu, and a collapse that
+ * preserves icon alignment.
  *
  * Changes from the registry copy: data-driven (workspaces, rail,
  * groups come in as props), lucide-react glyphs instead of the
@@ -64,6 +67,14 @@ export interface SidebarGroup {
   onAdd?: () => void;
 }
 
+export interface SidebarUser {
+  name: string;
+  email?: string;
+  monogram: string;
+  image?: string;
+  color?: string;
+}
+
 interface SidebarNavProps {
   workspace: SidebarWorkspace;
   workspaces: SidebarWorkspace[];
@@ -87,10 +98,7 @@ interface SidebarNavProps {
   addGroupLabel?: string;
   activeId?: string | null;
   onPick?: (id: string) => void;
-  footerLabel?: string;
-  footerIcon?: ReactNode;
-  footerTone?: "neutral" | "accent";
-  onFooterClick?: () => void;
+  user?: SidebarUser;
   className?: string;
   fill?: boolean;
   collapsible?: boolean;
@@ -174,6 +182,131 @@ function RailButton({
         </span>
       )}
     </button>
+  );
+}
+
+function UserAvatar({ user }: { user: SidebarUser }) {
+  const [broken, setBroken] = useState(false);
+  const image = user.image?.trim();
+  if (image && !broken) {
+    return (
+      <img
+        src={image}
+        alt=""
+        className="size-5 shrink-0 rounded-full object-cover"
+        onError={() => {
+          setBroken(true);
+        }}
+      />
+    );
+  }
+  return (
+    <Monogram color={user.color} className="size-5 text-[10px]">
+      {user.monogram}
+    </Monogram>
+  );
+}
+
+function userEmailLine(user: SidebarUser): string | undefined {
+  const email = user.email?.trim();
+  if (!email || email === user.name) {
+    return undefined;
+  }
+  return email;
+}
+
+function UserMenu({
+  position,
+  onClose,
+  onSettings,
+  onSignOut,
+  theme,
+  onToggleTheme,
+}: {
+  position: { bottom: number; left: number };
+  onClose: () => void;
+  onSettings?: () => void;
+  onSignOut?: () => void;
+  theme?: "dark" | "light";
+  onToggleTheme?: () => void;
+}) {
+  const run = (fn?: () => void) => () => {
+    onClose();
+    fn?.();
+  };
+  const items: {
+    icon: ReactNode;
+    key: string;
+    label: string;
+    onClick: () => void;
+  }[] = [];
+  if (onSettings) {
+    items.push({
+      icon: <Settings size={16} />,
+      key: "settings",
+      label: "設定",
+      onClick: onSettings,
+    });
+  }
+  if (onToggleTheme) {
+    items.push({
+      icon: theme === "dark" ? <Sun size={16} /> : <Moon size={16} />,
+      key: "theme",
+      label: theme === "dark" ? "ライトテーマに切替" : "ダークテーマに切替",
+      onClick: onToggleTheme,
+    });
+  }
+
+  return createPortal(
+    <div
+      data-user-menu
+      className="bg-surface shadow-overlay fixed z-50 w-64 rounded-[14px] p-1.5"
+      style={{
+        animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both",
+        bottom: position.bottom,
+        left: position.left,
+        transformOrigin: "bottom left",
+      }}
+    >
+      <GlideMenu
+        className="flex flex-col gap-px"
+        highlightClassName="inset-x-0 rounded-[8px] bg-hover-2"
+      >
+        {items.map((item) => (
+          <button
+            key={item.key}
+            data-menu-row
+            type="button"
+            onClick={run(item.onClick)}
+            className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
+          >
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
+              {item.icon}
+            </span>
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
+              {item.label}
+            </span>
+          </button>
+        ))}
+        {onSignOut && items.length > 0 && <div className="bg-line my-1 h-px" />}
+        {onSignOut && (
+          <button
+            data-menu-row
+            type="button"
+            onClick={run(onSignOut)}
+            className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
+          >
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
+              <LogOut size={16} />
+            </span>
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
+              サインアウト
+            </span>
+          </button>
+        )}
+      </GlideMenu>
+    </div>,
+    document.body
   );
 }
 
@@ -363,10 +496,7 @@ export default function SidebarNav({
   addGroupLabel = "追加",
   activeId,
   onPick,
-  footerLabel,
-  footerIcon,
-  footerTone = "neutral",
-  onFooterClick,
+  user,
   className = "",
   fill = false,
   collapsible = true,
@@ -380,10 +510,17 @@ export default function SidebarNav({
     left: 0,
     top: 0,
   });
+  const [userOpen, setUserOpen] = useState(false);
+  const [userPosition, setUserPosition] = useState({
+    bottom: 0,
+    left: 0,
+  });
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const workspaceButtonRef = useRef<HTMLButtonElement>(null);
+  const userButtonRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const userEmail = user ? userEmailLine(user) : undefined;
 
   const needle = query.trim().toLowerCase();
   const visibleGroups = groups
@@ -416,6 +553,32 @@ export default function SidebarNav({
   }, [workspaceOpen]);
 
   useEffect(() => {
+    if (!userOpen) {
+      return;
+    }
+    const close = (event: PointerEvent) => {
+      const target = event.target as Element;
+      if (
+        !target.closest("[data-user-trigger]") &&
+        !target.closest("[data-user-menu]")
+      ) {
+        setUserOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setUserOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [userOpen]);
+
+  useEffect(() => {
     if (searchOpen) {
       searchRef.current?.focus();
     }
@@ -424,6 +587,7 @@ export default function SidebarNav({
   const collapse = () => {
     setCollapsed(true);
     setWorkspaceOpen(false);
+    setUserOpen(false);
     setSearchOpen(false);
     setQuery("");
   };
@@ -469,6 +633,7 @@ export default function SidebarNav({
             aria-hidden={collapsed}
             tabIndex={collapsed ? -1 : 0}
             onClick={() => {
+              setUserOpen(false);
               if (!workspaceOpen && workspaceButtonRef.current) {
                 const rect = workspaceButtonRef.current.getBoundingClientRect();
                 setWorkspacePosition({ left: rect.left, top: rect.bottom + 6 });
@@ -727,20 +892,56 @@ export default function SidebarNav({
           )}
         </div>
 
-        {footerLabel && (
-          <div className="sidebar-copy border-line mx-2 mt-3 w-[208px] border-t pt-3">
+        {user && (
+          <div className="border-line mt-auto shrink-0 border-t pt-2 pb-2">
             <button
+              ref={userButtonRef}
+              data-user-trigger
               type="button"
-              onClick={onFooterClick}
-              className={`rounded-control flex h-8 w-full items-center justify-center gap-1.5 text-[12.5px] font-medium transition-[background-color,transform] duration-150 active:scale-[0.98] ${
-                footerTone === "accent"
-                  ? "bg-btn hover:bg-btn-hover text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
-                  : "bg-hover-2 text-ink hover:bg-line-strong"
+              aria-expanded={userOpen}
+              aria-haspopup="menu"
+              aria-label={`${user.name} のアカウントメニュー`}
+              title={userEmail ? `${user.name} · ${userEmail}` : user.name}
+              onClick={() => {
+                setWorkspaceOpen(false);
+                if (!userOpen && userButtonRef.current) {
+                  const rect = userButtonRef.current.getBoundingClientRect();
+                  setUserPosition({
+                    bottom: window.innerHeight - rect.top + 6,
+                    left: rect.left,
+                  });
+                }
+                setUserOpen((open) => !open);
+              }}
+              className={`sidebar-row hover:bg-hover-2 mx-2 flex h-10 items-center overflow-hidden rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
+                userOpen ? "bg-hover-2" : ""
               }`}
             >
-              {footerIcon}
-              {footerLabel}
+              <UserAvatar key={user.image ?? user.name} user={user} />
+              <span className="sidebar-copy ml-1.5 min-w-0 flex-1">
+                <span className="text-ink block truncate text-[13px] leading-tight font-medium">
+                  {user.name}
+                </span>
+                {userEmail && (
+                  <span className="text-ink-3 block truncate text-[11px] leading-tight">
+                    {userEmail}
+                  </span>
+                )}
+              </span>
+              <span className="sidebar-copy text-ink-3 ml-1 flex shrink-0">
+                <ChevronUp size={15} />
+              </span>
             </button>
+            {userOpen && (
+              <UserMenu
+                position={userPosition}
+                onClose={() => setUserOpen(false)}
+                onSettings={onWorkspaceSettings}
+                onSignOut={onSignOut}
+                theme={theme}
+                onToggleTheme={onToggleTheme}
+              />
+            )}
           </div>
         )}
       </div>
