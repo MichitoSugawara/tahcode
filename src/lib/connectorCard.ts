@@ -63,8 +63,7 @@ export function partitionConnectorConnections<
 }
 
 export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
-  description:
-    "課題とプロジェクトを org から接続します。トークンは OpenConnector に保管します。",
+  description: "Linear を org に接続します。課題とプロジェクトを扱えます。",
   displayName: "Linear",
   provider: "linear",
 };
@@ -74,6 +73,9 @@ export const CONNECTOR_CARD_COPY = {
   authorize: "認可",
   connected: "接続済み",
   disconnect: "切断",
+  disconnectDetail:
+    "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
+  notConfigured: "認可を開始できません。管理者に連絡してください。",
   oauthPending:
     "認可の開始は準備中です。切断と状態表示はこの画面で利用できます。",
   reopen: "再表示",

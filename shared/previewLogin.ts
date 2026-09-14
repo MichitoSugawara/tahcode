@@ -8,7 +8,7 @@ export const PREVIEW_LOGIN_PASSWORD = "test1234";
 export const PREVIEW_LOGIN_NAME = "Preview Reviewer";
 export const PREVIEW_ORG_NAME = "Preview";
 export const PREVIEW_ORG_SLUG = "preview";
-export const PREVIEW_SETTINGS_PATH = "/o/preview/settings#connectors";
+export const PREVIEW_CONNECTORS_PATH = "/o/preview/connectors";
 
 /** Keep in sync with `PRODUCTION_PUBLIC_SITE_URL` in scripts/wrangler-classify.mjs. */
 export const PRODUCTION_SITE_URL = "https://tahcode.com";

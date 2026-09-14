@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { isPlaceholderId, trackPlaceholder } from "@/lib/optimistic";
+import { orgConnectorsPath, orgSettingsPath } from "@/lib/orgPaths";
 import type {
   InstallMethod,
   LiveModel,
@@ -174,6 +175,7 @@ interface OrgContextValue {
     created: Promise<Id<"chats">>
   ) => void;
   goSettings: (hash?: string) => void;
+  goConnectors: () => void;
   switchOrg: (id: Id<"orgs">) => void;
   signOut: () => void;
 }
@@ -362,14 +364,11 @@ export function OrgProvider({
       },
       goHome: () => navigate(`/o/${org.slug}`),
       goPendingChat,
+      goConnectors: () => {
+        navigate(orgConnectorsPath(org.slug));
+      },
       goSettings: (hash) => {
-        const suffix =
-          typeof hash === "string" && hash.length > 0
-            ? hash.startsWith("#")
-              ? hash
-              : `#${hash}`
-            : "";
-        navigate(`/o/${org.slug}/settings${suffix}`);
+        navigate(orgSettingsPath(org.slug, hash));
       },
       isAdmin: org.role === "owner" || org.role === "admin",
       isOwner: org.role === "owner",

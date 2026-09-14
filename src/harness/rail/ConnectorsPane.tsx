@@ -102,7 +102,11 @@ function ConnectorCard({
         return;
       }
       setLocalPhase("failed");
-      toast.message(CONNECTOR_CARD_COPY.oauthPending);
+      toast.message(
+        result.reason === "oauth_not_configured"
+          ? CONNECTOR_CARD_COPY.notConfigured
+          : CONNECTOR_CARD_COPY.oauthPending
+      );
     } catch (error: unknown) {
       setLocalPhase("failed");
       toast.error("Linear の接続を開始できませんでした", {
@@ -305,8 +309,7 @@ function ConnectorCard({
         }
       >
         <p className="text-ink-2 text-[13px] leading-relaxed">
-          トークンは OpenConnector 側にだけ置きます。tahcode
-          のマッピングだけを切断します。
+          {CONNECTOR_CARD_COPY.disconnectDetail}
         </p>
       </Dialog>
     </article>
@@ -326,10 +329,6 @@ export function ConnectorsPane() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Notice tone="info" title="OpenConnector 経由のサービス連携">
-        トークンやクライアントシークレットはここに保存しません。ハーネスごとの設定でもありません。
-      </Notice>
-
       {connections === undefined ? (
         <div className="rounded-card bg-surface shadow-card px-3 py-3 text-[13px]">
           <Shimmer>コネクタを読み込んでいます</Shimmer>

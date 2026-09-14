@@ -8,6 +8,7 @@ import {
   previewLoginSeedDeployAllowed,
 } from "../scripts/seed-preview-login.mjs";
 import {
+  PREVIEW_CONNECTORS_PATH,
   PREVIEW_LOGIN_EMAIL,
   PREVIEW_LOGIN_PASSWORD,
   PRODUCTION_SITE_URL,
@@ -139,5 +140,12 @@ describe("deploy-stack production path", () => {
     expect(productionJob).not.toContain("seed-preview-login");
     expect(PREVIEW_LOGIN_EMAIL).toBe("test@test.com");
     expect(PREVIEW_LOGIN_PASSWORD).toBe("test1234");
+  });
+
+  it("points reviewers at the dedicated connectors surface", () => {
+    const workflow = readFileSync(".github/workflows/deploy.yml", "utf-8");
+    expect(PREVIEW_CONNECTORS_PATH).toBe("/o/preview/connectors");
+    expect(workflow).toContain("/o/preview/connectors");
+    expect(workflow).not.toContain("settings#connectors");
   });
 });

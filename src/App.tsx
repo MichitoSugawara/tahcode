@@ -8,6 +8,7 @@ import { useTheme } from "@/lib/theme";
 
 import { api } from "../convex/_generated/api";
 import ChatPage from "./pages/ChatPage.tsx";
+import ConnectorsPage from "./pages/ConnectorsPage.tsx";
 import HomePage from "./pages/HomePage.tsx";
 import InvitePage from "./pages/InvitePage.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
@@ -77,6 +78,7 @@ export default function App() {
         >
           <Route index element={<HomePage />} />
           <Route path="c/:chatId" element={<ChatPage />} />
+          <Route path="connectors" element={<ConnectorsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="/" element={guard(<RootRedirect />)} />

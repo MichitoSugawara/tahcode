@@ -87,11 +87,13 @@ describe(partitionConnectorConnections, () => {
 describe("connector card copy", () => {
   it("keeps Japanese CTAs and the Grok Bot Team badge", () => {
     expect(LINEAR_CONNECTOR.provider).toBe("linear");
+    expect(LINEAR_CONNECTOR.description).toContain("Linear を org に接続");
     expect(CONNECTOR_CARD_COPY).toMatchObject({
       add: "追加",
       authorize: "認可",
       connected: "接続済み",
       disconnect: "切断",
+      notConfigured: "認可を開始できません。管理者に連絡してください。",
       reopen: "再表示",
       retry: "再試行",
       team: "Team",
@@ -102,6 +104,16 @@ describe("connector card copy", () => {
     expect(CONNECTOR_CARD_COPY.retryHint("Linear")).toContain(
       "認可が完了しませんでした"
     );
+  });
+
+  it("does not mention infrastructure names in card copy", () => {
+    const haystack = [
+      LINEAR_CONNECTOR.description,
+      CONNECTOR_CARD_COPY.disconnectDetail,
+      CONNECTOR_CARD_COPY.notConfigured,
+      CONNECTOR_CARD_COPY.oauthPending,
+    ].join(" ");
+    expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
 
   it("labels Convex statuses for the card badge", () => {
