@@ -249,7 +249,19 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 
 ## CI/CD（Convex + Cloudflare）
 
-`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` →（preview のみ）R2 preflight → `convex deploy --cmd cf:build` （`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS` を設定。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。preview の Wrangler は一時的な `fetch failed` / 接続エラーを指数バックオフで最大 5 回再試行する。staging / production の Wrangler 呼び出しは従来どおり 1 回（Worker 未作成時の bootstrap のみ）。
+`.github/workflows/deploy.yml` が3系統を回す（PR → preview、push staging → staging、push production → production）。共通処理は `.github/actions/deploy-stack` に集約: `env.mjs decrypt` → `mask-env.mjs` →（preview のみ）R2 preflight → `convex deploy --cmd cf:build` （`--cmd-url-env-var-name VITE_CONVEX_URL` で本番 Convex URL を注入）→ `wrangler` → Convex 側に `SITE_URL` / `JWT_PRIVATE_KEY` / `JWKS` を設定 →（**preview / staging のみ**）`scripts/seed-preview-login.mjs` が `internal.seed.ensurePreviewLogin` を実行。`cf:build` は `vite build`（`dist/` を Worker の ASSETS として配信）。preview の Wrangler は一時的な `fetch failed` / 接続エラーを指数バックオフで最大 5 回再試行する。staging / production の Wrangler 呼び出しは従来どおり 1 回（Worker 未作成時の bootstrap のみ）。production ジョブはシードを呼ばない。
+
+### Preview / staging ログイン（Google 不要）
+
+PR preview では Google OAuth が使えない（ephemeral な workers.dev / alias を Google Cloud に登録していない）。レビュー用に、preview と staging のデプロイ末尾が次のパスワードユーザーを **create or reset** する:
+
+| 項目       | 値                                                       |
+| ---------- | -------------------------------------------------------- |
+| Email      | `test@test.com`                                          |
+| Password   | `test1234`                                               |
+| ログイン後 | `/o/preview/settings#connectors`（Owner の Preview org） |
+
+CI の PR コメントにも同じ資格情報を書く。`SITE_URL` が `https://tahcode.com` のデプロイ、および `convex run --prod` ではシードは拒否される。
 
 ### GitHub に設定する secrets（リポジトリ Settings → Secrets）
 

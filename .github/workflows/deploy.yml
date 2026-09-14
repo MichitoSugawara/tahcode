@@ -83,7 +83,13 @@ jobs:
               cloudflareLine,
               convexUrl ? `- Convex: ${convexUrl}` : null,
               '',
-              'These URLs are rebuilt on each push to this PR. Staging and production are not updated.',
+              'Google OAuth does not work on preview. Use the seeded password login:',
+              '',
+              '- Email: `test@test.com`',
+              '- Password: `test1234`',
+              '- After login: `/o/preview/settings#connectors`',
+              '',
+              'These URLs are rebuilt on each push to this PR. Staging and production are not updated. Production is never seeded with this user.',
             ].filter(Boolean).join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
