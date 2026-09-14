@@ -14,6 +14,14 @@ export function orgConnectorsPath(slug: string): string {
   return `/o/${slug}/connectors`;
 }
 
+export function orgHomePath(slug: string): string {
+  return `/o/${slug}`;
+}
+
+export function orgChatPath(slug: string, chatId: string): string {
+  return `/o/${slug}/c/${chatId}`;
+}
+
 export function isOrgFullWidthPath(pathname: string, slug: string): boolean {
   return (
     pathname === `/o/${slug}/settings` ||

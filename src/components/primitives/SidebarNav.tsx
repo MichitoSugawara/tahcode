@@ -6,15 +6,13 @@ import {
   Moon,
   PanelLeft,
   Plus,
-  Search,
   Plug,
   Settings,
   Sun,
   UserPlus,
-  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { Monogram } from "@/components/atoms/EntityChip";
@@ -22,12 +20,11 @@ import GlideMenu from "@/components/primitives/GlideMenu";
 
 /* ─────────────────────────────────────────────────────────
  * SIDEBAR NAV — ported from Beautiful UI (beautifului.dev/r/sidebar-nav)
- * Compact workspace switcher, primary rail, searchable grouped
- * chat tree, a bottom account menu, and a collapse that
- * preserves icon alignment.
+ * Compact workspace switcher, primary rail, Projects→Chats tree,
+ * a bottom account menu, and a collapse that preserves icon alignment.
  *
  * Changes from the registry copy: data-driven (workspaces, rail,
- * groups come in as props), lucide-react glyphs instead of the
+ * sections come in as props), lucide-react glyphs instead of the
  * commercial @central-icons set, grouped items with per-group "+".
  * The 52↔224px collapse choreography lives in sidebar-nav.css.
  * ───────────────────────────────────────────────────────── */
@@ -68,6 +65,12 @@ export interface SidebarGroup {
   onAdd?: () => void;
 }
 
+export interface SidebarSection {
+  id: string;
+  label: string;
+  groups: SidebarGroup[];
+}
+
 export interface SidebarUser {
   name: string;
   email?: string;
@@ -93,13 +96,12 @@ interface SidebarNavProps {
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
   rail: SidebarRailItem[];
-  groups: SidebarGroup[];
-  groupsLabel?: string;
-  /** "+" beside the group label row (e.g. new project) */
-  onAddGroup?: () => void;
-  addGroupLabel?: string;
+  sections: SidebarSection[];
   activeId?: string | null;
   onPick?: (id: string) => void;
+  onItemContextMenu?: (id: string, event: MouseEvent) => void;
+  onItemDragStart?: (id: string, event: DragEvent) => void;
+  onItemDragEnd?: () => void;
   user?: SidebarUser;
   className?: string;
   fill?: boolean;
@@ -113,19 +115,6 @@ const SIDEBAR_MOTION = {
   duration: 280,
   easing: "cubic-bezier(0.16, 1, 0.3, 1)",
   expandedWidth: 224,
-};
-
-/* ─────────────────────────────────────────────────────────
- * CHAT SEARCH STORYBOARD
- *
- *   0ms   search is triggered; group label begins fading
- *   0ms   field grows right → left from the search control
- * 180ms   field fills the row; cursor is focused and ready
- * ───────────────────────────────────────────────────────── */
-const CHAT_SEARCH_MOTION = {
-  closedWidth: 28,
-  duration: 180,
-  easing: "cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
 function GlideGroup({ children }: { children: ReactNode }) {
@@ -510,12 +499,12 @@ export default function SidebarNav({
   theme,
   onToggleTheme,
   rail,
-  groups,
-  groupsLabel = "Chats",
-  onAddGroup,
-  addGroupLabel = "追加",
+  sections,
   activeId,
   onPick,
+  onItemContextMenu,
+  onItemDragStart,
+  onItemDragEnd,
   user,
   className = "",
   fill = false,
@@ -535,25 +524,9 @@ export default function SidebarNav({
     bottom: 0,
     left: 0,
   });
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const workspaceButtonRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
   const userEmail = user ? userEmailLine(user) : undefined;
-
-  const needle = query.trim().toLowerCase();
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      items: needle
-        ? group.items.filter((item) =>
-            item.label.toLowerCase().includes(needle)
-          )
-        : group.items,
-    }))
-    .filter((group) => !needle || group.items.length > 0);
-  const nothingFound = needle.length > 0 && visibleGroups.length === 0;
 
   useEffect(() => {
     if (!workspaceOpen) {
@@ -598,18 +571,10 @@ export default function SidebarNav({
     };
   }, [userOpen]);
 
-  useEffect(() => {
-    if (searchOpen) {
-      searchRef.current?.focus();
-    }
-  }, [searchOpen]);
-
   const collapse = () => {
     setCollapsed(true);
     setWorkspaceOpen(false);
     setUserOpen(false);
-    setSearchOpen(false);
-    setQuery("");
   };
 
   const toggleGroup = (id: string) => {
@@ -735,182 +700,119 @@ export default function SidebarNav({
           ))}
         </GlideGroup>
 
-        {/* grouped tree + search */}
+        {/* Projects → Chats */}
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
-          <div className="sidebar-copy relative mx-2 mb-1 h-8">
-            <div
-              aria-hidden={searchOpen}
-              className={`text-ink-2 absolute inset-0 flex items-center px-2 text-[13.5px] font-medium transition-[opacity,transform] ${searchOpen ? "pointer-events-none -translate-x-1 opacity-0" : "translate-x-0 opacity-100"}`}
-              style={{
-                transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
-                transitionTimingFunction: CHAT_SEARCH_MOTION.easing,
-              }}
+          {sections.map((section) => (
+            <section
+              key={section.id}
+              data-sidebar-section={section.id}
+              className="mb-2"
+              aria-label={section.label}
             >
-              <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                <ChevronDown size={15} />
-              </span>
-              <span className="ml-1.5">{groupsLabel}</span>
-            </div>
-
-            {onAddGroup && (
-              <button
-                type="button"
-                aria-label={addGroupLabel}
-                title={addGroupLabel}
-                onClick={onAddGroup}
-                className={`text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-0 right-8 z-10 flex size-8 items-center justify-center rounded-[8px] transition-[opacity,background-color,color,transform] active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
-                style={{
-                  transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
-                }}
-              >
-                <Plus size={15} />
-              </button>
-            )}
-            <button
-              type="button"
-              aria-label="チャットを検索"
-              aria-expanded={searchOpen}
-              onClick={() => setSearchOpen(true)}
-              className={`text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-0 right-0 z-10 flex size-8 items-center justify-center rounded-[8px] transition-[opacity,background-color,color,transform] active:scale-[0.96] ${searchOpen ? "pointer-events-none opacity-0" : "opacity-100"}`}
-              style={{ transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms` }}
-            >
-              <Search size={15} />
-            </button>
-
-            <div
-              className={`bg-field text-ink-3 shadow-hairline focus-within:text-ink-2 absolute top-0 right-0 z-20 flex h-8 items-center overflow-hidden rounded-[8px] transition-[width,opacity] ${searchOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-              style={{
-                transitionDuration: `${CHAT_SEARCH_MOTION.duration}ms`,
-                transitionTimingFunction: CHAT_SEARCH_MOTION.easing,
-                width: searchOpen ? "100%" : CHAT_SEARCH_MOTION.closedWidth,
-              }}
-            >
-              <span className="ml-2 flex shrink-0 items-center justify-center">
-                <Search size={14} />
-              </span>
-              <input
-                ref={searchRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setSearchOpen(false);
-                    setQuery("");
-                  }
-                }}
-                placeholder="チャットを検索"
-                aria-label="チャット履歴を検索"
-                className="text-ink placeholder:text-ink-3 ml-1.5 min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
-              />
-              <button
-                type="button"
-                aria-label="検索を閉じる"
-                onClick={() => {
-                  setSearchOpen(false);
-                  setQuery("");
-                }}
-                className="text-ink-3 hover:bg-hover-2 hover:text-ink flex size-8 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-150 active:scale-[0.96]"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          </div>
-
-          {visibleGroups.map((group) => {
-            const open = needle.length > 0 || !collapsedGroups.has(group.id);
-            return (
-              <div key={group.id} className="mb-2">
-                <div className="relative">
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    aria-controls={`sidebar-group-${group.id}`}
-                    onClick={() => toggleGroup(group.id)}
-                    className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
-                  >
-                    <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                      <ChevronDown
-                        size={15}
-                        className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
-                      />
-                    </span>
-                    {group.icon && (
-                      <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                        {group.icon}
-                      </span>
-                    )}
-                    <span
-                      className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${group.onAdd ? "pr-7" : ""}`}
-                    >
-                      {group.label}
-                    </span>
-                  </button>
-                  {group.onAdd && (
-                    <button
-                      type="button"
-                      aria-label={group.addLabel ?? "追加"}
-                      title={group.addLabel ?? "追加"}
-                      onClick={group.onAdd}
-                      className="text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-3 z-20 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  )}
-                </div>
-                {open && (
-                  <div id={`sidebar-group-${group.id}`}>
-                    <GlideGroup>
-                      {group.items.map((item) => {
-                        const active = item.id === activeId;
-                        return (
-                          <button
-                            key={item.id}
-                            data-row
-                            type="button"
-                            title={item.label}
-                            onClick={() => onPick?.(item.id)}
-                            className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
-                              active
-                                ? "bg-active text-active-ink group-hover/glide:bg-transparent"
-                                : ""
-                            }`}
-                          >
-                            <span
-                              className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}
-                            >
-                              {item.icon}
-                            </span>
-                            <span
-                              className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
-                            >
-                              {item.label}
-                            </span>
-                            {item.meta && (
-                              <span
-                                className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}
-                              >
-                                {item.meta}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                      {group.items.length === 0 && group.emptyHint && (
-                        <div className="sidebar-copy text-ink-3 mx-2 px-2 py-1.5 text-[12px] leading-[1.5]">
-                          {group.emptyHint}
-                        </div>
-                      )}
-                    </GlideGroup>
-                  </div>
-                )}
+              <div className="sidebar-copy text-ink-3 mx-2 mb-1 px-2 text-[11px] font-medium tracking-[0.04em]">
+                {section.label}
               </div>
-            );
-          })}
-          {nothingFound && (
-            <div className="sidebar-copy text-ink-3 mx-2 px-2 py-2 text-[12.5px]">
-              「{query}」に一致するチャットはありません
-            </div>
-          )}
+              {section.groups.map((group) => {
+                const open = !collapsedGroups.has(group.id);
+                return (
+                  <div key={group.id} className="mb-1">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={`sidebar-group-${group.id}`}
+                        onClick={() => toggleGroup(group.id)}
+                        className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
+                      >
+                        <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                          <ChevronDown
+                            size={15}
+                            className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
+                          />
+                        </span>
+                        {group.icon && (
+                          <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                            {group.icon}
+                          </span>
+                        )}
+                        <span
+                          className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${group.onAdd ? "pr-7" : ""}`}
+                        >
+                          {group.label}
+                        </span>
+                      </button>
+                      {group.onAdd && (
+                        <button
+                          type="button"
+                          aria-label={group.addLabel ?? "追加"}
+                          title={group.addLabel ?? "追加"}
+                          onClick={group.onAdd}
+                          className="text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-3 z-20 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {open && (
+                      <div id={`sidebar-group-${group.id}`}>
+                        <GlideGroup>
+                          {group.items.map((item) => {
+                            const active = item.id === activeId;
+                            return (
+                              <button
+                                key={item.id}
+                                data-row
+                                type="button"
+                                title={item.label}
+                                draggable
+                                onClick={() => onPick?.(item.id)}
+                                onContextMenu={(event) => {
+                                  event.preventDefault();
+                                  onItemContextMenu?.(item.id, event);
+                                }}
+                                onDragStart={(event) => {
+                                  onItemDragStart?.(item.id, event);
+                                }}
+                                onDragEnd={onItemDragEnd}
+                                className={`sidebar-row relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98] ${
+                                  active
+                                    ? "bg-active text-active-ink group-hover/glide:bg-transparent"
+                                    : ""
+                                }`}
+                              >
+                                <span
+                                  className={`flex size-5 shrink-0 items-center justify-center ${active ? "text-active-ink" : "text-ink-3"}`}
+                                >
+                                  {item.icon}
+                                </span>
+                                <span
+                                  className={`sidebar-copy ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${active ? "text-active-ink" : "text-ink-2"}`}
+                                >
+                                  {item.label}
+                                </span>
+                                {item.meta && (
+                                  <span
+                                    className={`sidebar-copy ml-1 shrink-0 text-[11px] ${active ? "text-active-ink/80" : "text-ink-3"}`}
+                                  >
+                                    {item.meta}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                          {group.items.length === 0 && group.emptyHint && (
+                            <div className="sidebar-copy text-ink-3 mx-2 px-2 py-1.5 text-[12px] leading-[1.5]">
+                              {group.emptyHint}
+                            </div>
+                          )}
+                        </GlideGroup>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          ))}
         </div>
 
         {user && (

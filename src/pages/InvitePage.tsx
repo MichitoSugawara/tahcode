@@ -7,6 +7,7 @@ import { Button } from "@/components/atoms/Button";
 import LoadingState from "@/components/primitives/LoadingState";
 import { Brand } from "@/harness/ui/Brand";
 import { Notice } from "@/harness/ui/Notice";
+import { inviteAcceptErrorMessage } from "@/lib/inviteEmail";
 import { useDocumentTitle } from "@/lib/title";
 
 import { api } from "../../convex/_generated/api";
@@ -98,16 +99,7 @@ export default function InvitePage() {
                   const id = await acceptInvite({ token });
                   setJoined(id);
                 } catch (error) {
-                  const message = error instanceof Error ? error.message : "";
-                  setError(
-                    /expired/i.test(message)
-                      ? "この招待は期限切れです。発行者に再発行を依頼してください。"
-                      : /already used/i.test(message)
-                        ? "この招待はすでに使われています。"
-                        : /different email/i.test(message)
-                          ? "この招待は別のメールアドレス宛です。"
-                          : "招待が見つかりません。"
-                  );
+                  setError(inviteAcceptErrorMessage(error));
                 } finally {
                   setBusy(false);
                 }

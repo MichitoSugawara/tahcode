@@ -12,8 +12,17 @@ import {
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
+import {
+  closeOtherTabs as keepOnlyTab,
+  closeTabsToTheRight as trimTabsRight,
+} from "@/harness/tabActions";
 import { isPlaceholderId, trackPlaceholder } from "@/lib/optimistic";
-import { orgConnectorsPath, orgSettingsPath } from "@/lib/orgPaths";
+import {
+  orgChatPath,
+  orgConnectorsPath,
+  orgHomePath,
+  orgSettingsPath,
+} from "@/lib/orgPaths";
 import type {
   InstallMethod,
   LiveModel,
@@ -155,6 +164,8 @@ interface OrgContextValue {
   tabs: Id<"chats">[];
   openTab: (id: Id<"chats">) => void;
   closeTab: (id: Id<"chats">) => void;
+  closeOtherTabs: (keep: Id<"chats">) => void;
+  closeTabsToTheRight: (from: Id<"chats">) => void;
   dialog: DialogState;
   openDialog: (state: NonNullable<DialogState>) => void;
   closeDialog: () => void;
@@ -286,6 +297,14 @@ export function OrgProvider({
       setTabs((current) => current.filter((item) => item !== id)),
     [setTabs]
   );
+  const closeOtherTabs = useCallback(
+    (keep: Id<"chats">) => setTabs((current) => keepOnlyTab(current, keep)),
+    [setTabs]
+  );
+  const closeTabsToTheRight = useCallback(
+    (from: Id<"chats">) => setTabs((current) => trimTabsRight(current, from)),
+    [setTabs]
+  );
   const swapTab = useCallback(
     (from: Id<"chats">, to: Id<"chats">) =>
       setTabs((current) => {
@@ -304,9 +323,9 @@ export function OrgProvider({
        * Never fall back onto another placeholder page — by the time we return it may have been swapped away. */
       const here = `${window.location.pathname}${window.location.search}`;
       const from = isPlaceholderId(window.location.pathname.split("/c/")[1])
-        ? `/o/${org.slug}`
+        ? orgHomePath(org.slug)
         : here;
-      const chatPath = (id: Id<"chats">) => `/o/${org.slug}/c/${String(id)}`;
+      const chatPath = (id: Id<"chats">) => orgChatPath(org.slug, String(id));
       const stillHere = () =>
         window.location.pathname === chatPath(placeholder);
       openTab(placeholder);
@@ -347,14 +366,16 @@ export function OrgProvider({
     () => ({
       chats,
       closeDialog: () => setDialog(null),
+      closeOtherTabs,
       closeTab,
+      closeTabsToTheRight,
       dialog,
       dmId,
       goChat: (id) => {
         openTab(id);
-        navigate(`/o/${org.slug}/c/${String(id)}`);
+        navigate(orgChatPath(org.slug, String(id)));
       },
-      goHome: () => navigate(`/o/${org.slug}`),
+      goHome: () => navigate(orgHomePath(org.slug)),
       goPendingChat,
       goConnectors: () => {
         navigate(orgConnectorsPath(org.slug));
@@ -409,6 +430,8 @@ export function OrgProvider({
       tabs,
       openTab,
       closeTab,
+      closeOtherTabs,
+      closeTabsToTheRight,
       goPendingChat,
       dialog,
       navigate,

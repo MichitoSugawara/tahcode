@@ -22,7 +22,6 @@ import ThinkingState from "@/components/primitives/ThinkingState";
 import type { ThinkingRow } from "@/components/primitives/ThinkingState";
 import ToolChips from "@/components/primitives/ToolChips";
 import type { ToolStep } from "@/components/primitives/ToolChips";
-import { useCancelJob } from "@/harness/Composer";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { copyText, clockTime } from "@/lib/format";
@@ -216,7 +215,6 @@ export function AgentReply({
   onRetry?: (prompt: string) => void;
 }) {
   const { now, runtimes } = useOrg();
-  const { cancel, stopping } = useCancelJob();
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
   const cancelled = message.status === "cancelled";
@@ -325,21 +323,6 @@ export function AgentReply({
           <span className="text-ink-3 inline-flex items-center gap-1">
             <Cpu size={11} /> {runtime.name}
           </span>
-        )}
-        {streaming && message.jobId && job?.job.canCancel && (
-          <button
-            type="button"
-            aria-label="生成を中断"
-            disabled={stopping}
-            onClick={() => {
-              if (message.jobId) {
-                void cancel(message.jobId);
-              }
-            }}
-            className="text-red hover:bg-red-tint inline-flex h-6 items-center gap-1 rounded-[6px] px-1.5 text-[11.5px] font-medium transition-colors duration-100 disabled:opacity-50"
-          >
-            中断
-          </button>
         )}
         <span className="text-ink-3 ml-auto">
           {clockTime(message._creationTime)}

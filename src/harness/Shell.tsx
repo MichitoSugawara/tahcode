@@ -1,7 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   ArrowUpCircle,
-  Cpu,
   Folder,
   Home,
   Lock,
@@ -17,31 +16,70 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import { useLocation, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import SidebarNav from "@/components/primitives/SidebarNav";
 import type {
-  SidebarGroup,
   SidebarRailItem,
+  SidebarSection,
 } from "@/components/primitives/SidebarNav";
 import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
-import { isLive, useOrg } from "@/harness/OrgContext";
+import { useOrg } from "@/harness/OrgContext";
 import { isRightRailVisible } from "@/harness/rail/flags";
 import type { RailTab } from "@/harness/rail/flags";
 import { RightRail } from "@/harness/rail/RightRail";
+import {
+  beginChatDrag,
+  endChatDrag,
+  isChatDrag,
+  peekChatDrag,
+  readChatDrag,
+  writeChatDrag,
+} from "@/harness/sessionDrag";
+import {
+  buildSidebarSections,
+  sidebarGroupAddLabel,
+} from "@/harness/sidebarModel";
+import type { SidebarModelGroup } from "@/harness/sidebarModel";
+import {
+  closeTabsToTheRight,
+  isCloseTabShortcut,
+  isEditableKeyboardTarget,
+} from "@/harness/tabActions";
+import { ContextMenu } from "@/harness/ui/ContextMenu";
+import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { isDesktopShell } from "@/lib/desktop";
 import {
   colorFor,
+  copyText,
   displayName,
   monogram,
   roleLabel,
   truncate,
 } from "@/lib/format";
-import { orgConnectorsPath } from "@/lib/orgPaths";
+import { orgChatPath, orgConnectorsPath } from "@/lib/orgPaths";
 import type { Theme } from "@/lib/theme";
 
 import type { Id } from "../../convex/_generated/dataModel";
+
+function sidebarGroupOnAdd(
+  org: ReturnType<typeof useOrg>,
+  group: SidebarModelGroup
+): (() => void) | undefined {
+  if (group.addKind === "createProject") {
+    return () => org.openDialog({ kind: "createProject" });
+  }
+  if (group.addKind === "newChat" && group.projectId) {
+    return () =>
+      org.openDialog({
+        kind: "newChat",
+        projectId: group.projectId as Id<"projects">,
+      });
+  }
+  return undefined;
+}
 
 /* ─────────────────────────────────────────────────────────
  * SHELL — the harness frame: SidebarNav on the canvas, a
@@ -58,23 +96,16 @@ function useSidebarModel() {
   const onHome =
     location.pathname === `/o/${org.org.slug}` ||
     location.pathname === `/o/${org.org.slug}/`;
-  const onSettings = location.pathname.startsWith(
-    `/o/${org.org.slug}/settings`
-  );
   const onConnectors =
     location.pathname === orgConnectorsPath(org.org.slug) ||
     location.pathname.startsWith(`${orgConnectorsPath(org.org.slug)}/`);
-
-  const liveCount = (org.runtimes ?? []).filter((runtime) =>
-    isLive(runtime, org.now)
-  ).length;
-  const runtimeCount = org.runtimes?.length ?? 0;
 
   const rail: SidebarRailItem[] = [
     {
       icon: <SquarePen size={17} />,
       key: "new",
       label: "新しいチャット",
+      hint: "プロジェクトまたは Personal DM にスレッドを作る",
       onClick: () => org.openDialog({ kind: "newChat" }),
     },
     {
@@ -82,12 +113,13 @@ function useSidebarModel() {
       icon: <Home size={17} />,
       key: "home",
       label: "ホーム",
+      hint: "ダッシュボードと提案",
       onClick: org.goHome,
     },
     {
       count: org.members ? String(org.members.length) : undefined,
       disabled: !org.isAdmin,
-      hint: org.isAdmin ? "招待リンクを発行" : "招待は Admin 以上のみ",
+      hint: org.isAdmin ? "メールとロールで招待" : "招待は Admin 以上のみ",
       icon: <UserPlus size={17} />,
       key: "invite",
       label: "メンバーを招待",
@@ -100,85 +132,48 @@ function useSidebarModel() {
       label: "コネクタ",
       onClick: org.goConnectors,
     },
-    {
-      active: onSettings,
-      count: runtimeCount > 0 ? `${liveCount}/${runtimeCount}` : undefined,
-      icon: <Cpu size={17} />,
-      key: "runtimes",
-      label: "ランタイム",
-      onClick: org.goSettings,
-    },
   ];
 
-  const groups: SidebarGroup[] = useMemo(() => {
-    const dm = (org.chats ?? []).find(
-      (chat) =>
-        chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)
-    );
-    const personal: SidebarGroup = {
-      emptyHint: "DM を準備しています…",
-      id: "personal",
-      items: dm
-        ? [
-            {
-              id: String(dm._id),
-              label: "Personal DM",
-              meta: "常時応答",
-              icon: <UserRound size={15} />,
-            },
-          ]
-        : [],
-      label: "パーソナル",
-    };
-    const projectGroups: SidebarGroup[] = (org.projects ?? []).map(
-      (project) => ({
-        addLabel: `${project.name} に新しいチャット`,
-        emptyHint: "チャットはまだありません。＋ で作成",
+  const sections: SidebarSection[] = useMemo(() => {
+    const model = buildSidebarSections({
+      chats: org.chats,
+      isAdmin: org.isAdmin,
+      meId: String(org.me._id),
+      projects: org.projects,
+    });
+    return model.map((section) => ({
+      id: section.id,
+      label: section.label,
+      groups: section.groups.map((group) => ({
+        addLabel: sidebarGroupAddLabel(group),
+        emptyHint: group.emptyHint,
         icon:
-          project.visibility === "private" ? (
+          group.kind === "personal" ? undefined : group.privateGroup ? (
             <Lock size={12} />
           ) : (
             <Folder size={12} />
           ),
-        id: String(project._id),
-        items: (org.chats ?? [])
-          .filter(
-            (chat) =>
-              chat.kind === "project" &&
-              String(chat.projectId) === String(project._id)
-          )
-          .map((chat) => ({
-            id: String(chat._id),
-            label: chat.title,
-            icon:
-              chat.visibility === "private" ? (
-                <Lock size={14} />
-              ) : (
-                <MessageSquare size={14} />
-              ),
-          })),
-        label: project.name,
-        onAdd: () =>
-          org.openDialog({ kind: "newChat", projectId: project._id }),
-      })
-    );
-    if (projectGroups.length === 0) {
-      projectGroups.push({
-        addLabel: "新しいプロジェクト",
-        emptyHint: org.isAdmin
-          ? "まだプロジェクトがありません。＋ で最初のプロジェクトを作成"
-          : "参加しているプロジェクトのみ表示されます。Owner / Admin に追加を依頼するか、自分で作成できます",
-        icon: <Folder size={12} />,
-        id: "no-projects",
-        items: [],
-        label: "プロジェクト",
-        onAdd: () => org.openDialog({ kind: "createProject" }),
-      });
-    }
-    return [personal, ...projectGroups];
+        id: group.id,
+        items: group.items.map((item) => ({
+          id: item.id,
+          label: item.label,
+          meta: item.meta,
+          icon:
+            item.kind === "dm" ? (
+              <UserRound size={15} />
+            ) : item.privateItem ? (
+              <Lock size={14} />
+            ) : (
+              <MessageSquare size={14} />
+            ),
+        })),
+        label: group.label,
+        onAdd: sidebarGroupOnAdd(org, group),
+      })),
+    }));
   }, [org]);
 
-  return { chatId: chatId ?? null, groups, org, rail };
+  return { chatId: chatId ?? null, org, rail, sections };
 }
 
 function Sidebar({
@@ -192,75 +187,165 @@ function Sidebar({
   collapsible: boolean;
   onNavigate?: () => void;
 }) {
-  const { org, chatId, rail, groups } = useSidebarModel();
+  const { org, chatId, rail, sections } = useSidebarModel();
+  const [sessionMenu, setSessionMenu] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const wrap = (fn?: () => void) => () => {
     fn?.();
     onNavigate?.();
   };
   const meName = displayName(org.me);
+  const sessionMenuItems: ContextMenuItem[] = sessionMenu
+    ? [
+        {
+          key: "open",
+          label: "開く",
+          onSelect: () => {
+            org.goChat(sessionMenu.id as Id<"chats">);
+            onNavigate?.();
+          },
+        },
+        {
+          key: "background",
+          label: "バックグラウンドでタブを開く",
+          onSelect: () => {
+            org.openTab(sessionMenu.id as Id<"chats">);
+          },
+        },
+        {
+          key: "copy",
+          label: "リンクをコピー",
+          onSelect: () => {
+            const href = `${window.location.origin}${orgChatPath(org.org.slug, sessionMenu.id)}`;
+            void copyText(href).then((ok) => {
+              if (ok) {
+                toast.success("リンクをコピーしました");
+                return;
+              }
+              toast.error("コピーできませんでした");
+            });
+          },
+        },
+      ]
+    : [];
   return (
-    <SidebarNav
-      fill
-      collapsible={collapsible}
-      className="lg:pl-0"
-      workspace={{
-        id: String(org.org._id),
-        meta: roleLabel(org.role),
-        monogram: monogram(org.org.name),
-        name: org.org.name,
-      }}
-      workspaces={org.orgs.map((item) => ({
-        id: String(item._id),
-        meta: roleLabel(item.role),
-        monogram: monogram(item.name),
-        name: item.name,
-      }))}
-      onSwitchWorkspace={(id) => {
-        org.switchOrg(id as Id<"orgs">);
-        onNavigate?.();
-      }}
-      onNewWorkspace={() => org.openDialog({ kind: "createOrg" })}
-      onWorkspaceSettings={wrap(org.goSettings)}
-      onConnectors={wrap(org.goConnectors)}
-      onInvite={
-        org.isAdmin ? () => org.openDialog({ kind: "invite" }) : undefined
-      }
-      extraMenuItems={
-        isDesktopShell()
-          ? [
-              {
-                icon: <ArrowUpCircle size={16} />,
-                label: "デスクトップの更新",
-                onClick: () => org.goSettings("desktop"),
-              },
-            ]
-          : undefined
-      }
-      onSignOut={org.signOut}
-      theme={theme}
-      onToggleTheme={onToggleTheme}
-      rail={rail.map((item) => ({ ...item, onClick: wrap(item.onClick) }))}
-      groups={groups.map((group) => ({
-        ...group,
-        onAdd: group.onAdd ? wrap(group.onAdd) : undefined,
-      }))}
-      groupsLabel="チャット"
-      onAddGroup={() => org.openDialog({ kind: "createProject" })}
-      addGroupLabel="新しいプロジェクト"
-      activeId={chatId}
-      onPick={(id) => {
-        org.goChat(id as Id<"chats">);
-        onNavigate?.();
-      }}
-      user={{
-        color: colorFor(String(org.me._id)),
-        email: org.me.email,
-        image: org.me.image,
-        monogram: monogram(meName),
-        name: meName,
-      }}
-    />
+    <>
+      <SidebarNav
+        fill
+        collapsible={collapsible}
+        className="lg:pl-0"
+        workspace={{
+          id: String(org.org._id),
+          meta: roleLabel(org.role),
+          monogram: monogram(org.org.name),
+          name: org.org.name,
+        }}
+        workspaces={org.orgs.map((item) => ({
+          id: String(item._id),
+          meta: roleLabel(item.role),
+          monogram: monogram(item.name),
+          name: item.name,
+        }))}
+        onSwitchWorkspace={(id) => {
+          org.switchOrg(id as Id<"orgs">);
+          onNavigate?.();
+        }}
+        onNewWorkspace={() => org.openDialog({ kind: "createOrg" })}
+        onWorkspaceSettings={wrap(org.goSettings)}
+        onConnectors={wrap(org.goConnectors)}
+        onInvite={
+          org.isAdmin ? () => org.openDialog({ kind: "invite" }) : undefined
+        }
+        extraMenuItems={[
+          {
+            icon: <Folder size={16} />,
+            label: "新しいプロジェクト",
+            onClick: () => org.openDialog({ kind: "createProject" }),
+          },
+          ...(isDesktopShell()
+            ? [
+                {
+                  icon: <ArrowUpCircle size={16} />,
+                  label: "デスクトップの更新",
+                  onClick: () => org.goSettings("desktop"),
+                },
+              ]
+            : []),
+        ]}
+        onSignOut={org.signOut}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        rail={rail.map((item) => ({ ...item, onClick: wrap(item.onClick) }))}
+        sections={sections.map((section) => ({
+          ...section,
+          groups: section.groups.map((group) => ({
+            ...group,
+            onAdd: group.onAdd ? wrap(group.onAdd) : undefined,
+          })),
+        }))}
+        activeId={chatId}
+        onPick={(id) => {
+          org.goChat(id as Id<"chats">);
+          onNavigate?.();
+        }}
+        onItemContextMenu={(id, event) => {
+          setSessionMenu({ id, x: event.clientX, y: event.clientY });
+        }}
+        onItemDragStart={(id, event) => {
+          beginChatDrag(id);
+          writeChatDrag(event.dataTransfer, id);
+        }}
+        onItemDragEnd={endChatDrag}
+        user={{
+          color: colorFor(String(org.me._id)),
+          email: org.me.email,
+          image: org.me.image,
+          monogram: monogram(meName),
+          name: meName,
+        }}
+      />
+      {sessionMenu && (
+        <ContextMenu
+          items={sessionMenuItems}
+          x={sessionMenu.x}
+          y={sessionMenu.y}
+          onClose={() => setSessionMenu(null)}
+        />
+      )}
+    </>
   );
+}
+
+function useChatDropTarget(onDropChat: (id: string) => void) {
+  const [over, setOver] = useState(false);
+  const onDragOver = (event: DragEvent) => {
+    if (!isChatDrag(event.dataTransfer) && !peekChatDrag()) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setOver(true);
+  };
+  const onDragLeave = (event: DragEvent) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) {
+      return;
+    }
+    setOver(false);
+  };
+  const onDrop = (event: DragEvent) => {
+    event.preventDefault();
+    setOver(false);
+    const id = readChatDrag(event.dataTransfer);
+    endChatDrag();
+    if (id) {
+      onDropChat(id);
+    }
+  };
+  return { onDragLeave, onDragOver, onDrop, over };
 }
 
 export function TabBar({
@@ -273,86 +358,201 @@ export function TabBar({
   const org = useOrg();
   const { chatId } = useParams();
   const location = useLocation();
+  const [tabMenu, setTabMenu] = useState<{
+    id: Id<"chats">;
+    x: number;
+    y: number;
+  } | null>(null);
+  const drop = useChatDropTarget((id) => {
+    org.goChat(id as Id<"chats">);
+  });
   const onHome =
     location.pathname === `/o/${org.org.slug}` ||
     location.pathname === `/o/${org.org.slug}/`;
   const tabs = org.tabs
     .map((id) => org.chats?.find((chat) => chat._id === id))
     .filter((chat): chat is NonNullable<typeof chat> => !!chat);
+  const activeChatId = (chatId as Id<"chats"> | undefined) ?? null;
+
+  const closeChatTab = (id: Id<"chats">) => {
+    const wasActive = chatId === String(id);
+    org.closeTab(id);
+    if (wasActive) {
+      org.goHome();
+    }
+  };
+
+  useEffect(() => {
+    if (!isDesktopShell()) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        !isCloseTabShortcut(event) ||
+        isEditableKeyboardTarget(event.target)
+      ) {
+        return;
+      }
+      if (!chatId) {
+        return;
+      }
+      event.preventDefault();
+      org.closeTab(chatId as Id<"chats">);
+      org.goHome();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatId, org]);
+
+  const tabMenuItems: ContextMenuItem[] = tabMenu
+    ? [
+        {
+          key: "close",
+          label: "閉じる",
+          onSelect: () => {
+            closeChatTab(tabMenu.id);
+          },
+        },
+        {
+          disabled: tabs.length < 2,
+          key: "close-others",
+          label: "他を閉じる",
+          onSelect: () => {
+            org.closeOtherTabs(tabMenu.id);
+          },
+        },
+        {
+          disabled:
+            tabs.findIndex((chat) => chat._id === tabMenu.id) ===
+            tabs.length - 1,
+          key: "close-right",
+          label: "右側を閉じる",
+          onSelect: () => {
+            const next = closeTabsToTheRight(org.tabs, tabMenu.id);
+            org.closeTabsToTheRight(tabMenu.id);
+            if (activeChatId && !next.includes(activeChatId)) {
+              org.goHome();
+            }
+          },
+        },
+      ]
+    : [];
+
   return (
-    <div className="border-line flex h-11 shrink-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
-      {leading}
-      <button
-        type="button"
-        aria-pressed={onHome}
-        onClick={org.goHome}
-        className={`flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-[12.5px] font-medium transition-colors duration-100 ${
-          onHome
-            ? "bg-hover-2 text-ink"
-            : "text-ink-2 hover:bg-hover hover:text-ink"
+    <div className="border-line flex h-11 shrink-0 items-center border-b">
+      <div
+        data-shell-tab-scroller
+        role="toolbar"
+        tabIndex={-1}
+        aria-label="開いているチャット"
+        onDragLeave={drop.onDragLeave}
+        onDragOver={drop.onDragOver}
+        onDrop={drop.onDrop}
+        className={`flex min-w-0 flex-1 [scrollbar-width:none] items-center gap-1 overflow-x-auto px-2 [&::-webkit-scrollbar]:hidden ${
+          drop.over ? "bg-hover-2" : ""
         }`}
       >
-        <Home size={13} />
-        ホーム
-      </button>
-      {tabs.map((chat) => {
-        const active = chatId === String(chat._id);
-        const project = chat.projectId
-          ? org.projects?.find((item) => item._id === chat.projectId)
-          : undefined;
-        const title = chat.kind === "dm" ? "Personal DM" : chat.title;
-        return (
-          <div
-            key={String(chat._id)}
-            /* fixed width so every close button sits in the same spot */
-            className={`group/tab flex h-7 w-40 shrink-0 items-center gap-0.5 rounded-[7px] pr-0.5 pl-2.5 text-[12.5px] font-medium transition-colors duration-100 ${
-              active
-                ? "bg-hover-2 text-ink"
-                : "text-ink-2 hover:bg-hover hover:text-ink"
-            }`}
-          >
-            <button
-              type="button"
-              aria-pressed={active}
-              onClick={() => org.goChat(chat._id)}
-              title={project ? `${project.name} / ${title}` : title}
-              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        {leading}
+        <button
+          type="button"
+          aria-pressed={onHome}
+          onClick={org.goHome}
+          className={`flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-[12.5px] font-medium transition-colors duration-100 ${
+            onHome
+              ? "bg-hover-2 text-ink"
+              : "text-ink-2 hover:bg-hover hover:text-ink"
+          }`}
+        >
+          <Home size={13} />
+          ホーム
+        </button>
+        {tabs.map((chat) => {
+          const active = chatId === String(chat._id);
+          const project = chat.projectId
+            ? org.projects?.find((item) => item._id === chat.projectId)
+            : undefined;
+          const title = chat.kind === "dm" ? "Personal DM" : chat.title;
+          return (
+            <div
+              key={String(chat._id)}
+              className={`group/tab flex h-7 w-40 shrink-0 items-center gap-0.5 rounded-[7px] pr-0.5 pl-2.5 text-[12.5px] font-medium transition-colors duration-100 ${
+                active
+                  ? "bg-hover-2 text-ink"
+                  : "text-ink-2 hover:bg-hover hover:text-ink"
+              }`}
             >
-              <span className="text-ink-3 shrink-0">
-                {chat.kind === "dm" ? (
-                  <UserRound size={12} />
-                ) : (
-                  <MessageSquare size={12} />
-                )}
-              </span>
-              <span className="block truncate">{truncate(title, 22)}</span>
-            </button>
-            <button
-              type="button"
-              aria-label="タブを閉じる"
-              onClick={() => {
-                org.closeTab(chat._id);
-                if (active) {
-                  org.goHome();
-                }
-              }}
-              className="text-ink-3 hover:bg-hover-2 hover:text-ink -my-1 flex size-6 shrink-0 items-center justify-center rounded-[5px] transition-[background-color,color] duration-100"
-            >
-              <X size={11} strokeWidth={2.4} />
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        aria-label="新しいチャット"
-        onClick={() => org.openDialog({ kind: "newChat" })}
-        className="text-ink-3 hover:bg-hover hover:text-ink ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100"
+              <button
+                type="button"
+                aria-pressed={active}
+                onClick={() => org.goChat(chat._id)}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) {
+                    return;
+                  }
+                  event.preventDefault();
+                  closeChatTab(chat._id);
+                }}
+                onMouseDown={(event) => {
+                  if (event.button === 1) {
+                    event.preventDefault();
+                  }
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setTabMenu({
+                    id: chat._id,
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                }}
+                title={project ? `${project.name} / ${title}` : title}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <span className="text-ink-3 shrink-0">
+                  {chat.kind === "dm" ? (
+                    <UserRound size={12} />
+                  ) : (
+                    <MessageSquare size={12} />
+                  )}
+                </span>
+                <span className="block truncate">{truncate(title, 22)}</span>
+              </button>
+              <button
+                type="button"
+                aria-label="タブを閉じる"
+                onClick={() => {
+                  closeChatTab(chat._id);
+                }}
+                className="text-ink-3 hover:bg-hover-2 hover:text-ink -my-1 flex size-6 shrink-0 items-center justify-center rounded-[5px] transition-[background-color,color] duration-100"
+              >
+                <X size={11} strokeWidth={2.4} />
+              </button>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          aria-label="新しいチャット"
+          onClick={() => org.openDialog({ kind: "newChat" })}
+          className="text-ink-3 hover:bg-hover hover:text-ink ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100"
+        >
+          <Plus size={15} strokeWidth={2} />
+        </button>
+      </div>
+      <div
+        data-shell-header-tools
+        className="border-line flex shrink-0 items-center gap-1 border-l px-2"
       >
-        <Plus size={15} strokeWidth={2} />
-      </button>
-      <span className="flex-1" />
-      {trailing}
+        {trailing}
+      </div>
+      {tabMenu && (
+        <ContextMenu
+          items={tabMenuItems}
+          x={tabMenu.x}
+          y={tabMenu.y}
+          onClose={() => setTabMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -371,11 +571,16 @@ export function Shell({
   rail: boolean;
   railDefaultTab?: RailTab;
 }) {
+  const org = useOrg();
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  const [railDocked, setRailDocked] = useState(true);
   const palette = useCommandPalette();
   const location = useLocation();
   const showRail = rail && isRightRailVisible();
+  const chatDrop = useChatDropTarget((id) => {
+    org.goChat(id as Id<"chats">);
+  });
   useEffect(() => {
     setNavOpen(false);
     setRailOpen(false);
@@ -417,22 +622,48 @@ export function Shell({
                     </kbd>
                   </button>
                   {showRail && (
-                    <button
-                      type="button"
-                      aria-label="パネルを開く"
-                      onClick={() => setRailOpen(true)}
-                      className="text-ink-3 hover:bg-hover hover:text-ink flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:hidden"
-                    >
-                      <PanelRight size={16} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        aria-label="パネルを開く"
+                        onClick={() => setRailOpen(true)}
+                        className="text-ink-3 hover:bg-hover hover:text-ink flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:hidden"
+                      >
+                        <PanelRight size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={
+                          railDocked ? "右パネルを閉じる" : "右パネルを開く"
+                        }
+                        aria-pressed={railDocked}
+                        onClick={() => setRailDocked((open) => !open)}
+                        className="text-ink-3 hover:bg-hover hover:text-ink hidden size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:flex"
+                      >
+                        <PanelRight size={16} />
+                      </button>
+                    </>
                   )}
                 </>
               }
             />
-            {children}
+            <div
+              data-shell-chat-drop
+              role="toolbar"
+              tabIndex={-1}
+              aria-label="チャットをドロップして開く"
+              onDragLeave={chatDrop.onDragLeave}
+              onDragOver={chatDrop.onDragOver}
+              onDrop={chatDrop.onDrop}
+              className={`flex min-h-0 flex-1 flex-col ${
+                chatDrop.over ? "bg-hover-2" : ""
+              }`}
+            >
+              {children}
+            </div>
           </section>
 
-          {showRail && (
+          {showRail && railDocked && (
             <aside
               className="border-line bg-page hidden w-[360px] shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
               style={{ animation: "fade-in 300ms ease both" }}

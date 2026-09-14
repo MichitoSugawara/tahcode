@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { isValidEmail } from "../shared/auth.ts";
 import { getMembership, requireRole } from "./lib/access";
 import type { OrgRole } from "./lib/access";
 import { getCurrentUser } from "./lib/auth";
@@ -178,10 +179,14 @@ export const createInvite = authedMutation({
     if (args.role === "owner" && actor.role !== "owner") {
       throw new Error("Only an owner can invite owners");
     }
+    const email = args.email?.trim().toLowerCase();
+    if (email && !isValidEmail(email)) {
+      throw new Error("メールアドレスの形式が正しくありません");
+    }
     const token = randomToken(18);
     await ctx.db.insert("invites", {
       orgId: args.orgId,
-      email: args.email?.trim().toLowerCase(),
+      email: email || undefined,
       role: args.role,
       token,
       createdBy: ctx.user._id,

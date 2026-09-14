@@ -34,7 +34,7 @@ npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registr
 
 | プリミティブ | 使い所 |
 | --- | --- |
-| **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、New chat / Home / 招待 / ランタイムのレール、パーソナル + プロジェクト別チャットツリー、検索、52↔224px 折りたたみ |
+| **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、新しいチャット / ホーム / 招待 / コネクタのレール、Projects→Chats ツリー、52↔224px 折りたたみ。設定は左下ユーザーメニュー |
 | **PromptBar**（移植: デモ/口述/シェーダを除去、データ駆動化） | コンポーザ。`@` でエージェント + メンバー、`/` でコマンド、プロバイダ / ランタイムのピルピッカー、R2 添付チップ、⏎送信 / ⇧⏎改行、IME 対応 |
 | **ThinkingState**（`working` prop を追加してライブ駆動） | ランタイムの `thinking` イベントをそのままトレース行に。実行中はシマー + スピナー、完了で「N ステップ実行」に畳む |
 | **ToolChips**（`live` / `fill` prop を追加） | ランタイムの `tool` イベント（コマンド実行・編集・MCP）を展開可能なチップ行に。「N 件のツール呼び出し」で畳む |
