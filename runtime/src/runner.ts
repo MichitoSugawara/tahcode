@@ -8,6 +8,7 @@ import {
   formatInjectedConnectorsEnv,
 } from "../../shared/agentTools.ts";
 import type { StreamArtifact } from "../../shared/artifacts.ts";
+import { staleAgentToolsHostLogLine } from "../../shared/cliVersion.ts";
 import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
@@ -30,6 +31,7 @@ import type { ProviderDriverKind } from "../../shared/providers.ts";
 import {
   agentToolsPromptSuffix,
   jobAgentToolEnv,
+  probeToolSubcommand,
   writeAgentToolShim,
   writeAgentToolsMcpConfig,
 } from "./agentToolsHost.ts";
@@ -151,6 +153,17 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
   let lastHeartbeat = 0;
 
   console.log(`[runtime] polling ${options.convexUrl} as ${options.runtimeId}`);
+  const cliEntry = process.argv[1];
+  const toolProbe = cliEntry
+    ? probeToolSubcommand([process.execPath, cliEntry, "tool"])
+    : { status: "indeterminate" as const };
+  const staleHost = staleAgentToolsHostLogLine({
+    status: toolProbe.status,
+    version: options.bridgeVersion,
+  });
+  if (staleHost) {
+    console.error(staleHost);
+  }
 
   const heartbeat = async () => {
     probes = await probeProviders();

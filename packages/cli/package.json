@@ -1,6 +1,6 @@
 {
   "name": "tahcode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "tahcode (team agent harness) machine CLI — link this computer to a tahcode org and run agents through the Multica daemon.",
   "keywords": [
     "claude-code",

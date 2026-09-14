@@ -1,3 +1,4 @@
+import { STALE_CLI_TOOL_PROMPT_HINT } from "./cliVersion.ts";
 import {
   LINEAR_AGENT_TOOLS,
   isLinearAgentToolName,
@@ -283,6 +284,7 @@ export function formatAgentToolCatalog(options?: {
       "Linear issue tools use the tahcode-owned `@linear` connector for this job, not Cursor marketplace MCP."
     );
   }
+  header.push(STALE_CLI_TOOL_PROMPT_HINT);
   return header.join("\n");
 }
 

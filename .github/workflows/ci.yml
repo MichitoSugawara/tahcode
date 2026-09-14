@@ -31,3 +31,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Verify CLI agent tools artifact
+        run: npm run cli:verify

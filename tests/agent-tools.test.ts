@@ -18,6 +18,8 @@ describe("agent tool catalog", () => {
       expect(text).toContain(name);
     }
     expect(text).not.toMatch(/---\nname:/);
+    expect(text).toContain("不明なコマンド: tool");
+    expect(text).toContain("tahcode CLI is older than 0.1.1");
     expect(isAgentToolName("list_orgs")).toBeTruthy();
     expect(isAgentToolName("rm_rf")).toBeFalsy();
   });
