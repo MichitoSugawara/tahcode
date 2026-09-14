@@ -24,6 +24,7 @@ import {
   filterConnectorCatalog,
   linearConnectReturnScope,
   partitionConnectorConnections,
+  providerIconSource,
   resolveConnectorCardPhase,
   stripLinearConnectReturnSearch,
 } from "@/lib/connectorCard";
@@ -38,10 +39,6 @@ type Connection = FunctionReturnType<
 
 const LINEAR_CONNECT_POLL_MS = 2000;
 const LINEAR_CONNECT_MAX_POLLS = 15;
-
-/** Official Linear logomark (perspective chevron). */
-const LINEAR_MARK_PATH =
-  "M1.22541 61.5228c-.2225-.9485.9463-1.4546 1.7022-.8004l39.3448 34.0541c.7837.678 1.9583.559 2.2459-.2481L83.639 5.425c.3163-.888-1.0114-1.49-1.716-1.0774L1.6906 60.1195c-.3904.2284-.5464.6602-.4652 1.4033z";
 
 function useLinearConnectReturn({
   enabled,
@@ -135,22 +132,30 @@ function useLinearConnectReturn({
   ]);
 }
 
-function LinearMark() {
-  return (
-    <span
-      aria-hidden
-      className="flex size-9 shrink-0 items-center justify-center rounded-[10px]"
-      style={{ background: "#5E6AD2" }}
-    >
-      <svg
-        className="size-[18px] text-white"
-        fill="currentColor"
-        viewBox="0 0 100 100"
-        xmlns="http://www.w3.org/2000/svg"
+function ConnectorProviderIcon({
+  catalog,
+}: {
+  catalog: ConnectorCatalogEntry;
+}) {
+  const src = providerIconSource(catalog);
+  if (!src) {
+    return (
+      <span
+        aria-hidden
+        className="bg-inset text-ink-2 flex size-9 shrink-0 items-center justify-center rounded-[10px] text-[13px] font-medium"
       >
-        <path d={LINEAR_MARK_PATH} />
-      </svg>
-    </span>
+        {catalog.displayName.slice(0, 1)}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      width={36}
+      height={36}
+      className="size-9 shrink-0 rounded-[10px] object-cover"
+    />
   );
 }
 
@@ -368,7 +373,7 @@ function ConnectorRow({
 
   return (
     <article className="connector-marketplace-row flex items-center gap-3 py-2.5">
-      <LinearMark />
+      <ConnectorProviderIcon catalog={catalog} />
       <div className="connector-card-text min-w-0 flex-1">
         <div className="text-ink flex items-center gap-1.5 text-[13px] font-medium">
           <h3 className="truncate">{catalog.displayName}</h3>

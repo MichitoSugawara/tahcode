@@ -23,8 +23,47 @@ export type ConnectorCardLocalPhase = "idle" | "waiting" | "failed";
 export type ConnectorCatalogEntry = {
   description: string;
   displayName: string;
+  homepageUrl?: string;
+  iconUrl?: string;
   provider: string;
 };
+
+/** Static catalog icons when a provider already ships a URL. Linear does not. */
+const CATALOG_ICON_BY_PROVIDER: Readonly<Record<string, string>> = {};
+
+/**
+ * Resolve a connector icon the same way as
+ * `providerIconSource` in the connector console:
+ * explicit iconUrl → catalog map → favicon.im from homepageUrl hostname.
+ */
+export function providerIconSource(entry: {
+  homepageUrl?: string;
+  iconUrl?: string;
+  provider: string;
+}): string | undefined {
+  const iconUrl = entry.iconUrl?.trim();
+  if (iconUrl) {
+    return iconUrl;
+  }
+  const mapped = CATALOG_ICON_BY_PROVIDER[entry.provider];
+  if (mapped) {
+    return mapped;
+  }
+  const homepage = entry.homepageUrl?.trim();
+  if (!homepage) {
+    return;
+  }
+  let hostname: string;
+  try {
+    hostname = new URL(homepage).hostname;
+  } catch {
+    return;
+  }
+  if (hostname.length < 1) {
+    return;
+  }
+  return `https://a.favicon.im/${hostname}?larger=true&throw-error-on-404=true`;
+}
 
 export type ConnectorConnectionView = {
   displayLabel?: string;
@@ -71,6 +110,7 @@ export function partitionConnectorConnections<
 export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
   description: "課題とプロジェクトを org から接続します。",
   displayName: "Linear",
+  homepageUrl: "https://linear.app",
   provider: "linear",
 };
 

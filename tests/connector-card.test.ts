@@ -12,6 +12,7 @@ import {
   connectorStatusTone,
   filterConnectorCatalog,
   partitionConnectorConnections,
+  providerIconSource,
   resolveConnectorCardPhase,
 } from "../src/lib/connectorCard.ts";
 
@@ -85,6 +86,25 @@ describe(partitionConnectorConnections, () => {
       extras: [{ provider: "linear", scope: "user" }],
       primary: { provider: "linear", scope: "org" },
     });
+  });
+});
+
+describe(providerIconSource, () => {
+  it("prefers iconUrl, then homepage favicon.im — never a custom SVG", () => {
+    expect({
+      explicit: providerIconSource({
+        iconUrl: "https://cdn.example/linear.png",
+        provider: "linear",
+      }),
+      linear: providerIconSource(LINEAR_CONNECTOR),
+      missing: providerIconSource({ provider: "linear" }),
+    }).toStrictEqual({
+      explicit: "https://cdn.example/linear.png",
+      linear:
+        "https://a.favicon.im/linear.app?larger=true&throw-error-on-404=true",
+      missing: undefined,
+    });
+    expect(LINEAR_CONNECTOR.homepageUrl).toBe("https://linear.app");
   });
 });
 
@@ -197,7 +217,7 @@ describe("connector marketplace layout", () => {
       centered: pane.includes("flex items-center gap-3"),
       complete: pane.includes("completeLinearConnect"),
       grok: pane.includes("sand-connector-card__header"),
-      mark: pane.includes("M1.22541 61.5228"),
+      icon: pane.includes("providerIconSource"),
       row: pane.includes("connector-marketplace-row"),
       search: page.includes(CONNECTOR_CARD_COPY.searchLabel),
       text: pane.includes("connector-card-text"),
@@ -207,17 +227,19 @@ describe("connector marketplace layout", () => {
       centered: true,
       complete: true,
       grok: true,
-      mark: true,
+      icon: true,
       row: true,
       search: true,
       text: true,
     });
     expect({
       banned: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(pane),
+      homemade: /M1\.22541|#5E6AD2|LINEAR_MARK_PATH|LinearMark/.test(pane),
       paddedCard: /rounded-card bg-surface shadow-card/.test(pane),
       stackedCta: /flex flex-col gap-2 px-3 py-2\.5/.test(pane),
     }).toStrictEqual({
       banned: false,
+      homemade: false,
       paddedCard: false,
       stackedCta: false,
     });
