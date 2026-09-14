@@ -8,6 +8,11 @@ import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
+  formatJobMcpAttachNote,
+  formatJobOpsPromptSuffix,
+} from "../../shared/opsMcp.ts";
+import type { JobOpsBundle } from "../../shared/opsMcp.ts";
+import {
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_MAINTENANCE,
   PROVIDER_MAINTENANCE,
@@ -362,6 +367,7 @@ async function executeJob(
     leaseId: string;
     model?: string;
     multicaTaskId?: string;
+    opsBundle?: JobOpsBundle;
     options?: ProviderOptionSelection[];
     prompt: string;
     skills?: {
@@ -435,7 +441,10 @@ async function executeJob(
   }
 
   const contextSummary = summarizeContext(job.contextJson);
-  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}`;
+  const opsSuffix = job.opsBundle
+    ? `\n\n---\n${formatJobOpsPromptSuffix(job.opsBundle)}`
+    : "";
+  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}${opsSuffix}`;
   const toolAuth = {
     jobId: job._id,
     leaseId: job.leaseId,
@@ -456,6 +465,7 @@ async function executeJob(
     mcpConfigPath = await writeAgentToolsMcpConfig({
       auth: toolAuth,
       cliEntry,
+      connections: job.opsBundle?.connectors ?? [],
       dir: jobDir,
       nodePath: process.execPath,
     });
@@ -463,6 +473,9 @@ async function executeJob(
       ...jobEnv,
       PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
     };
+    if (job.opsBundle) {
+      await send("thinking", formatJobMcpAttachNote(job.opsBundle));
+    }
   } catch (error) {
     await send(
       "thinking",

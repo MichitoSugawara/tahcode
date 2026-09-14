@@ -2,6 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 
 import { convexSiteUrl } from "../../shared/convexUrls.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
+import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import type {
   InstallMethod,
   LiveModel,
@@ -41,6 +42,8 @@ export interface ClaimedJob {
   multicaTaskId?: string;
   /** t3code option selections (effort / variant) applied as CLI flags */
   options?: ProviderOptionSelection[];
+  /** TAH-55: tahcode-owned connectors + MCP attach plan (no vendor inject yet). */
+  opsBundle?: JobOpsBundle;
   prompt: string;
   runtimeId: string;
   skills?: {

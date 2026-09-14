@@ -60,5 +60,8 @@ describe("agent tool catalog", () => {
     expect(
       headlessArgs("codex", "hi", undefined, undefined, "/tmp/mcp.json")
     ).not.toContain("--mcp-config");
+    expect(
+      headlessArgs("cursor", "hi", undefined, undefined, "/tmp/mcp.json")
+    ).not.toContain("--mcp-config");
   });
 });

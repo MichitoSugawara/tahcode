@@ -93,7 +93,9 @@ async function invoke(
     | "switch_session"
     | "send_message"
     | "list_runtimes"
-    | "get_runtime_status",
+    | "get_runtime_status"
+    | "list_connectors"
+    | "get_connector_status",
   args: Record<string, unknown> = {},
   token = TOKEN
 ) {
@@ -285,5 +287,136 @@ describe("agent tools authz", () => {
       name: "box",
     });
     expect(JSON.stringify(status)).not.toContain("tokenHash");
+  });
+
+  it("lists tahcode-owned connectors without account ids", async () => {
+    const t = fresh();
+    const { aliceCtx, claimed, orgId, runtimeId } = await seedJob(t);
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: "ca_default-alice",
+        displayLabel: "team linear",
+        orgId,
+        provider: "linear",
+        scope: "org",
+      }
+    );
+    const listed = await invoke(t, claimed, runtimeId, "list_connectors");
+    const byId = await invoke(t, claimed, runtimeId, "get_connector_status", {
+      connectionId,
+    });
+    expect({
+      accountIdLeaked: JSON.stringify(listed).includes("ca_default-alice"),
+      byId,
+      listed: listed.connectors,
+      vendor: JSON.stringify(listed).toLowerCase().includes("openconnector"),
+    }).toStrictEqual({
+      accountIdLeaked: false,
+      byId: {
+        connection: expect.objectContaining({
+          connectionId,
+          provider: "linear",
+          status: "connected",
+        }),
+      },
+      listed: expect.arrayContaining([
+        expect.objectContaining({
+          connectionId,
+          displayLabel: "team linear",
+          provider: "linear",
+          scope: "org",
+          status: "connected",
+        }),
+      ]),
+      vendor: false,
+    });
+  });
+
+  it("hides another member's personal connector mapping", async () => {
+    const t = fresh();
+    const { aliceCtx, orgId } = await seedJob(t);
+    const orgConnection = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: "ca_default-alice",
+        displayLabel: "team linear",
+        orgId,
+        provider: "linear",
+        scope: "org",
+      }
+    );
+    const personal = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_alice-personal",
+      displayLabel: "alice personal",
+      orgId,
+      provider: "linear",
+      scope: "user",
+    });
+    const bob = await insertUser(t, { handle: "bob-ops" });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgMembers", {
+        orgId,
+        role: "member",
+        userId: bob,
+      });
+    });
+    const bobProject = await asUser(t, bob).mutation(api.projects.create, {
+      name: "Bob public",
+      orgId,
+      visibility: "org",
+    });
+    const bobChat = await asUser(t, bob).mutation(api.chats.createProjectChat, {
+      projectId: bobProject,
+      title: "Bob room",
+      visibility: "inherit",
+    });
+    const bobRuntime = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("runtimes", {
+          lastSeenAt: Date.now(),
+          name: "bob-ops-box",
+          orgId,
+          ownerUserId: bob,
+          slug: "bob-ops-box",
+          status: "online",
+          tokenHash: await sha256Hex("th_bob_ops"),
+        })
+    );
+    await asUser(t, bob).mutation(api.messages.send, {
+      body: "@codex hi",
+      chatId: bobChat,
+    });
+    const bobJob = await t.mutation(api.jobs.claimNext, {
+      runtimeId: bobRuntime,
+      token: "th_bob_ops",
+    });
+    if (!bobJob) {
+      throw new Error("expected bob job");
+    }
+    const asBob = await invoke(
+      t,
+      bobJob,
+      bobRuntime,
+      "list_connectors",
+      {},
+      "th_bob_ops"
+    );
+    expect(asBob.connectors).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ connectionId: orgConnection, scope: "org" }),
+      ])
+    );
+    expect(JSON.stringify(asBob)).not.toContain(personal);
+    await expect(
+      invoke(
+        t,
+        bobJob,
+        bobRuntime,
+        "get_connector_status",
+        { connectionId: personal },
+        "th_bob_ops"
+      )
+    ).rejects.toThrow(/connection not found/i);
   });
 });

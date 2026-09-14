@@ -17,6 +17,8 @@ describe("tahcode MCP host", () => {
       tools: expect.arrayContaining([
         expect.objectContaining({ name: "list_orgs" }),
         expect.objectContaining({ name: "send_message" }),
+        expect.objectContaining({ name: "list_connectors" }),
+        expect.objectContaining({ name: "get_connector_status" }),
       ]),
     });
 

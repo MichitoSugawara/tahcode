@@ -92,7 +92,9 @@ export const agentToolName = v.union(
   v.literal("switch_session"),
   v.literal("send_message"),
   v.literal("list_runtimes"),
-  v.literal("get_runtime_status")
+  v.literal("get_runtime_status"),
+  v.literal("list_connectors"),
+  v.literal("get_connector_status")
 );
 
 export const jobStatus = v.union(
@@ -212,6 +214,44 @@ export const connectorConnectionSummary = v.object({
   status: connectorStatus,
   updatedAt: v.number(),
   userId: v.optional(v.id("users")),
+});
+
+/** Claim payload for the TAH-55 ops MCP plan (no secrets, no vendor MCP yet). */
+export const jobConnectorSnapshot = v.object({
+  connectedAccountId: v.string(),
+  connectionId: v.id("connectorConnections"),
+  displayLabel: v.optional(v.string()),
+  lastVerifiedAt: v.optional(v.number()),
+  orgId: v.id("orgs"),
+  provider: v.string(),
+  scope: connectorScope,
+  status: connectorStatus,
+});
+
+export const jobMcpServerPlan = v.object({
+  connectionId: v.optional(v.id("connectorConnections")),
+  inject: v.boolean(),
+  kind: v.union(v.literal("tahcode-ops"), v.literal("connector")),
+  name: v.string(),
+  provider: v.optional(v.string()),
+});
+
+export const jobOpsBundle = v.object({
+  connectors: v.array(jobConnectorSnapshot),
+  mcp: v.object({
+    attachment: v.union(
+      v.literal("mcp-config"),
+      v.literal("cli"),
+      v.literal("unsupported")
+    ),
+    servers: v.array(jobMcpServerPlan),
+  }),
+  mentionedConnectors: v.array(
+    v.object({
+      handle: v.string(),
+      provider: v.string(),
+    })
+  ),
 });
 
 export const messageDoc = v.object({

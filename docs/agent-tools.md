@@ -26,7 +26,7 @@ tahcode tool switch_session --args '{"chatId":"…"}'
 tahcode tool send_message --args '{"body":"メモ"}'
 ```
 
-Claude の headless CLI には、同じツールを stdio で渡すための一時 `--mcp-config` も付けます（`tahcode tool-mcp`）。他のハーネスは `tahcode tool` をシェルから呼びます。PATH 先頭に、このジョブ用の `tahcode` ラッパを置きます。
+Claude の headless CLI には、同じツールを stdio で渡すための一時 `--mcp-config` も付けます（`tahcode tool-mcp`）。他のハーネスは `tahcode tool` をシェルから呼びます。PATH 先頭に、このジョブ用の `tahcode` ラッパを置きます。ジョブ claim の `opsBundle` と MCP 生成の共通経路は [ops MCP（TAH-55）](ops-mcp.md)。
 
 ジョブ外（対話ターミナルだけ）では呼べません。ユーザー JWT ではなく、**ランタイムトークン + ジョブリース**で認証し、トリガーしたユーザーとして認可します。
 
@@ -43,5 +43,7 @@ Claude の headless CLI には、同じツールを stdio で渡すための一�
 | `send_message` | acting user として送信。実行中ジョブと同じチャットでは、明示しない限り新しいジョブを起こさない |
 | `list_runtimes` | Org のマシン。`canUse` は default-deny の許可 |
 | `get_runtime_status` | 1 台の online/offline・stale・検出 CLI。`tokenHash` は返さない |
+| `list_connectors` | 見えるコネクタ（tahcode の接続状態。マーケットプレイス MCP ではない） |
+| `get_connector_status` | 1 件（`connectionId`）または `provider` で一覧 |
 
 他 Org の id を渡した場合は、その Org のメンバーであり、かつ既存の可視ルールを満たすときだけ通ります。メンバーでない Org や非公開プロジェクト／プライベートチャットは拒否します。

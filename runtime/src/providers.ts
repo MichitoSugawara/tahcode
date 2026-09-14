@@ -293,6 +293,7 @@ export function headlessArgs(
     }
     case "cursor": {
       // Non-interactive bridge cannot answer the Workspace Trust prompt.
+      // `agent -p` has no `--mcp-config` (TAH-55). Tools stay on `tahcode tool`.
       return [
         "-p",
         "--trust",

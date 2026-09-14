@@ -40,8 +40,8 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 | `tahcode install-multica [--yes]` | Print (or with `--yes` run) the Multica install command: Homebrew tap, official install script, or PowerShell on Windows. |
 | `tahcode multica <args…>` | Anything else on the Multica CLI, unchanged (e.g. `tahcode multica login --token mul_…`). |
 | `tahcode unlink` | Remove the stored link. |
-| `tahcode tool [name] [--args JSON]` | While a job is running, call in-app tahcode tools (org / project / chat / runtime). No args prints the catalog. |
-| `tahcode tool-mcp` | Stdio host for the same tools (job env only). The bridge writes a temporary config for Claude `--mcp-config`. |
+| `tahcode tool [name] [--args JSON]` | While a job is running, call in-app tahcode tools (org / project / chat / runtime / connectors). No args prints the catalog. |
+| `tahcode tool-mcp` | Stdio host for the same tools (job env only). The bridge writes a temporary config for Claude `--mcp-config`. Cursor `agent -p` has no equivalent flag. |
 
 Environment fallback (CI / containers): `TAHCODE_URL`, `TAHCODE_RUNTIME_ID`, `TAHCODE_TOKEN` (legacy `DALECODE_*`, `CONVEX_URL` / `HARNESS_RUNTIME_ID` / `HARNESS_RUNTIME_TOKEN` still work). `TAHCODE_HOME` overrides the config directory; `MULTICA_BIN` overrides the Multica binary.
 
