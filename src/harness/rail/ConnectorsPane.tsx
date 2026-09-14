@@ -106,11 +106,15 @@ function useLinearConnectReturn({
       setConfirming(true);
       setLocalPhase("waiting");
       try {
-        const result = await completeConnect({
-          connectionId: returningConnectionId,
-          orgId,
-          scope,
-        });
+        const completeArgs: {
+          connectionId?: Id<"connectorConnections">;
+          orgId: Id<"orgs">;
+          scope: ConnectorScope;
+        } = { orgId, scope };
+        if (returningConnectionId) {
+          completeArgs.connectionId = returningConnectionId;
+        }
+        const result = await completeConnect(completeArgs);
         if (cancelled) {
           return;
         }
@@ -628,11 +632,15 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
     setDetailOpen(true);
     setLocalPhase("waiting");
     try {
-      const result = await startConnect({
-        connectionId,
-        orgId: org._id,
-        scope,
-      });
+      const startArgs: {
+        connectionId?: Id<"connectorConnections">;
+        orgId: Id<"orgs">;
+        scope: ConnectorScope;
+      } = { orgId: org._id, scope };
+      if (connectionId) {
+        startArgs.connectionId = connectionId;
+      }
+      const result = await startConnect(startArgs);
       setWaitingConnectionId(result.connectionId);
       if (result.ready && result.authorizeUrl) {
         window.location.assign(result.authorizeUrl);
@@ -654,10 +662,14 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
 
   const runRename = async (connection: Connection, displayLabel: string) => {
     try {
-      await renameConnection({
-        connectionId: connection._id,
-        displayLabel: displayLabel.length > 0 ? displayLabel : undefined,
-      });
+      const renameArgs: {
+        connectionId: Id<"connectorConnections">;
+        displayLabel?: string;
+      } = { connectionId: connection._id };
+      if (displayLabel.length > 0) {
+        renameArgs.displayLabel = displayLabel;
+      }
+      await renameConnection(renameArgs);
     } catch (error: unknown) {
       toast.error("名前の変更に失敗しました", {
         description: errorSummary(error),
