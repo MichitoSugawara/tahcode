@@ -1,8 +1,8 @@
 # tahcode — Phase 1
 
-**tahcode**（ターコード、_team agent harness_）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。本番: https://tahcode.com（Worker hostname `tahcode.gawara.workers.dev` は残す。旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。Multica ベースの既存プロダクトと同じ構想を新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント。Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
+**tahcode**（ターコード、_team agent harness_）は、チームの会話と手元のマシンで動くコーディングエージェントをひとつの作業場にまとめる Web アプリ。本番: https://tahcode.com（Worker hostname `tahcode.gawara.workers.dev` は残す。旧称 **dalecode** から改名。npm パッケージ `dalecode` → `tahcode`、Worker `team-harness` → `tahcode`）。Multica の Org / member / project / chat の考え方を**設計の着想**として新スタックで実装した、最小チームチャット + オンマシン・コーディングエージェント（フォークでもランタイム依存でもない）。Phase 1 の垂直スライス: Org / Project 作成、Personal DM + プロ젝트チャット、メンション応答、履歴 + メンション + プロジェクトリンクのコンテキスト、t3code 由来プロバイダのマシンランタイム、最小ロール + ランタイム許可。Convex（データ/リアルタイム）+ Cloudflare（ホスティング/ファイル）。
 
-UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと [/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts` （Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない）。
+UI は [Beautiful UI](https://www.beautifului.dev/) のプリミティブと [/harness](https://www.beautifului.dev/harness) のシェル構成をそのまま採用（shadcn レジストリ経由で導入）し、配色は VS Code **Dark Green+**（kazelone.vscode-dark-green-plus）をトークンにマッピング。ライトが既定（ダークはトグルで切替、選択は localStorage に保存）。プロバイダ配線は https://github.com/pingdotgg/t3code の `builtInDrivers.ts` （Codex / Claude / Cursor / Grok / OpenCode / Antigravity の6種）を移植。Multica からは Org / member / project / chat の考え方と作成フローの型だけ借りた新規実装（フォークではない。daemon / CLI は使わない）。
 
 ![Project chat with a streamed agent reply](docs/ui-screenshots/20-agent-reply-final-codeblock-table.png)
 
@@ -76,7 +76,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 1. **Auth** — `/login`（ログイン / 新規登録の切替）。メール＋パスワード、または **Google で続ける**（OAuth 設定時のみ有効）。`?next=` で招待リンクへ戻る（Google 経由でも維持）。入力検証と失敗メッセージは日本語（空欄・形式不正・8 文字未満・確認不一致・パスワード相違・登録済みメール・ネットワーク断・セッション未確立）。サインアウトはワークスペースメニュー
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
 3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・コネクタ・招待・テーマ・サインアウト）、`/o/:slug/settings`。コネクタは専用面 `/o/:slug/connectors`（Org 設定の一節ではない）
-4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
+4. **プロジェクト作成** — プロジェクト作成ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ。作成フローの型は Multica を着想にした）。作成すると「General」チャットが開く
 5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル + 推論レベル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — ブラウザは「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start`。デスクトップシェルでは「この Mac を登録」ワンクリック（main が同じ CLI を実行）。最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
@@ -119,7 +119,7 @@ t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存�
 
 ### マシンのプロバイダ設定（モデル・バージョン・CLI 更新）
 
-Multica の型（daemon がランタイムごとに CLI を検出してバージョンを報告し、モデル一覧は各 CLI から動的に取得して静的カタログにフォールバックする）を踏襲した、マシン単位の設定画面。Multica ではモデル一覧はエージェント設定のピッカーから取得されるが、tahcode ではマシン画面にも常時表示する。右レール Runtime タブ / Org 設定のマシンカードの **「プロバイダ設定」**（または CLI チップのクリック）で開く。
+マシン単位の設定画面。tahcode ブリッジが CLI を検出してバージョンを報告し、モデル一覧は各 CLI から動的に取得して静的カタログにフォールバックする。右レール Runtime タブ / Org 設定のマシンカードの **「プロバイダ設定」**（または CLI チップのクリック）で開く。
 
 ![Machine provider settings: live models per CLI, versions, allowlisted update](docs/ui-screenshots/provider-settings/04-cursor-live-models.png)
 
@@ -150,7 +150,7 @@ Multica の型（daemon がランタイムごとに CLI を検出してバージ
 - Data/realtime: Convex（`convex/`）。認証は Convex Auth Password。権限は custom function ラッパ + 共有アクセスロジック
 - Hosting/files: Cloudflare（`worker/` + `wrangler.jsonc`、R2 バケット `FILES`）。ファイル本体は Worker（`/api/files`）経由で R2、メタデータは Convex `files`
 - Providers: t3code の6ドライバを `shared/providers.ts`（カタログ）+ `runtime/src/providers.ts`（headless 実行）に移植
-- Runtime: `tahcode` CLI（`packages/cli`）= Convex をポーリングする tahcode ブリッジ（`runtime/`）。headless CLI 起動は t3code 由来。Multica daemon は不要
+- Runtime: `tahcode` CLI（`packages/cli`）= Convex をポーリングする tahcode ブリッジ（`runtime/`）。headless CLI 起動は t3code 由来
 
 ## ローカルで動かす
 
@@ -176,14 +176,14 @@ npm run dev:files  # http://127.0.0.1:43174（Vite が /api/files をプロキ�
 
 ### マシンランタイム（`npm i -g tahcode`）
 
-エージェントはあなたのマシンで、**tahcode ブリッジ**経由で動きます。`tahcode start` が Convex をポーリングし、検出したプロバイダ CLI を headless で起動します（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。Multica daemon は不要です。
+エージェントはあなたのマシンで、**tahcode ブリッジ**経由で動きます。`tahcode start` が Convex をポーリングし、検出したプロバイダ CLI を headless で起動します（`packages/cli`、npm パッケージ名 `tahcode`、bin `tahcode`）。
 
 1. Web UI → 右レール **Runtime** タブ →「このマシンを登録」。ブラウザでは一度だけ表示されるトークン入りのコマンド 3 行が発行されます。デスクトップアプリ（`apps/desktop`）では **この Mac を登録** が一発で同じ手順を実行します（詳細は [`apps/desktop/README.md`](apps/desktop/README.md)）:
 
 ```bash
 npm i -g tahcode
 tahcode link --url "https://<deployment>.convex.cloud" --runtime "<id>" --token "th_…" --name "office-mac"
-tahcode start        # tahcode ブリッジをバックグラウンドで常駐（Multica 不要）
+tahcode start        # tahcode ブリッジをバックグラウンドで常駐
 ```
 
 2. エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
@@ -195,9 +195,9 @@ tahcode start        # tahcode ブリッジをバックグラウンドで常駐�
 
 DM で話しかけると常時応答、プロジェクトチャットでは `@codex 直して` や `@cursor/muse-spark-1.3 直して` のようにメンションする。送信時にチャットのエージェントのメンションが自動付与される（プロジェクトのみ。DM は付与なしでチャットのエージェントで動く）。
 
-## リポジトリ構成（Multica 型モノレポ）
+## リポジトリ構成（着想: Multica 型モノレポ）
 
-Web と Desktop を **1 つのモノレポ**に置き、共有パッケージ + 薄いシェルで構成する（[Multica](https://github.com/multica-ai/multica) の `apps/web` + `apps/desktop` + `packages/{core,ui,views}` と同じ考え方）。パッケージマネージャは npm workspaces（`apps/*`, `packages/*`、lockfile はルートの 1 つ）。
+Web と Desktop を **1 つのモノレポ**に置き、共有パッケージ + 薄いシェルで構成する。[Multica](https://github.com/multica-ai/multica) の `apps/web` + `apps/desktop` + `packages/{core,ui,views}` と同じ考え方を**設計の着想**にしているだけで、Multica のコードも daemon も依存しない。パッケージマネージャは npm workspaces（`apps/*`, `packages/*`、lockfile はルートの 1 つ）。
 
 | Multica | tahcode（現状） | 中身 |
 | --- | --- | --- |
@@ -236,7 +236,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 
 - **Antigravity**: headless CLI がないためランタイムは「未対応」表示 + ガイド文。カタログには含む。
 - **Grok headless flags**: CLI の headless 引数は暫定（`grok --prompt`、モデルは `--model`）。手元に CLI があれば `providers` コマンドで確認し、ずれていたら `runtime/src/providers.ts` の1箇所を直す。
-- **Claude のモデル一覧は静的**: Claude Code にはモデル一覧コマンドがないため `shared/providers.ts` のスナップショット（t3code model-manifest）のまま（Multica は stream-json の `control_request list_models` で取っているが未移植）。Codex / Cursor / Grok / OpenCode は接続中のマシンから `codex debug models --bundled` / `agent models` / `grok models` / `opencode models` の結果をライブ表示する（Codex 0.122.0 未満は静的にフォールバック）（[マシンのプロバイダ設定](#マシンのプロバイダ設定モデルバージョンcli-更新)）。一覧外のスラッグは引き続き `@provider/<slug>` でそのまま指名できる。
+- **Claude のモデル一覧は静的**: Claude Code にはモデル一覧コマンドがないため `shared/providers.ts` のスナップショット（t3code model-manifest）のまま。Codex / Cursor / Grok / OpenCode は接続中のマシンから `codex debug models --bundled` / `agent models` / `grok models` / `opencode models` の結果をライブ表示する（Codex 0.122.0 未満は静的にフォールバック）（[マシンのプロバイダ設定](#マシンのプロバイダ設定モデルバージョンcli-更新)）。一覧外のスラッグは引き続き `@provider/<slug>` でそのまま指名できる。
 - **CLI 更新は許可リストのコマンドのみ**: `shared/providerMaintenance.ts` にある各 CLI の公式更新コマンドだけをブリッジが実行する。Antigravity（CLI なし）と、インストール方法を判別できない Codex は手動更新の案内のみ。`curl | sh` 型のインストーラは実行しない。
 - **プロジェクトメンバー追加 UI なし**: private project への追加は現状 `projects:addMember` 関数呼び出し（`npx convex run` 等）。UI は Org メンバー招待・ロール・ランタイム許可まで。
 - **Org 名変更 / 削除なし**: 設定ページは表示のみ（Owner 向けの変更は後続フェーズ）。

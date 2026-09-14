@@ -69,8 +69,8 @@ export function linkArgv(
 }
 
 /**
- * After a successful link, recycle a running bridge or start one without
- * Multica (`--no-daemon`). Bridge-only is enough for the runtime to come online.
+ * After a successful link, recycle a running bridge or start one.
+ * Bridge-only is enough for the runtime to come online.
  */
 export function planRegisterAfterLink(bridgeAlreadyRunning: boolean): {
   args: readonly string[];
@@ -79,7 +79,7 @@ export function planRegisterAfterLink(bridgeAlreadyRunning: boolean): {
   if (bridgeAlreadyRunning) {
     return { args: ["restart", "bridge"], progress: "restarting-bridge" };
   }
-  return { args: ["start", "--no-daemon"], progress: "starting-bridge" };
+  return { args: ["start"], progress: "starting-bridge" };
 }
 
 export const MACHINE_NAME_MAX = 60;

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -78,18 +77,6 @@ import {
   readBridgeEnvFile,
   readPlistEnvironmentVariables,
 } from "./launchdEnv.ts";
-import {
-  MULTICA_BIN,
-  MULTICA_DOCS,
-  daemonAgents,
-  daemonHealth,
-  daemonRunning,
-  installCommand,
-  multicaAuthOk,
-  multicaInstalled,
-  multicaVersion,
-  passthrough,
-} from "./multica.ts";
 import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
 
 /* ─────────────────────────────────────────────────────────
@@ -97,11 +84,11 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  *
  *   npm i -g tahcode
  *   tahcode link --url … --runtime … --token …   ← from the web UI
- *   tahcode start                                ← tahcode bridge only (background)
+ *   tahcode start                                ← tahcode bridge (background)
  *   tahcode start --foreground                   ← bridge in this terminal
  *
  * Default start is the tahcode bridge (`runtime/` → local provider CLIs).
- * Multica daemon is not a runtime dependency; `--daemon` is leftover opt-in.
+ * There is no Multica runtime path.
  *
  * tahcode (ターコード, "team agent harness") is the renamed successor of the
  * `dalecode` npm package (last release 0.1.1). tahcode started at 0.1.0;
@@ -160,12 +147,12 @@ ${bold("使い方")}
   ${code("tahcode link")} --url <convex-url> --runtime <id> --token <th_…> [--name <machine>] [--no-restart]
                         Web UI「このマシンを登録」で表示されたコマンド（~/.tahcode/config.json に保存）。
                         起動中のブリッジがあれば新しい接続先で再起動します（${code("--no-restart")} でスキップ）
-  ${code("tahcode start")}      tahcode のジョブブリッジをバックグラウンドで常駐させる（既定はブリッジのみ）
+  ${code("tahcode start")}      tahcode のジョブブリッジをバックグラウンドで常駐させる
                         （${code("--foreground")} でこのターミナルで実行、Ctrl+C で停止）
   ${code("tahcode status")}     リンク状態・tahcode ブリッジの状態
-  ${code("tahcode stop [bridge|multica|all]")}      停止（既定: bridge）
-  ${code("tahcode restart [bridge|multica|all]")}   再起動（既定: bridge）
-  ${code("tahcode logs [bridge|multica|all] [-f] [-n N]")}   ログ（既定: bridge → ${dim("~/.tahcode/bridge.log")}）
+  ${code("tahcode stop")}       ブリッジを停止
+  ${code("tahcode restart")}    ブリッジを再起動
+  ${code("tahcode logs")} [-f] [-n N]   ログ（${dim("~/.tahcode/bridge.log")}）
   ${code("tahcode service install|uninstall|status")}   macOS: launchd ユーザーエージェントとして登録（ログイン時に自動起動）
   ${code("tahcode doctor")}     Node / エージェント CLI / tahcode 接続の診断
   ${code("tahcode providers")}  検出済みのエージェント CLI（t3code セット）
@@ -181,17 +168,10 @@ ${bold("オプション")}
   --no-restart        link: 起動中のブリッジを再起動しない（デスクトップが一発登録後に自分で再起動する）
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
   --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
-  --daemon            start / service install: 任意で Multica daemon も起動（tahcode のジョブには不要）
-  --no-daemon         互換用。既定と同じ（ブリッジのみ）
 
 ファイル: ~/.tahcode/config.json（リンク）· bridge.json（ブリッジの pid）· bridge.log（ログ）· bridge.env（CURSOR_API_KEY など。service install は消さない）
 環境変数でもリンクできます: TAHCODE_URL, TAHCODE_RUNTIME_ID, TAHCODE_TOKEN
-（互換: DALECODE_*, CONVEX_URL, HARNESS_RUNTIME_ID, HARNESS_RUNTIME_TOKEN。旧 dalecode CLI の ~/.dalecode/config.json も読みます）
-
-${bold("任意（非推奨・tahcode ジョブには不要）")}
-  ${code("tahcode install-multica [--yes]")}   Multica CLI のインストールコマンドを表示
-  ${code("tahcode multica <args…>")}          手元に Multica がある場合のパススルー（例: tahcode multica login）
-  Multica docs: ${MULTICA_DOCS}`);
+（互換: DALECODE_*, CONVEX_URL, HARNESS_RUNTIME_ID, HARNESS_RUNTIME_TOKEN。旧 dalecode CLI の ~/.dalecode/config.json も読みます）`);
 }
 
 function requireLink(): LinkConfig {
@@ -291,53 +271,38 @@ function readStdin(): Promise<string> {
   });
 }
 
-function wantsMulticaDaemon(flags: Flags): boolean {
-  return !!flags.daemon;
-}
-
-async function ensureDaemon(link: LinkConfig, flags: Flags): Promise<void> {
-  if (!wantsMulticaDaemon(flags)) {
-    return;
+function rejectRemovedMulticaSurface(
+  command: string,
+  flags: Flags,
+  positional: string[]
+): void {
+  if (flags.daemon) {
+    fail(
+      "Multica は tahcode のランタイムではありません。`--daemon` は削除されました。`tahcode start` でブリッジを起動してください。"
+    );
+    process.exit(2);
   }
-  if (!multicaInstalled()) {
-    warn(
-      `Multica CLI が見つかりません（${MULTICA_BIN}）。ブリッジは t3code セットの CLI 検出で動作します。`
+  if (command === "install-multica" || command === "multica") {
+    fail(
+      "Multica コマンドは削除されました。エージェントは `tahcode start` のブリッジ経由で動きます。"
     );
-    info(
-      `インストール: ${code(installCommand())}  または ${code("tahcode install-multica --yes")}`
-    );
-    return;
+    process.exit(2);
   }
-  const before = daemonHealth();
-  if (daemonRunning(before)) {
-    ok(
-      `Multica daemon: 起動中${before?.pid ? `（pid ${before.pid}）` : ""} · agents: ${daemonAgents(before).join(", ") || "未検出"}`
+  const target = positional[0];
+  const usesTarget =
+    command === "stop" || command === "restart" || command === "logs";
+  if (
+    usesTarget &&
+    target !== undefined &&
+    target !== "bridge" &&
+    !target.startsWith("-")
+  ) {
+    fail(
+      target === "multica" || target === "all" || target === "daemon"
+        ? "Multica は tahcode のランタイムではありません。対象はブリッジのみです。"
+        : `不明な対象: ${target}（tahcode stop / restart / logs はブリッジのみ）`
     );
-    return;
-  }
-  const auth = multicaAuthOk();
-  if (!auth.ok) {
-    warn(
-      "Multica にログインしていません。daemon はワークスペースなしで起動します（tahcode のジョブは影響なし）。"
-    );
-    info(`Multica アカウントも使う場合: ${code("tahcode multica login")}`);
-  }
-  info("Multica daemon を起動します…");
-  const codeExit = await passthrough([
-    "daemon",
-    "start",
-    "--device-name",
-    link.name ?? os.hostname(),
-  ]);
-  const after = daemonHealth();
-  if (daemonRunning(after)) {
-    ok(
-      `Multica daemon: 起動しました · agents: ${daemonAgents(after).join(", ") || "未検出"}`
-    );
-  } else {
-    warn(
-      `Multica daemon を確認できませんでした（exit ${codeExit}）。${code("tahcode logs")} で確認できます。`
-    );
+    process.exit(2);
   }
 }
 
@@ -349,7 +314,6 @@ function bridgeOptions(flags: Flags): BridgeLaunchOptions {
         process.env.HARNESS_CWD ??
         process.cwd()
     ),
-    noDaemon: !wantsMulticaDaemon(flags),
     provider: flagString(flags, "provider"),
   };
 }
@@ -395,9 +359,7 @@ async function cmdStart(flags: Flags): Promise<void> {
     `${BRAND} ${dim(`v${VERSION}`)} — ${link.name ?? os.hostname()} を ${link.url} に接続`
   );
   warnStaleAgentToolsOnStart();
-  if (wantsMulticaDaemon(flags)) {
-    await ensureDaemon(link, flags);
-  }
+
 
   if (foreground) {
     const envMode = process.env.TAHCODE_BRIDGE_MODE;
@@ -450,8 +412,7 @@ async function cmdStart(flags: Flags): Promise<void> {
   }
 
   heading("tahcode ブリッジをバックグラウンドで起動します…");
-  // The child only runs the bridge (daemon, if requested, was handled above).
-  const state = await spawnDetachedBridge({ ...options, noDaemon: true });
+  const state = await spawnDetachedBridge(options);
   ok(`tahcode ブリッジ: 起動しました（${describeBridge(state)}）`);
   info(`ログ: ${BRIDGE_LOG_PATH}`);
   info(
@@ -705,58 +666,6 @@ async function cmdUpdate(flags: Flags, positional: string[]): Promise<void> {
   process.exit(exit);
 }
 
-async function cmdInstallMultica(flags: Flags): Promise<void> {
-  warn(
-    "tahcode のジョブに Multica は不要です。既定の start はブリッジのみです。"
-  );
-  if (multicaInstalled()) {
-    ok(`インストール済み: ${multicaVersion()}`);
-    return;
-  }
-  const command = installCommand();
-  if (!flags.yes) {
-    heading("Multica CLI のインストール");
-    info(`次を実行してください: ${code(command)}`);
-    info(`自動で実行するには: ${code("tahcode install-multica --yes")}`);
-    return;
-  }
-  heading(`実行: ${command}`);
-  const shell = process.platform === "win32" ? "powershell" : "bash";
-  const args =
-    process.platform === "win32" ? ["-Command", command] : ["-lc", command];
-  const exit = await new Promise<number>((resolve) => {
-    const child = spawn(shell, args, { stdio: "inherit" });
-    child.on("exit", (code) => resolve(code ?? 1));
-    child.on("error", () => resolve(1));
-  });
-  if (exit === 0 && multicaInstalled()) {
-    ok(`インストールしました: ${multicaVersion()}`);
-  } else {
-    fail(
-      `インストールに失敗しました（exit ${exit}）。${MULTICA_DOCS} を参照してください。`
-    );
-  }
-}
-
-/* ── stop / restart / logs cover both the tahcode bridge and the Multica daemon ── */
-
-type Target = "bridge" | "multica" | "all";
-
-function parseTarget(positional: string[], fallback: Target): Target {
-  const raw = positional[0];
-  if (raw === undefined) {
-    return fallback;
-  }
-  if (raw === "bridge" || raw === "multica" || raw === "all") {
-    return raw;
-  }
-  if (raw === "daemon") {
-    return "multica";
-  }
-  fail(`対象は bridge / multica / all のいずれかです: ${raw}`);
-  process.exit(2);
-}
-
 /** Stop the bridge however it was started. Returns true if something was stopped. */
 async function stopBridge(): Promise<boolean> {
   const state = runningBridge();
@@ -791,22 +700,9 @@ async function stopBridge(): Promise<boolean> {
   return stopped;
 }
 
-async function cmdStop(positional: string[]): Promise<void> {
-  const target = parseTarget(positional, "bridge");
-  let exit = 0;
-  if (target !== "multica") {
-    heading("tahcode ブリッジ");
-    await stopBridge();
-  }
-  if (target !== "bridge") {
-    heading("Multica daemon");
-    if (multicaInstalled()) {
-      exit = await passthrough(["daemon", "stop"]);
-    } else {
-      info("Multica CLI 未インストール");
-    }
-  }
-  process.exit(exit);
+async function cmdStop(): Promise<void> {
+  heading("tahcode ブリッジ");
+  await stopBridge();
 }
 
 function bridgeShouldRelink(): boolean {
@@ -841,7 +737,6 @@ async function restartBridgeFromCli(flags: Flags): Promise<boolean> {
     cwd: flagString(flags, "cwd")
       ? path.resolve(flagString(flags, "cwd")!)
       : (previous?.cwd ?? bridgeOptions(flags).cwd),
-    noDaemon: true,
     provider: flagString(flags, "provider") ?? previous?.provider,
   };
   const state = await spawnDetachedBridge(options);
@@ -850,61 +745,18 @@ async function restartBridgeFromCli(flags: Flags): Promise<boolean> {
   return true;
 }
 
-async function cmdRestart(flags: Flags, positional: string[]): Promise<void> {
-  const target = parseTarget(positional, "bridge");
-  let exit = 0;
-  if (target !== "bridge" && multicaInstalled()) {
-    heading("Multica daemon");
-    exit = await passthrough(["daemon", "restart"]);
+async function cmdRestart(flags: Flags): Promise<void> {
+  heading("tahcode ブリッジ");
+  const restarted = await restartBridgeFromCli(flags);
+  if (!restarted) {
+    process.exit(1);
   }
-  if (target !== "multica") {
-    heading("tahcode ブリッジ");
-    const restarted = await restartBridgeFromCli(flags);
-    if (!restarted) {
-      process.exit(1);
-    }
-  }
-  process.exit(exit);
 }
 
-async function cmdLogs(flags: Flags, positional: string[]): Promise<void> {
-  const target = parseTarget(positional, "bridge");
+async function cmdLogs(flags: Flags): Promise<void> {
   const follow = !!flags.follow || !!flags.f;
   const lines =
     Number(flagString(flags, "n") ?? flagString(flags, "lines") ?? 50) || 50;
-  if (target === "multica") {
-    process.exit(
-      await passthrough([
-        "daemon",
-        "logs",
-        ...(follow ? ["-f"] : []),
-        "-n",
-        String(lines),
-      ])
-    );
-  }
-  if (target === "all") {
-    heading(`tahcode ブリッジ（${BRIDGE_LOG_PATH}）`);
-    const tail = tailLog(lines);
-    if (tail.length === 0) {
-      info("ログはまだありません");
-    }
-    for (const line of tail) {
-      console.log(line);
-    }
-    heading("Multica daemon");
-    if (multicaInstalled()) {
-      await passthrough(["daemon", "logs", "-n", String(lines)]);
-    } else {
-      info("Multica CLI 未インストール");
-    }
-    if (follow) {
-      info(
-        `追従は対象を 1 つにしてください: ${code("tahcode logs bridge -f")} / ${code("tahcode logs multica -f")}`
-      );
-    }
-    return;
-  }
   if (follow) {
     await followLog(lines);
     return;
@@ -935,7 +787,7 @@ async function cmdService(flags: Flags, positional: string[]): Promise<void> {
       heading("launchd ユーザーエージェントを登録します");
       info(`plist: ${LAUNCHD_PLIST_PATH}`);
       info(
-        `cwd ${options.cwd}${options.provider ? ` · provider ${options.provider}` : ""}${options.noDaemon ? "" : " · --daemon"}`
+        `cwd ${options.cwd}${options.provider ? ` · provider ${options.provider}` : ""}`
       );
       const running = runningBridge();
       if (running && running.mode !== "launchd") {
@@ -1037,15 +889,14 @@ function reportLaunchdDoctor(cursorAvailable: boolean): void {
 
 async function main(): Promise<void> {
   applyBridgeEnvToProcess();
-  if (process.argv[2] === "multica") {
-    process.exit(await passthrough(process.argv.slice(3)));
-  }
+
   const { command, positional, flags } = parseArgs(process.argv.slice(2));
   if (flags.version || command === "version" || command === "--version") {
     console.log(`tahcode v${VERSION}`);
     return;
   }
-  if (flags.help && command !== "multica") {
+  rejectRemovedMulticaSurface(command, flags, positional);
+  if (flags.help) {
     help();
     return;
   }
@@ -1097,23 +948,19 @@ async function main(): Promise<void> {
       return;
     }
     case "stop": {
-      await cmdStop(positional);
+      await cmdStop();
       return;
     }
     case "restart": {
-      await cmdRestart(flags, positional);
+      await cmdRestart(flags);
       return;
     }
     case "logs": {
-      await cmdLogs(flags, positional);
+      await cmdLogs(flags);
       return;
     }
     case "service": {
       await cmdService(flags, positional);
-      return;
-    }
-    case "install-multica": {
-      await cmdInstallMultica(flags);
       return;
     }
     case "tool": {
@@ -1128,11 +975,6 @@ async function main(): Promise<void> {
     case "tool-mcp": {
       await runAgentToolMcp();
       return;
-    }
-    case "multica": {
-      // raw passthrough — argv after "multica" goes to the Multica CLI untouched
-      process.exit(await passthrough(process.argv.slice(3)));
-      break;
     }
     default: {
       fail(`不明なコマンド: ${command}`);

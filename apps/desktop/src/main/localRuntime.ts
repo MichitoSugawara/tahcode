@@ -26,7 +26,7 @@ import type {
  * Every child is spawned with an argv array (never a shell):
  *   tahcode link … --no-restart
  *   tahcode restart bridge   (existing bridge)
- *   tahcode start --no-daemon (first start; Multica is not required)
+ *   tahcode start            (first start; tahcode bridge only)
  * The raw token is never logged.
  * ───────────────────────────────────────────────────────── */
 

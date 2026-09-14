@@ -40,7 +40,6 @@ import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
-import { cancelMulticaTask } from "./multicaCancel.ts";
 import type { ProviderProbe } from "./providers.ts";
 import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
 import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
@@ -385,7 +384,6 @@ async function executeJob(
     driverKind: ProviderDriverKind;
     leaseId: string;
     model?: string;
-    multicaTaskId?: string;
     opsBundle?: JobOpsBundle;
     options?: ProviderOptionSelection[];
     prompt: string;
@@ -528,13 +526,6 @@ async function executeJob(
       return;
     }
     controller.abort();
-    const taskId = job.multicaTaskId ?? process.env.TAHCODE_MULTICA_TASK_ID;
-    if (taskId) {
-      const stopped = cancelMulticaTask(taskId);
-      if (!stopped.ok) {
-        console.error("[runtime] multica cancel-task failed", stopped.detail);
-      }
-    }
   };
   const pollCancel = () => {
     void client

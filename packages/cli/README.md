@@ -1,6 +1,6 @@
 # tahcode
 
-Machine CLI for [tahcode](../../README.md) (ターコード — _team agent harness_): link this computer to a tahcode org and run coding agents on it through the **tahcode bridge**. Multica is not required.
+Machine CLI for [tahcode](../../README.md) (ターコード — _team agent harness_): link this computer to a tahcode org and run coding agents on it through the **tahcode bridge**.
 
 > Renamed from the `dalecode` npm package (last release `dalecode@0.1.1`). See [Migrating from dalecode](#migrating-from-dalecode).
 
@@ -21,20 +21,18 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 | Org / runtime identity, one-time token, default-deny grants | tahcode backend (Convex) |
 | Agent CLI detection and headless execution (Codex / Claude / Cursor / Grok / OpenCode) | `tahcode start` (the tahcode **bridge**, resident in the background) |
 
-Multica daemon is leftover and off by default (`--daemon` opt-in only). Do not install Multica to run tahcode jobs.
-
 ## Commands
 
 | Command | Description |
 | --- | --- |
 | `tahcode link --url … --runtime … --token … [--name …] [--no-restart]` | Store the link in `~/.tahcode/config.json` (0600) after verifying it against the backend. If a bridge is already running, restart it against the new url/runtime/token (`--no-restart` skips that). Also accepts the env block on stdin. |
-| `tahcode start [--foreground] [--cwd dir] [--provider kind]` | Start the tahcode bridge **in the background** and return. `--foreground` keeps the bridge in this terminal (Ctrl+C to stop). `--detach` is the explicit default. `run` is an alias. `--daemon` optionally starts a Multica daemon (not required). `--no-daemon` is a no-op compatibility flag. |
+| `tahcode start [--foreground] [--cwd dir] [--provider kind]` | Start the tahcode bridge **in the background** and return. `--foreground` keeps the bridge in this terminal (Ctrl+C to stop). `--detach` is the explicit default. `run` is an alias. |
 | `tahcode status` | Link status and bridge status (pid / mode / uptime / log file, launchd registration on macOS). |
-| `tahcode stop [bridge\|multica\|all]` | Stop the bridge (SIGTERM → SIGKILL after 5 s). Default `bridge`. `multica` / `all` are leftover if a Multica daemon was started with `--daemon`. |
-| `tahcode restart [bridge\|multica\|all]` | Restart; the bridge comes back detached with its previous `--cwd` / `--provider` (override with flags). Default `bridge`. |
-| `tahcode logs [bridge\|multica\|all] [-f] [-n N]` | Bridge log (`~/.tahcode/bridge.log`, default). `-f` follows, `-n` sets the line count (50). |
+| `tahcode stop` | Stop the bridge (SIGTERM → SIGKILL after 5 s). `tahcode stop bridge` is accepted for compatibility. |
+| `tahcode restart` | Restart; the bridge comes back detached with its previous `--cwd` / `--provider` (override with flags). `tahcode restart bridge` is accepted for compatibility. |
+| `tahcode logs [-f] [-n N]` | Bridge log (`~/.tahcode/bridge.log`). `-f` follows, `-n` sets the line count (50). |
 | `tahcode service install\|uninstall\|status` | **macOS only.** Register the bridge as a launchd user agent (`~/Library/LaunchAgents/com.tahcode.bridge.plist`, RunAtLoad + KeepAlive) so it starts at login and is restarted if it dies. `install` accepts the same `--cwd` / `--provider` as `start`. |
-| `tahcode doctor` | Node, detected agent CLIs, backend connectivity, bridge status, and whether this CLI has `tahcode tool` / `tool-mcp` (fails if older than 0.1.1). Multica is not checked. |
+| `tahcode doctor` | Node, detected agent CLIs, backend connectivity, bridge status, and whether this CLI has `tahcode tool` / `tool-mcp` (fails if older than 0.1.1). |
 | `tahcode providers` | The t3code provider set the bridge can launch directly. |
 | `tahcode models [provider]` | Models each CLI can use, fetched live where the CLI has a list command (`agent models`, `opencode models`, `grok models`); Codex / Claude / Antigravity fall back to the static catalog. |
 | `tahcode update <provider\|all> [--yes]` | Update an agent CLI with the **same allowlisted command the web UI's「CLI を更新」runs**: npm / Homebrew installs via `npm i -g …@latest` / `brew upgrade …`, everything else via the CLI's own updater (`claude update`, `agent update`, `grok update`, `opencode upgrade`). Prints the command and exits unless `--yes`. |
@@ -43,8 +41,6 @@ Multica daemon is leftover and off by default (`--daemon` opt-in only). Do not i
 | `tahcode tool-mcp` | Stdio host for the same tools (job env only). The bridge writes a temporary config for Claude `--mcp-config`. Cursor `agent -p` has no equivalent flag. |
 
 Environment fallback (CI / containers): `TAHCODE_URL`, `TAHCODE_RUNTIME_ID`, `TAHCODE_TOKEN` (legacy `DALECODE_*`, `CONVEX_URL` / `HARNESS_RUNTIME_ID` / `HARNESS_RUNTIME_TOKEN` still work). `TAHCODE_HOME` overrides the config directory.
-
-Leftover (not required for tahcode jobs): `tahcode install-multica [--yes]`, `tahcode multica <args…>`, `MULTICA_BIN`.
 
 ## Running the bridge in the background
 
@@ -83,7 +79,7 @@ The plist runs `node <this cli> start --foreground …`. `PATH` always includes 
 2. the existing plist (`~/Library/LaunchAgents/com.tahcode.bridge.plist`)
 3. `~/.tahcode/bridge.env`
 
-Re-running `tahcode service install` **does not wipe** those keys. `service uninstall` removes the plist only — `bridge.env` stays. Default start is bridge-only; Multica is not brought up at login. `--no-daemon` is a no-op compatibility flag.
+Re-running `tahcode service install` **does not wipe** those keys. `service uninstall` removes the plist only — `bridge.env` stays. Default start is bridge-only; Multica is not a runtime.
 
 Set Cursor headless auth once (never commit this file; doctor / logs print only 設定済み / 未設定):
 
@@ -138,7 +134,7 @@ tahcode tool            # must NOT print 不明なコマンド: tool
 
 ## Migrating from dalecode
 
-The package, bin, config directory, launchd label and env vars were renamed; behaviour is unchanged aside from Multica no longer being part of the default start path.
+The package, bin, config directory, launchd label and env vars were renamed. The runtime is the tahcode bridge only.
 
 | `dalecode` ≤ 0.1.1 | `tahcode` |
 | --- | --- |

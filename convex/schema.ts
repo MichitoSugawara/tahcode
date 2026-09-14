@@ -161,7 +161,7 @@ export default defineSchema({
     leaseId: v.optional(v.string()),
     /* who sent the trigger message; optional so existing rows still validate */
     requestedBy: v.optional(v.id("users")),
-    /* Multica issue task id when the job was launched that way */
+    /* Historic leftover. Never written by current code. Kept so existing rows validate. */
     multicaTaskId: v.optional(v.string()),
     /* active chat for in-job tahcode tools; defaults to chatId */
     toolChatId: v.optional(v.id("chats")),
