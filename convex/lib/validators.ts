@@ -190,6 +190,30 @@ export const chatSummary = v.object({
   options: v.optional(v.array(optionSelection)),
 });
 
+export const connectorScope = v.union(v.literal("org"), v.literal("user"));
+
+export const connectorStatus = v.union(
+  v.literal("connected"),
+  v.literal("needsAuth"),
+  v.literal("disconnected"),
+  v.literal("error")
+);
+
+export const connectorConnectionSummary = v.object({
+  _id: v.id("connectorConnections"),
+  connectedAccountId: v.string(),
+  createdBy: v.id("users"),
+  displayLabel: v.optional(v.string()),
+  lastVerifiedAt: v.optional(v.number()),
+  orgId: v.id("orgs"),
+  provider: v.string(),
+  providerConfigId: v.optional(v.string()),
+  scope: connectorScope,
+  status: connectorStatus,
+  updatedAt: v.number(),
+  userId: v.optional(v.id("users")),
+});
+
 export const messageDoc = v.object({
   _creationTime: v.number(),
   _id: v.id("messages"),
