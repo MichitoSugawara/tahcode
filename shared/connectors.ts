@@ -48,6 +48,11 @@ export function normalizeConnectorProvider(value: string): string {
   return provider;
 }
 
+/** Placeholder opaque id until TAH-42 writes the real OpenConnector account id. */
+export function pendingConnectorAccountId(provider: string): string {
+  return `pending:${normalizeConnectorProvider(provider)}`;
+}
+
 export function normalizeOptionalConnectorText(
   value: string | undefined,
   maxLength: number,
