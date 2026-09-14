@@ -3,6 +3,12 @@ import type {
   ConnectorStatus,
 } from "../../shared/connectors.ts";
 
+export {
+  LINEAR_CONNECT_QUERY,
+  linearConnectReturnScope,
+  stripLinearConnectReturnSearch,
+} from "../../shared/openConnector.ts";
+
 export type { ConnectorScope, ConnectorStatus };
 
 export type ConnectorCardPhase =
@@ -17,6 +23,7 @@ export type ConnectorCardLocalPhase = "idle" | "waiting" | "failed";
 export type ConnectorCatalogEntry = {
   description: string;
   displayName: string;
+  keywords: string;
   provider: string;
 };
 
@@ -27,6 +34,12 @@ export type ConnectorConnectionView = {
   scope: ConnectorScope;
   status: ConnectorStatus;
 };
+
+/** Official Linear brand chevron (viewBox 0 0 100 100). */
+export const LINEAR_BRAND_MARK_PATH =
+  "M1.22541 61.5228c-1.63375-1.6338-1.63375-4.2834 0-5.9172L55.6056 1.22541c1.6338-1.633747 4.2834-1.633747 5.9172 0L98.7746 38.4772c1.6338 1.6338 1.6338 4.2834 0 5.9172L44.3944 98.7746c-1.6338 1.6338-4.2834 1.6338-5.9172 0L1.22541 61.5228z";
+
+export const LINEAR_BRAND_COLOR = "#5E6AD2";
 
 /** Grok Bot connector.tsx: Add / Authorize / Waiting+Reopen / Retry / Connected. */
 export function resolveConnectorCardPhase(input: {
@@ -63,24 +76,48 @@ export function partitionConnectorConnections<
 }
 
 export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
-  description: "Linear を org に接続します。課題とプロジェクトを扱えます。",
+  description: "課題とプロジェクトを扱えます。",
   displayName: "Linear",
+  keywords: "linear issue project 課題 プロジェクト",
   provider: "linear",
 };
+
+export const CONNECTOR_CATALOG: readonly ConnectorCatalogEntry[] = [
+  LINEAR_CONNECTOR,
+];
+
+export function filterConnectorCatalog(
+  query: string,
+  catalog: readonly ConnectorCatalogEntry[] = CONNECTOR_CATALOG
+): ConnectorCatalogEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 1) {
+    return [...catalog];
+  }
+  return catalog.filter((entry) =>
+    `${entry.displayName} ${entry.description} ${entry.provider} ${entry.keywords}`
+      .toLowerCase()
+      .includes(needle)
+  );
+}
 
 export const CONNECTOR_CARD_COPY = {
   add: "追加",
   authorize: "認可",
+  authorizeHint: "認可すると Linear に移動し、完了後この画面に戻ります。",
+  confirming: (name: string) => `${name} の認可を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
   disconnectDetail:
     "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
+  emptySearch: "一致するコネクタがありません",
+  moreActions: "その他の操作",
   notConfigured: "認可を開始できません。管理者に連絡してください。",
-  oauthPending:
-    "認可の開始は準備中です。切断と状態表示はこの画面で利用できます。",
   reopen: "再表示",
   retry: "再試行",
   retryHint: (name: string) => `${name} の認可が完了しませんでした`,
+  searchAria: "コネクタを検索",
+  searchPlaceholder: "コネクタを検索",
   team: "Team",
   waiting: (name: string) => `${name} の認可を待っています…`,
 } as const;

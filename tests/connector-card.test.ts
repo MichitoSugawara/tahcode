@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { ConnectorStatus } from "../shared/connectors.ts";
 import {
   CONNECTOR_CARD_COPY,
+  CONNECTOR_CATALOG,
+  LINEAR_BRAND_MARK_PATH,
   LINEAR_CONNECTOR,
   connectionMeta,
   connectorStatusLabel,
   connectorStatusTone,
+  filterConnectorCatalog,
   partitionConnectorConnections,
   resolveConnectorCardPhase,
 } from "../src/lib/connectorCard.ts";
@@ -86,34 +89,55 @@ describe(partitionConnectorConnections, () => {
   });
 });
 
+describe(filterConnectorCatalog, () => {
+  it("filters the catalog by name, description, and keywords", () => {
+    expect(CONNECTOR_CATALOG).toHaveLength(1);
+    expect(
+      filterConnectorCatalog("").map((entry) => entry.provider)
+    ).toStrictEqual(["linear"]);
+    expect(filterConnectorCatalog("Linear")).toStrictEqual([LINEAR_CONNECTOR]);
+    expect(filterConnectorCatalog("課題")).toStrictEqual([LINEAR_CONNECTOR]);
+    expect(filterConnectorCatalog("gmail")).toStrictEqual([]);
+  });
+});
+
 describe("connector card copy", () => {
   it("keeps Japanese CTAs and the Grok Bot Team badge", () => {
-    expect(LINEAR_CONNECTOR.provider).toBe("linear");
-    expect(LINEAR_CONNECTOR.description).toContain("Linear を org に接続");
-    expect(CONNECTOR_CARD_COPY).toMatchObject({
-      add: "追加",
-      authorize: "認可",
-      connected: "接続済み",
-      disconnect: "切断",
-      notConfigured: "認可を開始できません。管理者に連絡してください。",
-      reopen: "再表示",
-      retry: "再試行",
-      team: "Team",
+    expect({
+      copy: CONNECTOR_CARD_COPY,
+      description: LINEAR_CONNECTOR.description,
+      provider: LINEAR_CONNECTOR.provider,
+      retryHint: CONNECTOR_CARD_COPY.retryHint("Linear"),
+      stub: JSON.stringify(CONNECTOR_CARD_COPY),
+      waiting: CONNECTOR_CARD_COPY.waiting("Linear"),
+    }).toMatchObject({
+      copy: {
+        add: "追加",
+        authorize: "認可",
+        authorizeHint: expect.stringContaining("Linear に移動"),
+        connected: "接続済み",
+        disconnect: "切断",
+        notConfigured: "認可を開始できません。管理者に連絡してください。",
+        reopen: "再表示",
+        retry: "再試行",
+        searchPlaceholder: "コネクタを検索",
+        team: "Team",
+      },
+      description: expect.stringContaining("課題とプロジェクト"),
+      provider: "linear",
+      retryHint: expect.stringContaining("認可が完了しませんでした"),
+      stub: expect.not.stringContaining("認可の開始は準備中です"),
+      waiting: expect.stringContaining("認可を待っています"),
     });
-    expect(CONNECTOR_CARD_COPY.waiting("Linear")).toContain(
-      "認可を待っています"
-    );
-    expect(CONNECTOR_CARD_COPY.retryHint("Linear")).toContain(
-      "認可が完了しませんでした"
-    );
   });
 
   it("does not mention infrastructure names in card copy", () => {
     const haystack = [
       LINEAR_CONNECTOR.description,
+      CONNECTOR_CARD_COPY.authorizeHint,
       CONNECTOR_CARD_COPY.disconnectDetail,
       CONNECTOR_CARD_COPY.notConfigured,
-      CONNECTOR_CARD_COPY.oauthPending,
+      CONNECTOR_CARD_COPY.searchPlaceholder,
     ].join(" ");
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
@@ -162,13 +186,37 @@ describe("connector card copy", () => {
   });
 });
 
-describe("connector card layout", () => {
-  it("puts CTA/status on the header row, not under the description", () => {
-    const source = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
-    expect(source).toContain("connector-card-header");
-    expect(source).toContain("connector-card-text");
-    expect(source).toContain("connector-card-actions");
-    expect(source).toContain("sand-connector-card__header");
-    expect(source).not.toMatch(/flex flex-col gap-2 px-3 py-2\.5/);
+describe("connector marketplace layout", () => {
+  it("uses compact rows with a cross-axis-centered CTA", () => {
+    const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    const page = readFileSync("src/pages/ConnectorsPage.tsx", "utf-8");
+    expect({
+      actions: pane.includes("connector-row-actions"),
+      brand: pane.includes("LINEAR_BRAND_MARK_PATH"),
+      cards: pane.includes("primitive-card-bar"),
+      centered: pane.includes("flex items-center gap-3"),
+      plug: /\bUnplug\b|\bPlug\b/.test(pane),
+      row: pane.includes("connector-marketplace-row"),
+      search: page.includes("searchPlaceholder"),
+      searchType: page.includes('type="search"'),
+      stacked: pane.includes("items-start gap-3"),
+      text: pane.includes("connector-row-text"),
+    }).toStrictEqual({
+      actions: true,
+      brand: true,
+      cards: false,
+      centered: true,
+      plug: false,
+      row: true,
+      search: true,
+      searchType: true,
+      stacked: false,
+      text: true,
+    });
+  });
+
+  it("keeps the official Linear chevron, not a generic plug", () => {
+    expect(LINEAR_BRAND_MARK_PATH).toContain("M1.22541 61.5228");
+    expect(LINEAR_BRAND_MARK_PATH).toContain("98.7746");
   });
 });

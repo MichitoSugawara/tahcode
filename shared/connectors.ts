@@ -21,6 +21,8 @@ export const MAX_CONNECTOR_PROVIDER = 64;
 export const MAX_CONNECTOR_ACCOUNT_ID = 256;
 export const MAX_CONNECTOR_CONFIG_ID = 128;
 export const MAX_CONNECTOR_DISPLAY_LABEL = 120;
+export const MAX_CONNECTOR_OAUTH_REQUEST_ID = 64;
+export const MAX_CONNECTOR_OAUTH_ALIAS = 128;
 
 const PROVIDER_RE = /^[a-z][a-z0-9-]{0,63}$/;
 const SECRET_FIELD_RE = /access_token|refresh_token|client_secret|Bearer\s/i;

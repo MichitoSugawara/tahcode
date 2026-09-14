@@ -1,32 +1,30 @@
-import { Plug } from "lucide-react";
+import { Search, X } from "lucide-react";
+import { useState } from "react";
 
 import { useOrg } from "@/harness/OrgContext";
 import { ConnectorsPane } from "@/harness/rail/ConnectorsPane";
+import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
- * CONNECTORS — dedicated org surface (not a Settings section).
- * Grok Bot keeps Plugins in its own overlay (`aria-label="Plugins"`);
- * tahcode Shell already treats Settings as a full-width route, so
- * this page uses that grammar instead of nesting a Dialog over chat
- * (ConnectorsPane already opens a disconnect Dialog).
+ * CONNECTORS — dedicated marketplace surface (not Settings).
+ * Grok Bot Plugins overlay: search + dense rows
+ * (icon | name+desc | right CTA), not padded cards.
  * ───────────────────────────────────────────────────────── */
 export default function ConnectorsPage() {
   const { org } = useOrg();
+  const [query, setQuery] = useState("");
   useDocumentTitle("コネクタ", org.name);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-5 px-4 py-8 sm:px-8">
         <header
           style={{
             animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both",
           }}
         >
-          <div className="text-ink-3 flex items-center gap-2 text-[12px]">
-            <Plug size={13} /> コネクタ
-          </div>
-          <h1 className="text-ink mt-1 text-[22px] font-normal tracking-[-0.02em]">
+          <h1 className="text-ink text-[22px] font-normal tracking-[-0.02em]">
             連携
           </h1>
           <p className="text-ink-3 mt-1 max-w-[42rem] text-[13px] leading-relaxed">
@@ -35,12 +33,41 @@ export default function ConnectorsPage() {
           </p>
         </header>
 
-        <section
+        <div
           style={{
-            animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 60ms both",
+            animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 40ms both",
           }}
         >
-          <ConnectorsPane />
+          <label className="bg-field shadow-hairline flex h-10 items-center gap-2 rounded-full px-3.5 transition-[box-shadow] duration-150 focus-within:shadow-[0_0_0_1px_var(--line-strong)]">
+            <Search size={15} className="text-ink-3 shrink-0" aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={CONNECTOR_CARD_COPY.searchPlaceholder}
+              aria-label={CONNECTOR_CARD_COPY.searchAria}
+              className="text-ink placeholder:text-ink-3 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none"
+            />
+            {query ? (
+              <button
+                type="button"
+                aria-label="検索をクリア"
+                onClick={() => setQuery("")}
+                className="text-ink-3 hover:bg-hover-2 hover:text-ink flex size-6 items-center justify-center rounded-full transition-colors duration-100"
+              >
+                <X size={12} strokeWidth={2.2} />
+              </button>
+            ) : null}
+          </label>
+        </div>
+
+        <section
+          style={{
+            animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 80ms both",
+          }}
+        >
+          <h2 className="text-ink mb-2 text-[13px] font-medium">コネクタ</h2>
+          <ConnectorsPane searchQuery={query} />
         </section>
       </div>
     </div>
