@@ -18,6 +18,8 @@ import {
   marketplaceConnectorPhase,
   providerIconSource,
   resolveConnectorCardPhase,
+  shouldShowAddAnotherAccount,
+  shouldStartOauthFromMarketplace,
 } from "../src/lib/connectorCard.ts";
 
 describe(resolveConnectorCardPhase, () => {
@@ -112,6 +114,31 @@ describe(connectorAccountTitle, () => {
     expect(marketplaceConnectorPhase(["connected", "needsAuth"])).toBe(
       "connected"
     );
+  });
+});
+
+describe("first Linear connect CTAs", () => {
+  it("starts OAuth at zero rows and shows add-another only after a connected account", () => {
+    expect({
+      emptyStartsOauth: shouldStartOauthFromMarketplace([]),
+      needsAuthOpensDetail: shouldStartOauthFromMarketplace([
+        { status: "needsAuth" },
+      ]),
+      emptyHidesAddAnother: shouldShowAddAnotherAccount([]),
+      needsAuthHidesAddAnother: shouldShowAddAnotherAccount([
+        { status: "needsAuth" },
+      ]),
+      connectedShowsAddAnother: shouldShowAddAnotherAccount([
+        { status: "needsAuth" },
+        { status: "connected" },
+      ]),
+    }).toStrictEqual({
+      emptyStartsOauth: true,
+      needsAuthOpensDetail: false,
+      emptyHidesAddAnother: false,
+      needsAuthHidesAddAnother: false,
+      connectedShowsAddAnother: true,
+    });
   });
 });
 
@@ -249,7 +276,8 @@ describe("connector marketplace layout", () => {
       centered: pane.includes("flex items-center gap-3"),
       complete: pane.includes("completeLinearConnect"),
       accounts: pane.includes("connector-detail-accounts"),
-      addAnother: pane.includes("addAnotherAccount"),
+      addAnother: pane.includes("shouldShowAddAnotherAccount"),
+      firstOauth: pane.includes("shouldStartOauthFromMarketplace"),
       rename: pane.includes("connectorConnections.rename"),
       remove: pane.includes("connectorConnections.remove"),
       pencil: pane.includes("Pencil"),
@@ -264,6 +292,7 @@ describe("connector marketplace layout", () => {
       accounts: true,
       actions: true,
       addAnother: true,
+      firstOauth: true,
       assign: true,
       pencil: true,
       remove: true,

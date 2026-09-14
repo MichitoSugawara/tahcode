@@ -132,6 +132,73 @@ export function isOpenConnectorConfigured(config: OpenConnectorEnv): boolean {
   return Boolean(config.adminToken && config.siteUrl);
 }
 
+const MAX_RETURN_ORIGIN_LENGTH = 256;
+const TAHCODE_PUBLIC_HOST = "tahcode.com";
+const TAHCODE_WORKER_HOST_SUFFIX = ".gawara.workers.dev";
+
+export function normalizeSiteOrigin(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length > MAX_RETURN_ORIGIN_LENGTH) {
+    return;
+  }
+  try {
+    const url = new URL(
+      trimmed.includes("://") ? trimmed : `https://${trimmed}`
+    );
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return;
+    }
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === `www.${TAHCODE_PUBLIC_HOST}`) {
+      return `${url.protocol}//${TAHCODE_PUBLIC_HOST}`;
+    }
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Browser / SITE_URL origins we may send as Linear OAuth returnUri. */
+export function isAllowedLinearReturnOrigin(origin: string): boolean {
+  const normalized = normalizeSiteOrigin(origin);
+  if (!normalized) {
+    return false;
+  }
+  let url: URL;
+  try {
+    url = new URL(normalized);
+  } catch {
+    return false;
+  }
+  const host = url.hostname;
+  if (host === "localhost" || host === "127.0.0.1") {
+    return url.protocol === "http:" || url.protocol === "https:";
+  }
+  if (url.protocol !== "https:") {
+    return false;
+  }
+  return (
+    host === TAHCODE_PUBLIC_HOST ||
+    host === "gawara.workers.dev" ||
+    host.endsWith(TAHCODE_WORKER_HOST_SUFFIX)
+  );
+}
+
+/**
+ * Prefer the page origin the user is on (preview vs tahcode.com) when it is
+ * an allowed public origin. Otherwise keep Convex SITE_URL.
+ */
+export function resolveLinearReturnSiteUrl(input: {
+  envSiteUrl?: string;
+  requestedOrigin?: string;
+}): string | undefined {
+  const requested = normalizeSiteOrigin(input.requestedOrigin);
+  if (requested && isAllowedLinearReturnOrigin(requested)) {
+    return requested;
+  }
+  return normalizeSiteOrigin(input.envSiteUrl);
+}
+
 export function buildLinearReturnUri(input: {
   connectionId?: string;
   orgSlug: string;

@@ -8,12 +8,14 @@ import {
   confirmLinearConnectionRequest,
   getLinearConnectionRequest,
   healthCheckLinearConnection,
+  isAllowedLinearReturnOrigin,
   isOpenConnectorConfigured,
   linearConnectReturnConnectionId,
   linearConnectReturnScope,
   linearDisplayLabel,
   parseRuntimeEnvelope,
   readOpenConnectorEnv,
+  resolveLinearReturnSiteUrl,
   startLinearConnectionRequest,
   stripLinearConnectReturnSearch,
 } from "../shared/openConnector.ts";
@@ -48,6 +50,35 @@ describe(readOpenConnectorEnv, () => {
         })
       )
     ).toBeTruthy();
+  });
+});
+
+describe(resolveLinearReturnSiteUrl, () => {
+  it("prefers the page origin when it is an allowed public host", () => {
+    expect(
+      resolveLinearReturnSiteUrl({
+        envSiteUrl: "https://pr-49-tahcode-preview.gawara.workers.dev",
+        requestedOrigin: "https://tahcode.com/",
+      })
+    ).toBe("https://tahcode.com");
+    expect(
+      isAllowedLinearReturnOrigin(
+        "https://pr-49-tahcode-preview.gawara.workers.dev"
+      )
+    ).toBeTruthy();
+    expect(isAllowedLinearReturnOrigin("https://evil.example")).toBeFalsy();
+    expect(
+      resolveLinearReturnSiteUrl({
+        envSiteUrl: "https://tahcode.com",
+        requestedOrigin: "https://evil.example",
+      })
+    ).toBe("https://tahcode.com");
+    expect(
+      resolveLinearReturnSiteUrl({
+        envSiteUrl: "https://tahcode.com",
+        requestedOrigin: "https://www.tahcode.com/",
+      })
+    ).toBe("https://tahcode.com");
   });
 });
 

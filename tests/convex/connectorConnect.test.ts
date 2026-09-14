@@ -103,7 +103,7 @@ function jsonResponse(data: unknown, status = 200) {
 describe("startLinearConnect", () => {
   afterEach(restoreConnectorEnv);
 
-  it("marks an org Linear mapping needsAuth without storing a token", async () => {
+  it("does not insert a ghost Linear row when OAuth is not configured", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
     const result = await aliceCtx.action(
@@ -115,6 +115,7 @@ describe("startLinearConnect", () => {
     );
     expect(result).toMatchObject({
       authorizeUrl: null,
+      connectionId: null,
       ready: false,
       reason: "oauth_not_configured",
     });
@@ -122,35 +123,10 @@ describe("startLinearConnect", () => {
       orgId: orgA,
       provider: "linear",
     });
-    expect(listed).toHaveLength(1);
-    expect(listed[0]).toMatchObject({
-      _id: result.connectionId,
-      orgId: orgA,
-      provider: "linear",
-      scope: "org",
-      status: "needsAuth",
-    });
-    expect(
-      listed[0]?.connectedAccountId.startsWith("pending:linear")
-    ).toBeTruthy();
-    const stored = await t.run(async (ctx) => {
-      const row = await ctx.db.get("connectorConnections", result.connectionId);
-      if (!row) {
-        throw new Error("expected connection row");
-      }
-      return Object.keys(row).sort();
-    });
-    expect(stored).not.toStrictEqual(
-      expect.arrayContaining([
-        "accessToken",
-        "refreshToken",
-        "clientSecret",
-        "token",
-      ])
-    );
+    expect(listed).toHaveLength(0);
   });
 
-  it("starts a second Linear row without overwriting a connected account", async () => {
+  it("leaves an existing connected Linear account untouched when OAuth is not configured", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
     const connectionId = await aliceCtx.mutation(
@@ -169,23 +145,22 @@ describe("startLinearConnect", () => {
         scope: "org",
       }
     );
-    expect(result.connectionId).not.toBe(connectionId);
+    expect(result).toMatchObject({
+      connectionId: null,
+      ready: false,
+      reason: "oauth_not_configured",
+    });
     const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
       orgId: orgA,
     });
-    expect(listed).toHaveLength(2);
+    expect(listed).toHaveLength(1);
     expect(listed.find((row) => row._id === connectionId)).toMatchObject({
       connectedAccountId: "ca_default-linear",
       status: "connected",
     });
-    expect(listed.find((row) => row._id === result.connectionId)).toMatchObject(
-      {
-        status: "needsAuth",
-      }
-    );
   });
 
-  it("re-authorizes a disconnected mapping and keeps the opaque id", async () => {
+  it("does not flip a disconnected mapping when OAuth is not configured", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
     const connectionId = await aliceCtx.mutation(
@@ -208,7 +183,11 @@ describe("startLinearConnect", () => {
         scope: "org",
       }
     );
-    expect(result.connectionId).toBe(connectionId);
+    expect(result).toMatchObject({
+      connectionId: null,
+      ready: false,
+      reason: "oauth_not_configured",
+    });
     expect(
       (
         await aliceCtx.query(api.connectorConnections.listByOrg, {
@@ -217,7 +196,7 @@ describe("startLinearConnect", () => {
       )[0]
     ).toMatchObject({
       connectedAccountId: "ca_default-linear",
-      status: "needsAuth",
+      status: "disconnected",
     });
   });
 
@@ -245,7 +224,17 @@ describe("startLinearConnect", () => {
     ).rejects.toThrow(/not authenticated/i);
   });
 
-  it("lets a member start a user-scoped Linear connect", async () => {
+  it("lets a member start a user-scoped Linear connect when OAuth is configured", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async () =>
+      jsonResponse({
+        authorizationUrl: "https://linear.app/oauth/authorize?client_id=x",
+        connectionRequestId: "req-member-1",
+        expiresAt: "2026-09-14T07:10:00.000Z",
+        stateHandle: "state-member",
+        status: "initiated",
+      })
+    );
     const t = fresh();
     const { memberCtx, orgA } = await seedOrg(t);
     const result = await memberCtx.action(
@@ -286,11 +275,16 @@ describe("startLinearConnect", () => {
       api.connectorConnect.startLinearConnect,
       {
         orgId: orgA,
+        returnOrigin: "https://tahcode.com",
         scope: "org",
       }
     );
+    const startedId = result.connectionId;
+    if (!startedId) {
+      throw new Error("expected connection id");
+    }
     const stored = await t.run(async (ctx) => {
-      const row = await ctx.db.get("connectorConnections", result.connectionId);
+      const row = await ctx.db.get("connectorConnections", startedId);
       if (!row) {
         throw new Error("expected connection row");
       }
@@ -319,9 +313,24 @@ describe("startLinearConnect", () => {
       url: "https://oc.test/v1/connections/linear/connect",
     });
     expect(calls[0]?.body).toContain(
-      `https://app.test/o/${org?.slug}/connectors?connector=linear&scope=org&connectionId=${result.connectionId}`
+      `https://tahcode.com/o/${org?.slug}/connectors?connector=linear&scope=org&connectionId=${startedId}`
     );
     expect(calls[0]?.body).not.toContain("connectedAccountId");
+  });
+
+  it("maps connector backend failures to a service-neutral error", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("backend request failed (401)");
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    await expect(
+      aliceCtx.action(api.connectorConnect.startLinearConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
+    ).rejects.toThrow(/認証を開始できません/);
   });
 
   it("creates pending A first, completes A, then starts pending B without overwriting A", async () => {
@@ -374,6 +383,9 @@ describe("startLinearConnect", () => {
         scope: "org",
       }
     );
+    if (!first.connectionId) {
+      throw new Error("expected first connection id");
+    }
     const completed = await aliceCtx.action(
       api.connectorConnect.completeLinearConnect,
       {
@@ -389,6 +401,9 @@ describe("startLinearConnect", () => {
         scope: "org",
       }
     );
+    if (!second.connectionId) {
+      throw new Error("expected second connection id");
+    }
     const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
       orgId: orgA,
     });

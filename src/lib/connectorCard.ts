@@ -135,6 +135,30 @@ export function connectorAccountCountLabel(count: number): string | undefined {
   return `${count}アカウント`;
 }
 
+export function connectedConnectorCount(
+  connections: readonly { status: ConnectorStatus }[]
+): number {
+  return connections.filter((row) => row.status === "connected").length;
+}
+
+/**
+ * Grok Bot / Codex / common SaaS: "+ Add another account" only after the
+ * first account is already connected. An empty connector never uses that
+ * framing — the primary CTA is Authorize (marketplace Add starts OAuth).
+ */
+export function shouldShowAddAnotherAccount(
+  connections: readonly { status: ConnectorStatus }[]
+): boolean {
+  return connectedConnectorCount(connections) >= 1;
+}
+
+/** Marketplace row with zero mappings starts OAuth; existing rows open detail. */
+export function shouldStartOauthFromMarketplace(
+  connections: readonly { status: ConnectorStatus }[]
+): boolean {
+  return connections.length === 0;
+}
+
 export function marketplaceConnectorPhase(
   statuses: readonly ConnectorStatus[]
 ): "add" | "connected" | "needsAuth" {

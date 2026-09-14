@@ -32,6 +32,8 @@ import {
   linearConnectReturnScope,
   marketplaceConnectorPhase,
   providerIconSource,
+  shouldShowAddAnotherAccount,
+  shouldStartOauthFromMarketplace,
   stripLinearConnectReturnSearch,
 } from "@/lib/connectorCard";
 import { errorSummary } from "@/lib/format";
@@ -135,15 +137,13 @@ function useLinearConnectReturn({
         }
         setConfirming(false);
         clearReturnQuery();
-      } catch (error: unknown) {
+      } catch {
         if (cancelled) {
           return;
         }
         setConfirming(false);
         setLocalPhase("failed");
-        toast.error("Linear の認証を確認できませんでした", {
-          description: errorSummary(error),
-        });
+        toast.error("Linear の認証を確認できませんでした");
         clearReturnQuery();
       }
     };
@@ -217,8 +217,7 @@ function ConnectorMarketplaceRow({
     <button
       type="button"
       className="connector-marketplace-row flex w-full items-center gap-3 py-2.5 text-left"
-      /* Grok marketplace / sand-connector-card__header: one provider row
-       * opens the account detail; CTA stays on the header, not stacked. */
+      /* Marketplace row: zero accounts start OAuth; otherwise open detail. */
       onClick={onOpen}
     >
       <ConnectorProviderIcon catalog={catalog} />
@@ -506,16 +505,36 @@ function ConnectorDetailDialog({
               );
             })}
             <div className="px-3 py-2.5">
-              <button
-                type="button"
-                className="text-ink-2 hover:text-ink text-[13px] disabled:opacity-50"
-                disabled={confirming || waiting}
-                onClick={() => {
-                  onAddAccount(isAdmin ? "org" : "user");
-                }}
-              >
-                {CONNECTOR_CARD_COPY.addAnotherAccount}
-              </button>
+              {shouldShowAddAnotherAccount(connections) ? (
+                <button
+                  type="button"
+                  className="text-ink-2 hover:text-ink text-[13px] disabled:opacity-50"
+                  disabled={confirming || waiting}
+                  onClick={() => {
+                    onAddAccount(isAdmin ? "org" : "user");
+                  }}
+                >
+                  {CONNECTOR_CARD_COPY.addAnotherAccount}
+                </button>
+              ) : null}
+              {connections.length === 0 && !waiting ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="accent"
+                    disabled={confirming}
+                    onClick={() => {
+                      onAddAccount(isAdmin ? "org" : "user");
+                    }}
+                  >
+                    {CONNECTOR_CARD_COPY.authorize}
+                  </Button>
+                  <p className="text-ink-3 mt-1 text-[12px]">
+                    {CONNECTOR_CARD_COPY.authorizeHint}
+                  </p>
+                </>
+              ) : null}
               {waiting ? (
                 <p className="text-ink-3 mt-1 text-[12px]" role="status">
                   {confirming
@@ -635,27 +654,37 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
       const startArgs: {
         connectionId?: Id<"connectorConnections">;
         orgId: Id<"orgs">;
+        returnOrigin: string;
         scope: ConnectorScope;
-      } = { orgId: org._id, scope };
+      } = {
+        orgId: org._id,
+        returnOrigin: window.location.origin,
+        scope,
+      };
       if (connectionId) {
         startArgs.connectionId = connectionId;
       }
       const result = await startConnect(startArgs);
-      setWaitingConnectionId(result.connectionId);
+      if (result.connectionId) {
+        setWaitingConnectionId(result.connectionId);
+      }
       if (result.ready && result.authorizeUrl) {
         window.location.assign(result.authorizeUrl);
         return;
       }
       setLocalPhase("failed");
+      if (!result.connectionId) {
+        setWaitingConnectionId(undefined);
+      }
       toast.message(
         result.reason === "oauth_not_configured"
           ? CONNECTOR_CARD_COPY.notConfigured
           : CONNECTOR_CARD_COPY.authorizeHint
       );
-    } catch (error: unknown) {
+    } catch {
       setLocalPhase("failed");
       toast.error("Linear の接続を開始できませんでした", {
-        description: errorSummary(error),
+        description: CONNECTOR_CARD_COPY.notConfigured,
       });
     }
   };
@@ -727,6 +756,12 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
             catalog={LINEAR_CONNECTOR}
             connections={linearConnections}
             onOpen={() => {
+              /* First connect: marketplace Add starts OAuth (Grok / SaaS).
+               * "+ 別のアカウントを追加" is only for a connected account. */
+              if (shouldStartOauthFromMarketplace(linearConnections)) {
+                void runStart(isAdmin ? "org" : "user");
+                return;
+              }
               setDetailOpen(true);
             }}
           />
