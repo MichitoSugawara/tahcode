@@ -348,7 +348,13 @@ describe(headlessArgs, () => {
         { id: "contextWindow", value: "1m" },
         { id: "fastMode", value: true },
       ]).slice(0, 5)
-    ).toStrictEqual(["-p", "--model", "claude-opus-5[1m]"]);
+    ).toStrictEqual([
+      "-p",
+      "--model",
+      "claude-opus-5[1m]",
+      "--settings",
+      JSON.stringify({ fastMode: true }),
+    ]);
     expect(
       headlessArgs("opencode", "hi", "anthropic/claude-sonnet-5", [
         { id: "variant", value: "high" },
