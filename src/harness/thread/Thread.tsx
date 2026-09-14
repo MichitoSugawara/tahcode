@@ -1,12 +1,9 @@
-import { Cpu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
 import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
-import { isLive, useOrg } from "@/harness/OrgContext";
+import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
-import { Notice } from "@/harness/ui/Notice";
-import { registerRuntimeCtaLabel } from "@/lib/desktop";
 import { displayName } from "@/lib/format";
 import { agentMention, isProviderKind } from "@/lib/providers";
 
@@ -117,10 +114,6 @@ export function Thread({
     }
   }, [chat._id, lastId]);
 
-  const usable = (org.runtimes ?? []).filter(
-    (runtime) => isLive(runtime, org.now) && runtime.canUse
-  );
-  const anyRuntime = (org.runtimes ?? []).length > 0;
   const last = messages.at(-1);
   const settledReply =
     last &&
@@ -246,27 +239,7 @@ export function Thread({
         ref={composerRef}
         className="absolute inset-x-0 bottom-0 px-4 pb-5 sm:px-8 lg:px-12"
       >
-        <div className="mx-auto flex max-w-[720px] flex-col gap-2">
-          {anyRuntime && usable.length === 0 && (
-            <Notice
-              tone="locked"
-              title="いま使えるランタイムがありません"
-              className="py-2"
-              action={
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="accent"
-                  onClick={() => org.openDialog({ kind: "registerRuntime" })}
-                >
-                  <Cpu size={12} /> {registerRuntimeCtaLabel()}
-                </Button>
-              }
-            >
-              登録済みのマシンがオフラインか、あなたに利用許可がありません。送信はできます。オンラインのランタイムがなければ、エージェントはセットアップ手順を返信します。Runtime
-              タブで状態と許可を確認してください。
-            </Notice>
-          )}
+        <div className="mx-auto max-w-[720px]">
           <Composer
             chat={chat}
             tall

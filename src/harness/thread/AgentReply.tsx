@@ -1,4 +1,9 @@
 import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
+import {
+  hasUsableOnlineRuntime,
+  isNoOnlineRuntimeNotice,
+  noRuntimeReplyCopy,
+} from "@shared/runtimeHealth.ts";
 import { useQuery } from "convex/react";
 import {
   Check,
@@ -10,7 +15,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from "@/components/atoms/Button";
 import { ProviderMark } from "@/components/atoms/ProviderIcon";
 import LoadingState from "@/components/primitives/LoadingState";
 import ThinkingState from "@/components/primitives/ThinkingState";
@@ -20,7 +24,6 @@ import type { ToolStep } from "@/components/primitives/ToolChips";
 import { useCancelJob } from "@/harness/Composer";
 import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
-import { registerRuntimeCtaLabel } from "@/lib/desktop";
 import { copyText, clockTime } from "@/lib/format";
 import { providerLabel } from "@/lib/providers";
 
@@ -211,7 +214,7 @@ export function AgentReply({
   prompt?: string;
   onRetry?: (prompt: string) => void;
 }) {
-  const { runtimes, openDialog } = useOrg();
+  const { now, runtimes } = useOrg();
   const { cancel, stopping } = useCancelJob();
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
@@ -262,35 +265,26 @@ export function AgentReply({
       .join("");
   }, [job]);
 
-  /* the "no runtime" notice the server writes when nothing can pick the job up */
-  if (!message.jobId && !message.runtimeId) {
+  /* Setup replies stay historical — live chrome on the composer is the warning. */
+  if (isNoOnlineRuntimeNotice(message)) {
+    const connected =
+      runtimes !== undefined && hasUsableOnlineRuntime(runtimes, now);
     return (
       <div
-        className="min-w-0"
+        className="text-ink-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-relaxed"
         style={{ animation: "fade-up 450ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
-        <Notice
-          tone="warn"
-          title="オンラインで利用できるマシンランタイムがありません"
-          action={
-            <>
-              <Button
-                type="button"
-                size="xs"
-                variant="accent"
-                onClick={() => openDialog({ kind: "registerRuntime" })}
-              >
-                <Cpu size={12} /> {registerRuntimeCtaLabel()}
-              </Button>
-              <span className="text-ink-3 self-center text-[11.5px]">
-                登録済みなら <code className="font-mono">tahcode start</code>{" "}
-                の起動と Runtime タブの許可を確認
-              </span>
-            </>
-          }
-        >
-          {message.body.replaceAll("`", "")}
-        </Notice>
+        <span>{noRuntimeReplyCopy(connected)}</span>
+        {connected && onRetry && prompt ? (
+          <button
+            type="button"
+            onClick={() => onRetry(prompt)}
+            className="hover:bg-hover-2 hover:text-ink inline-flex items-center gap-1 rounded-[6px] px-1 py-0.5 text-[12px] transition-colors duration-100"
+          >
+            <RotateCcw size={12} strokeWidth={1.8} />
+            再送
+          </button>
+        ) : null}
       </div>
     );
   }

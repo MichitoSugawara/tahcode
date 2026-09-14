@@ -1,3 +1,4 @@
+import { NO_ONLINE_RUNTIME_BODY } from "../../shared/runtimeHealth.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import {
@@ -148,7 +149,7 @@ export async function sendUserMessage(
   if (!runtime) {
     const assistantMessageId = await ctx.db.insert("messages", {
       authorType: "agent",
-      body: "オンラインのマシンランタイムがありません。Runtime タブでこのマシンを登録し、`npm i -g tahcode` → `tahcode link …` → `tahcode start` を実行してください。",
+      body: NO_ONLINE_RUNTIME_BODY,
       chatId: args.chatId,
       driverKind,
       mentions: [],

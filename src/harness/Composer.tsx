@@ -4,6 +4,7 @@ import {
   wiredHarnessFeatures,
 } from "@shared/harnessFeatures.ts";
 import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
+import { shouldShowNoRuntimeChrome } from "@shared/runtimeHealth.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
   AtSign,
@@ -34,6 +35,7 @@ import type {
 import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
+import { NoRuntimeChrome } from "@/harness/ui/NoRuntimeChrome";
 import { LINEAR_CONNECTOR, providerIconSource } from "@/lib/connectorCard";
 import { connectorMentionSuggestItems } from "@/lib/connectorMentions";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
@@ -797,6 +799,15 @@ export function Composer({
 
   return (
     <>
+      {shouldShowNoRuntimeChrome(org.runtimes, org.now) && (
+        <div className="mb-2">
+          <NoRuntimeChrome
+            registered={(org.runtimes ?? []).length > 0}
+            onRegister={() => org.openDialog({ kind: "registerRuntime" })}
+            onReview={() => org.goSettings("runtimes")}
+          />
+        </div>
+      )}
       <PromptBar
         tall={tall}
         disabled={disabled}
