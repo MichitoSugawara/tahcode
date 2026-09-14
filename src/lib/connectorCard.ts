@@ -5,6 +5,8 @@ import type {
 
 export {
   LINEAR_CONNECT_QUERY,
+  isPendingConnectorAccountId,
+  linearConnectReturnConnectionId,
   linearConnectReturnScope,
   stripLinearConnectReturnSearch,
 } from "../../shared/connectors.ts";
@@ -97,14 +99,52 @@ export function resolveConnectorCardPhase(input: {
   return "authorize";
 }
 
-export function partitionConnectorConnections<
-  T extends { provider: string; scope: ConnectorScope },
->(rows: T[], provider: string): { extras: T[]; primary: T | undefined } {
-  const matched = rows.filter((row) => row.provider === provider);
-  return {
-    extras: matched.filter((row) => row.scope === "user"),
-    primary: matched.find((row) => row.scope === "org"),
-  };
+export function connectionsForProvider<T extends { provider: string }>(
+  rows: T[],
+  provider: string
+): T[] {
+  return rows.filter((row) => row.provider === provider);
+}
+
+/** Grok mention titles: `Linear` or `Linear (pottos)` when the label adds info. */
+export function connectorAccountTitle(
+  displayName: string,
+  displayLabel?: string
+): string {
+  const label = displayLabel?.trim();
+  if (!label) {
+    return displayName;
+  }
+  const normalized = label.toLowerCase();
+  if (normalized === displayName.toLowerCase() || normalized === "default") {
+    return displayName;
+  }
+  return `${displayName} (${label})`;
+}
+
+/** Account-list label in the Grok detail screen (`アカウント` when unset). */
+export function connectorAccountLabel(displayLabel?: string): string {
+  const label = displayLabel?.trim();
+  return label && label.length > 0 ? label : "アカウント";
+}
+
+export function connectorAccountCountLabel(count: number): string | undefined {
+  if (count < 1) {
+    return;
+  }
+  return `${count}アカウント`;
+}
+
+export function marketplaceConnectorPhase(
+  statuses: readonly ConnectorStatus[]
+): "add" | "connected" | "needsAuth" {
+  if (statuses.length === 0) {
+    return "add";
+  }
+  if (statuses.some((status) => status === "connected")) {
+    return "connected";
+  }
+  return "needsAuth";
 }
 
 export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
@@ -134,22 +174,32 @@ export function filterConnectorCatalog<T extends ConnectorCatalogEntry>(
 }
 
 export const CONNECTOR_CARD_COPY = {
+  accounts: "アカウント",
   add: "追加",
-  authorize: "認可",
-  authorizeHint: "認可すると Linear に移動し、完了後この画面に戻ります。",
-  confirming: (name: string) => `${name} の認可を確認しています…`,
+  addAnotherAccount: "+ 別のアカウントを追加",
+  authorize: "認証",
+  authorizeHint: "認証すると Linear に移動し、完了後この画面に戻ります。",
+  cancelWait: "キャンセル",
+  confirming: (name: string) => `${name} の認証を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
   disconnectDetail:
     "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
   emptySearch: "該当するコネクタがありません",
-  notConfigured: "認可を開始できません。管理者に連絡してください。",
+  needsAuth: "認証が必要",
+  notConfigured: "認証を開始できません。管理者に連絡してください。",
+  personal: "個人",
+  remove: "削除",
+  removeDetail:
+    "このアカウントの連携だけを削除します。他の Linear アカウントは残ります。Linear 側のアカウントはそのままです。",
+  rename: "名前を変更",
+  renamePlaceholder: "アカウント",
   reopen: "再表示",
   retry: "再試行",
-  retryHint: (name: string) => `${name} の認可が完了しませんでした`,
+  retryHint: (name: string) => `${name} の認証が完了しませんでした`,
   searchLabel: "コネクタを検索",
   team: "Team",
-  waiting: (name: string) => `${name} の認可を待っています…`,
+  waiting: (name: string) => `${name} の認証を待っています…`,
 } as const;
 
 export function connectorStatusLabel(status: ConnectorStatus): string {
@@ -164,7 +214,7 @@ export function connectorStatusLabel(status: ConnectorStatus): string {
       return "エラー";
     }
     case "needsAuth": {
-      return "認可が必要";
+      return CONNECTOR_CARD_COPY.needsAuth;
     }
   }
 }

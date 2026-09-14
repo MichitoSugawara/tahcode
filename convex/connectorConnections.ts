@@ -1,9 +1,14 @@
 import { v } from "convex/values";
 
-import { normalizeConnectorProvider } from "../shared/connectors.ts";
+import {
+  MAX_CONNECTOR_CONNECTIONS,
+  MAX_CONNECTOR_DISPLAY_LABEL,
+  normalizeConnectorProvider,
+  normalizeOptionalConnectorText,
+} from "../shared/connectors.ts";
 import { requireMembership } from "./lib/access";
 import {
-  findConnectorConnection,
+  findConnectorConnectionByAccount,
   isVisibleConnectorConnection,
   listOrgConnectorConnections,
   normalizeConnectorUpsertInput,
@@ -66,20 +71,18 @@ export const upsert = authedMutation({
     await requireCanUpsertConnector(ctx, args.orgId, ctx.user._id, args.scope);
     const fields = normalizeConnectorUpsertInput(args);
     const userId = args.scope === "user" ? ctx.user._id : undefined;
-    const existing = await findConnectorConnection(ctx, {
+    const existing = await findConnectorConnectionByAccount(ctx, {
+      connectedAccountId: fields.connectedAccountId,
       orgId: args.orgId,
       provider: fields.provider,
-      providerConfigId: fields.providerConfigId,
-      scope: args.scope,
-      userId,
     });
     const now = Date.now();
     const lastVerifiedAt =
       args.lastVerifiedAt ??
       (fields.status === "connected" ? now : existing?.lastVerifiedAt);
     if (existing) {
+      await requireCanManageConnector(ctx, existing, ctx.user._id);
       await ctx.db.patch("connectorConnections", existing._id, {
-        connectedAccountId: fields.connectedAccountId,
         displayLabel: fields.displayLabel ?? existing.displayLabel,
         lastVerifiedAt,
         providerConfigId: fields.providerConfigId ?? existing.providerConfigId,
@@ -87,6 +90,11 @@ export const upsert = authedMutation({
         updatedAt: now,
       });
       return existing._id;
+    }
+    const existingCount = (await listOrgConnectorConnections(ctx, args.orgId))
+      .length;
+    if (existingCount >= MAX_CONNECTOR_CONNECTIONS) {
+      throw new Error("Connector connection limit reached");
     }
     return await ctx.db.insert("connectorConnections", {
       connectedAccountId: fields.connectedAccountId,
@@ -123,6 +131,51 @@ export const disconnect = authedMutation({
       status: "disconnected",
       updatedAt: Date.now(),
     });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const rename = authedMutation({
+  args: {
+    connectionId: v.id("connectorConnections"),
+    displayLabel: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(
+      "connectorConnections",
+      args.connectionId
+    );
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+    await requireCanManageConnector(ctx, connection, ctx.user._id);
+    const displayLabel = normalizeOptionalConnectorText(
+      args.displayLabel,
+      MAX_CONNECTOR_DISPLAY_LABEL,
+      "Display label"
+    );
+    await ctx.db.patch("connectorConnections", args.connectionId, {
+      displayLabel,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const remove = authedMutation({
+  args: { connectionId: v.id("connectorConnections") },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(
+      "connectorConnections",
+      args.connectionId
+    );
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+    await requireCanManageConnector(ctx, connection, ctx.user._id);
+    await ctx.db.delete("connectorConnections", args.connectionId);
     return null;
   },
   returns: v.null(),

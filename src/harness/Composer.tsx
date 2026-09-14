@@ -34,6 +34,8 @@ import type {
 import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
+import { LINEAR_CONNECTOR, providerIconSource } from "@/lib/connectorCard";
+import { connectorMentionSuggestItems } from "@/lib/connectorMentions";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
 import {
@@ -75,6 +77,27 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 /* the draft ends in an @token still being typed — hold the auto-mention hint */
 const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
+
+function ConnectorMentionIcon({
+  displayName,
+  src,
+}: {
+  displayName: string;
+  src?: string;
+}) {
+  if (!src) {
+    return <span aria-hidden>{displayName.slice(0, 1)}</span>;
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      width={14}
+      height={14}
+      className="size-3.5 rounded-[3px] object-cover"
+    />
+  );
+}
 
 function optionPickerIcon(optionId: string) {
   if (optionId === "fastMode" || optionId === "serviceTier") {
@@ -429,6 +452,11 @@ export function Composer({
       ),
     [usable]
   );
+  const linearConnections = useQuery(api.connectorConnections.listByOrg, {
+    orgId: org.org._id,
+    provider: LINEAR_CONNECTOR.provider,
+  });
+  const linearMentionIcon = providerIconSource(LINEAR_CONNECTOR);
 
   /* `@cursor/` switches the @ menu from providers + people to that provider's models */
   const modelToken = useMemo(() => {
@@ -521,8 +549,30 @@ export function Composer({
         trailing:
           String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
-    return [...agents, ...people];
+    const connectors: PromptMenuItem[] = connectorMentionSuggestItems(
+      linearConnections ?? []
+    ).map((item) => ({
+      desc: item.desc,
+      icon: (
+        <ConnectorMentionIcon
+          displayName={LINEAR_CONNECTOR.displayName}
+          src={linearMentionIcon}
+        />
+      ),
+      insert: item.insert,
+      key: item.key,
+      name: item.name,
+      search: item.search,
+      trailing: (
+        <span className="bg-inset text-ink-3 rounded-[4px] px-1 text-[10.5px] font-medium">
+          {item.trailing}
+        </span>
+      ),
+    }));
+    return [...agents, ...connectors, ...people];
   }, [
+    linearConnections,
+    linearMentionIcon,
     modelToken,
     org.members,
     org.me._id,

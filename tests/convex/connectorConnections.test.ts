@@ -87,6 +87,51 @@ describe("connectorConnections CRUD", () => {
     expect(listed[0]?.lastVerifiedAt).toStrictEqual(expect.any(Number));
   });
 
+  it("keeps two Linear accounts as separate rows keyed by connectedAccountId", async () => {
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_default-michitogawara",
+      displayLabel: "default",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    const second = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_pottos-linear",
+      displayLabel: "pottos",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    expect(second).not.toBe(first);
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "linear",
+    });
+    expect(listed).toHaveLength(2);
+    expect(listed.map((row) => row.connectedAccountId).sort()).toStrictEqual([
+      "ca_default-michitogawara",
+      "ca_pottos-linear",
+    ]);
+    const renamed = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_pottos-linear",
+      displayLabel: "pottos workspace",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    expect(renamed).toBe(second);
+    expect(
+      (
+        await aliceCtx.query(api.connectorConnections.listByOrg, {
+          orgId: orgA,
+          provider: "linear",
+        })
+      ).map((row) => row.displayLabel)
+    ).toStrictEqual(expect.arrayContaining(["default", "pottos workspace"]));
+  });
+
   it("disconnects softly and reuses the same row on reconnect", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
@@ -333,6 +378,83 @@ describe("connectorConnections authz", () => {
         scope: "org",
       })
     ).rejects.toThrow(/opaque/i);
+  });
+
+  it("renames one account and unsets an empty label", async () => {
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_alpha-linear",
+      displayLabel: "alpha",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    const second = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_beta-linear",
+      displayLabel: "beta",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    await aliceCtx.mutation(api.connectorConnections.rename, {
+      connectionId: first,
+      displayLabel: "pottos",
+    });
+    await aliceCtx.mutation(api.connectorConnections.rename, {
+      connectionId: second,
+      displayLabel: "  ",
+    });
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "linear",
+    });
+    expect(listed.find((row) => row._id === first)?.displayLabel).toBe(
+      "pottos"
+    );
+    expect(
+      listed.find((row) => row._id === second)?.displayLabel
+    ).toBeUndefined();
+  });
+
+  it("removes only the targeted connection row", async () => {
+    const t = fresh();
+    const { aliceCtx, memberCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_keep-linear",
+      displayLabel: "keep",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    const second = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_drop-linear",
+      displayLabel: "drop",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    await aliceCtx.mutation(api.connectorConnections.remove, {
+      connectionId: second,
+    });
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "linear",
+    });
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?._id).toBe(first);
+    await expect(
+      memberCtx.mutation(api.connectorConnections.remove, {
+        connectionId: first,
+      })
+    ).rejects.toThrow(/admin access required/i);
+    expect(
+      (
+        await aliceCtx.query(api.connectorConnections.listByOrg, {
+          orgId: orgA,
+        })
+      ).map((row) => row._id)
+    ).toStrictEqual([first]);
   });
 
   it("lets an admin disconnect another user's user-scoped row", async () => {

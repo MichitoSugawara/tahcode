@@ -80,12 +80,77 @@ export async function listOrgConnectorConnections(
     .take(MAX_CONNECTOR_CONNECTIONS);
 }
 
-export async function findConnectorConnection(
+export async function findConnectorConnectionByAccount(
+  ctx: Ctx,
+  input: {
+    connectedAccountId: string;
+    orgId: Id<"orgs">;
+    provider: string;
+  }
+) {
+  return await ctx.db
+    .query("connectorConnections")
+    .withIndex("by_org_provider_account", (q) =>
+      q
+        .eq("orgId", input.orgId)
+        .eq("provider", input.provider)
+        .eq("connectedAccountId", input.connectedAccountId)
+    )
+    .first();
+}
+
+export function matchesConnectScope(
+  row: Doc<"connectorConnections">,
+  input: { scope: ConnectorScope; userId?: Id<"users"> }
+) {
+  if (row.scope !== input.scope) {
+    return false;
+  }
+  if (input.scope === "org") {
+    return row.userId === undefined;
+  }
+  return row.userId === input.userId;
+}
+
+export async function findInFlightConnectorConnection(
+  ctx: Ctx,
+  input: {
+    connectionId?: Id<"connectorConnections">;
+    orgId: Id<"orgs">;
+    provider: string;
+    scope: ConnectorScope;
+    userId?: Id<"users">;
+  }
+) {
+  if (input.connectionId !== undefined) {
+    const row = await ctx.db.get("connectorConnections", input.connectionId);
+    if (
+      row &&
+      row.orgId === input.orgId &&
+      row.provider === input.provider &&
+      matchesConnectScope(row, input)
+    ) {
+      return row;
+    }
+    return null;
+  }
+  const rows = await listOrgConnectorConnections(
+    ctx,
+    input.orgId,
+    input.provider
+  );
+  const matches = rows.filter(
+    (row) => row.oauthRequestId !== undefined && matchesConnectScope(row, input)
+  );
+  matches.sort((left, right) => right.updatedAt - left.updatedAt);
+  return matches[0] ?? null;
+}
+
+export async function findLatestConnectedConnector(
   ctx: Ctx,
   input: {
     orgId: Id<"orgs">;
     provider: string;
-    providerConfigId?: string;
     scope: ConnectorScope;
     userId?: Id<"users">;
   }
@@ -95,20 +160,11 @@ export async function findConnectorConnection(
     input.orgId,
     input.provider
   );
-  const configId = input.providerConfigId ?? "";
-  return (
-    rows.find((row) => {
-      const sameScope = row.scope === input.scope;
-      const sameConfig = (row.providerConfigId ?? "") === configId;
-      if (!sameScope || !sameConfig) {
-        return false;
-      }
-      if (input.scope === "org") {
-        return row.userId === undefined;
-      }
-      return row.userId === input.userId;
-    }) ?? null
+  const matches = rows.filter(
+    (row) => row.status === "connected" && matchesConnectScope(row, input)
   );
+  matches.sort((left, right) => right.updatedAt - left.updatedAt);
+  return matches[0] ?? null;
 }
 
 export function isVisibleConnectorConnection(

@@ -37,6 +37,18 @@ export function linearConnectReturnScope(
   return params.get("scope") === "user" ? "user" : "org";
 }
 
+/** Convex `connectionId` from the OAuth return query (2nd+ account). */
+export function linearConnectReturnConnectionId(search: string): string | null {
+  if (linearConnectReturnScope(search) === null) {
+    return null;
+  }
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  const connectionId = params.get("connectionId")?.trim();
+  return connectionId && connectionId.length > 0 ? connectionId : null;
+}
+
 export function stripLinearConnectReturnSearch(search: string): string {
   const params = new URLSearchParams(
     search.startsWith("?") ? search.slice(1) : search
@@ -44,6 +56,7 @@ export function stripLinearConnectReturnSearch(search: string): string {
   for (const key of [
     "code",
     "connectedAccountId",
+    "connectionId",
     "connector",
     "message",
     "scope",
@@ -82,9 +95,25 @@ export function normalizeConnectorProvider(value: string): string {
   return provider;
 }
 
-/** Placeholder opaque id until TAH-42 writes the real OpenConnector account id. */
-export function pendingConnectorAccountId(provider: string): string {
-  return `pending:${normalizeConnectorProvider(provider)}`;
+/** Placeholder opaque id until OAuth writes the real OpenConnector account id.
+ *  Pass `slot` so two in-flight connects do not share one pending key. */
+export function pendingConnectorAccountId(
+  provider: string,
+  slot?: string
+): string {
+  const base = `pending:${normalizeConnectorProvider(provider)}`;
+  if (slot === undefined) {
+    return base;
+  }
+  const suffix = slot.trim();
+  if (suffix.length < 1) {
+    return base;
+  }
+  return `${base}:${suffix}`;
+}
+
+export function isPendingConnectorAccountId(value: string): boolean {
+  return value.startsWith("pending:");
 }
 
 export function normalizeOptionalConnectorText(

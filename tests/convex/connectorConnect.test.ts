@@ -125,12 +125,14 @@ describe("startLinearConnect", () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({
       _id: result.connectionId,
-      connectedAccountId: pendingConnectorAccountId("linear"),
       orgId: orgA,
       provider: "linear",
       scope: "org",
       status: "needsAuth",
     });
+    expect(
+      listed[0]?.connectedAccountId.startsWith("pending:linear")
+    ).toBeTruthy();
     const stored = await t.run(async (ctx) => {
       const row = await ctx.db.get("connectorConnections", result.connectionId);
       if (!row) {
@@ -148,7 +150,7 @@ describe("startLinearConnect", () => {
     );
   });
 
-  it("does not downgrade a connected org mapping", async () => {
+  it("starts a second Linear row without overwriting a connected account", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
     const connectionId = await aliceCtx.mutation(
@@ -167,17 +169,20 @@ describe("startLinearConnect", () => {
         scope: "org",
       }
     );
-    expect(result.connectionId).toBe(connectionId);
-    expect(
-      (
-        await aliceCtx.query(api.connectorConnections.listByOrg, {
-          orgId: orgA,
-        })
-      )[0]
-    ).toMatchObject({
+    expect(result.connectionId).not.toBe(connectionId);
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+    });
+    expect(listed).toHaveLength(2);
+    expect(listed.find((row) => row._id === connectionId)).toMatchObject({
       connectedAccountId: "ca_default-linear",
       status: "connected",
     });
+    expect(listed.find((row) => row._id === result.connectionId)).toMatchObject(
+      {
+        status: "needsAuth",
+      }
+    );
   });
 
   it("re-authorizes a disconnected mapping and keeps the opaque id", async () => {
@@ -198,6 +203,7 @@ describe("startLinearConnect", () => {
     const result = await aliceCtx.action(
       api.connectorConnect.startLinearConnect,
       {
+        connectionId,
         orgId: orgA,
         scope: "org",
       }
@@ -313,9 +319,111 @@ describe("startLinearConnect", () => {
       url: "https://oc.test/v1/connections/linear/connect",
     });
     expect(calls[0]?.body).toContain(
-      `https://app.test/o/${org?.slug}/connectors?connector=linear&scope=org`
+      `https://app.test/o/${org?.slug}/connectors?connector=linear&scope=org&connectionId=${result.connectionId}`
     );
     expect(calls[0]?.body).not.toContain("connectedAccountId");
+  });
+
+  it("creates pending A first, completes A, then starts pending B without overwriting A", async () => {
+    configureOpenConnector();
+    let startCount = 0;
+    vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+      const href = String(url);
+      if (href.endsWith("/v1/connections/linear/connect")) {
+        startCount += 1;
+        const requestId = `req-start-${startCount}`;
+        return jsonResponse({
+          authorizationUrl: `https://linear.app/oauth/authorize?n=${startCount}`,
+          connectionRequestId: requestId,
+          expiresAt: "2026-09-14T07:10:00.000Z",
+          stateHandle: `state-${startCount}`,
+          status: "initiated",
+        });
+      }
+      if (href.endsWith("/v1/connection-requests/req-start-1")) {
+        return jsonResponse({
+          appId: "bbbbbbbb-2222-4f8e-9134-c1db5c9cf7f8",
+          connectionRequestId: "req-start-1",
+          errorCode: null,
+          errorMessage: null,
+          service: "linear",
+          status: "connected",
+        });
+      }
+      if (href.includes("/v1/connections/by-id/")) {
+        return jsonResponse({
+          alias: "ignored-alias",
+          id: "bbbbbbbb-2222-4f8e-9134-c1db5c9cf7f8",
+          service: "linear",
+          status: "active",
+        });
+      }
+      if (href.endsWith("/v1/actions/linear.get_current_user")) {
+        return jsonResponse({
+          viewer: { displayName: "alice", name: "Alice" },
+        });
+      }
+      throw new Error(`unexpected fetch ${href} ${init?.body ?? ""}`);
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.action(
+      api.connectorConnect.startLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const completed = await aliceCtx.action(
+      api.connectorConnect.completeLinearConnect,
+      {
+        connectionId: first.connectionId,
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const second = await aliceCtx.action(
+      api.connectorConnect.startLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+    });
+    expect({
+      completed,
+      firstReady: first.ready,
+      listed: listed
+        .map((row) => ({
+          id: row._id,
+          label: row.displayLabel ?? null,
+          status: row.status,
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id)),
+      reusedFirst: second.connectionId === first.connectionId,
+    }).toStrictEqual({
+      completed: {
+        connectionId: first.connectionId,
+        displayLabel: "alice",
+        status: "connected",
+      },
+      firstReady: true,
+      listed: [
+        {
+          id: first.connectionId,
+          label: "alice",
+          status: "connected",
+        },
+        {
+          id: second.connectionId,
+          label: null,
+          status: "needsAuth",
+        },
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+      reusedFirst: false,
+    });
   });
 });
 
@@ -399,6 +507,87 @@ describe("completeLinearConnect", () => {
     });
   });
 
+  it("creates a second connected Linear row instead of overwriting the first", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async (url: string) => {
+      const href = String(url);
+      if (href.endsWith("/v1/connection-requests/req-complete-2")) {
+        return jsonResponse({
+          appId: "aaaaaaaa-1111-4f8e-9134-c1db5c9cf7f8",
+          connectionRequestId: "req-complete-2",
+          errorCode: null,
+          errorMessage: null,
+          service: "linear",
+          status: "connected",
+        });
+      }
+      if (href.includes("/v1/connections/by-id/")) {
+        return jsonResponse({
+          accountLabel: "pottos",
+          alias: "pottos",
+          displayName: "pottos",
+          id: "aaaaaaaa-1111-4f8e-9134-c1db5c9cf7f8",
+          service: "linear",
+          status: "active",
+        });
+      }
+      if (href.endsWith("/v1/actions/linear.get_current_user")) {
+        return jsonResponse({
+          viewer: { displayName: "pottos", name: "pottos" },
+        });
+      }
+      throw new Error(`unexpected fetch ${href}`);
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+      displayLabel: "michitogawara",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    const pending = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: pendingConnectorAccountId("linear", "req-complete-2"),
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+      status: "needsAuth",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch("connectorConnections", pending, {
+        oauthRequestId: "req-complete-2",
+      });
+    });
+    const result = await aliceCtx.action(
+      api.connectorConnect.completeLinearConnect,
+      {
+        connectionId: pending,
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    expect(result).toMatchObject({
+      connectionId: pending,
+      displayLabel: "pottos",
+      status: "connected",
+    });
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+    });
+    expect(listed).toHaveLength(2);
+    expect(listed.find((row) => row._id === first)).toMatchObject({
+      connectedAccountId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+      displayLabel: "michitogawara",
+      status: "connected",
+    });
+    expect(listed.find((row) => row._id === pending)).toMatchObject({
+      connectedAccountId: "aaaaaaaa-1111-4f8e-9134-c1db5c9cf7f8",
+      displayLabel: "pottos",
+      status: "connected",
+    });
+  });
+
   it("returns pending while the request is still initiated", async () => {
     configureOpenConnector();
     vi.stubGlobal("fetch", async () =>
@@ -430,10 +619,11 @@ describe("completeLinearConnect", () => {
     });
     await expect(
       aliceCtx.action(api.connectorConnect.completeLinearConnect, {
+        connectionId,
         orgId: orgA,
         scope: "org",
       })
-    ).resolves.toMatchObject({ status: "pending" });
+    ).resolves.toMatchObject({ connectionId, status: "pending" });
   });
 
   it("does not accept a browser connectedAccountId argument", async () => {

@@ -9,6 +9,7 @@ import {
   getLinearConnectionRequest,
   healthCheckLinearConnection,
   isOpenConnectorConfigured,
+  linearConnectReturnConnectionId,
   linearConnectReturnScope,
   linearDisplayLabel,
   parseRuntimeEnvelope,
@@ -62,6 +63,19 @@ describe(buildLinearReturnUri, () => {
       "https://pr-42-tahcode-preview.gawara.workers.dev/o/preview/connectors?connector=linear&scope=org"
     );
   });
+
+  it("includes connectionId so the 2nd+ account can complete", () => {
+    expect(
+      buildLinearReturnUri({
+        connectionId: "k17pendingaccount",
+        orgSlug: "preview",
+        scope: "org",
+        siteUrl: "https://app.example",
+      })
+    ).toBe(
+      "https://app.example/o/preview/connectors?connector=linear&scope=org&connectionId=k17pendingaccount"
+    );
+  });
 });
 
 describe("Linear return query", () => {
@@ -75,10 +89,24 @@ describe("Linear return query", () => {
     expect(linearConnectReturnScope("?status=success")).toBeNull();
   });
 
+  it("reads connectionId from the return query", () => {
+    expect(
+      linearConnectReturnConnectionId(
+        "?connector=linear&scope=org&connectionId=k17pending"
+      )
+    ).toBe("k17pending");
+    expect(
+      linearConnectReturnConnectionId("?connector=linear&scope=org")
+    ).toBeNull();
+    expect(
+      linearConnectReturnConnectionId("?connectionId=k17pending")
+    ).toBeNull();
+  });
+
   it("strips return params including a browser connectedAccountId", () => {
     expect(
       stripLinearConnectReturnSearch(
-        "?connector=linear&scope=org&status=success&service=linear&connectedAccountId=spoofed"
+        "?connector=linear&scope=org&status=success&service=linear&connectedAccountId=spoofed&connectionId=k17pending"
       )
     ).toBe("");
     expect(
@@ -137,7 +165,7 @@ describe(confirmLinearConnectionRequest, () => {
 });
 
 describe(linearDisplayLabel, () => {
-  it("prefers the Linear viewer, then the connection account label", () => {
+  it("uses only the Linear viewer name or email — never alias or default", () => {
     expect(
       linearDisplayLabel(
         { displayName: "michitogawara", name: "Michito" },
@@ -158,7 +186,11 @@ describe(linearDisplayLabel, () => {
         service: "linear",
         status: "active",
       })
-    ).toBe("default · michitogawara");
+    ).toBeUndefined();
+    expect(linearDisplayLabel({ displayName: "default" })).toBeUndefined();
+    expect(linearDisplayLabel({ email: "owner@example.com" })).toBe(
+      "owner@example.com"
+    );
   });
 });
 
@@ -210,6 +242,7 @@ describe("OpenConnector HTTP helpers", () => {
             }),
         };
       },
+      connectionId: "k17pendingaccount",
       orgSlug: "preview",
       scope: "org",
     });
@@ -226,7 +259,7 @@ describe("OpenConnector HTTP helpers", () => {
       url: "https://oc.example/v1/connections/linear/connect",
     });
     expect(calls[0]?.body).toContain(
-      "https://app.example/o/preview/connectors?connector=linear&scope=org"
+      "https://app.example/o/preview/connectors?connector=linear&scope=org&connectionId=k17pendingaccount"
     );
     expect(calls[0]?.body).not.toMatch(
       new RegExp(`connectedAccountId|${pendingConnectorAccountId("linear")}`)

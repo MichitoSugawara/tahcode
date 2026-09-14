@@ -4,6 +4,7 @@ import {
   canManageConnectorConnection,
   canUpsertConnectorConnection,
   canViewConnectorConnection,
+  isPendingConnectorAccountId,
   normalizeConnectorProvider,
   normalizeOpaqueConnectorId,
   pendingConnectorAccountId,
@@ -25,8 +26,13 @@ describe(normalizeConnectorProvider, () => {
 describe(pendingConnectorAccountId, () => {
   it("builds an opaque pending id for a provider slug", () => {
     expect(pendingConnectorAccountId("Linear")).toBe("pending:linear");
+    expect(pendingConnectorAccountId("Linear", "req-2")).toBe(
+      "pending:linear:req-2"
+    );
+    expect(isPendingConnectorAccountId("pending:linear:new-1")).toBeTruthy();
+    expect(isPendingConnectorAccountId("ca_default-linear")).toBeFalsy();
     expect(() =>
-      normalizeOpaqueConnectorId(pendingConnectorAccountId("linear"))
+      normalizeOpaqueConnectorId(pendingConnectorAccountId("linear", "req-2"))
     ).not.toThrow();
   });
 });
