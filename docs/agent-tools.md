@@ -34,7 +34,7 @@ Claude の headless CLI には、同じツールを stdio で渡すための一�
 
 ## 必要な CLI バージョン
 
-`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。更新: `npm i -g tahcode@0.1.1` のあと `tahcode restart`。`tahcode service install` は launchd の環境を上書きするので、この更新では使わない（TAH-60）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
+`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。更新: `npm i -g tahcode@0.1.1` のあと `tahcode restart`。バイナリを拾うだけなら `tahcode service install` は不要（TAH-60: 再登録しても `CURSOR_API_KEY` 等は消さない）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
 
 ## ツール
 

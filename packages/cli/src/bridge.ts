@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   closeSync,
   existsSync,
   mkdirSync,
@@ -17,6 +18,13 @@ import os from "node:os";
 import path from "node:path";
 
 import { CONFIG_DIR } from "./config.ts";
+import {
+  BRIDGE_ENV_PATH,
+  persistBridgeEnvSecrets,
+  readPlistEnvironmentVariables,
+  resolveLaunchdEnvironment,
+} from "./launchdEnv.ts";
+import type { LaunchdEnvSources } from "./launchdEnv.ts";
 
 /* ─────────────────────────────────────────────────────────
  * tahcode bridge process management.
@@ -52,6 +60,7 @@ export interface BridgeLaunchOptions {
 
 export const BRIDGE_STATE_PATH = path.join(CONFIG_DIR, "bridge.json");
 export const BRIDGE_LOG_PATH = path.join(CONFIG_DIR, "bridge.log");
+export { BRIDGE_ENV_PATH };
 export const LAUNCHD_LABEL = "com.tahcode.bridge";
 export const LAUNCHD_PLIST_PATH = path.join(
   os.homedir(),
@@ -408,6 +417,24 @@ export function launchdStatus(): { loaded: boolean; pid?: number } {
   return { loaded: true, pid: pid ? Number(pid) : undefined };
 }
 
+function launchdEnvKeyRank(key: string): number {
+  if (key === "HOME") {
+    return 0;
+  }
+  if (key === "PATH") {
+    return 1;
+  }
+  if (key === "TAHCODE_BRIDGE_MODE") {
+    return 2;
+  }
+  return 10;
+}
+
+function compareLaunchdEnvKeys(left: string, right: string): number {
+  const diff = launchdEnvKeyRank(left) - launchdEnvKeyRank(right);
+  return diff === 0 ? left.localeCompare(right) : diff;
+}
+
 function xml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
@@ -416,31 +443,26 @@ function xml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
-export function launchdPlist(options: BridgeLaunchOptions): string {
+export function launchdEnvironment(
+  sources: LaunchdEnvSources = {},
+  plistPath = LAUNCHD_PLIST_PATH
+): Record<string, string> {
+  return resolveLaunchdEnvironment(sources, {
+    envPath: BRIDGE_ENV_PATH,
+    plistPath,
+  });
+}
+
+export function renderLaunchdPlist(
+  options: BridgeLaunchOptions,
+  env: Record<string, string>
+): string {
   const programArguments = [...selfCommand(), ...bridgeArgs(options)];
-  const pathEntries = [
-    path.dirname(process.execPath),
-    ...(process.env.PATH ?? "").split(path.delimiter),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-  ].filter((entry, index, all) => entry && all.indexOf(entry) === index);
-  const env: Record<string, string> = {
-    HOME: os.homedir(),
-    PATH: pathEntries.join(path.delimiter),
-    TAHCODE_BRIDGE_MODE: "launchd",
-  };
-  for (const key of ["TAHCODE_HOME", "MULTICA_BIN"]) {
-    const value = process.env[key];
-    if (value) {
-      env[key] = value;
-    }
-  }
-  const dictEntries = Object.entries(env)
+  const keys = Object.keys(env).sort(compareLaunchdEnvKeys);
+  const dictEntries = keys
     .map(
-      ([key, value]) =>
-        `      <key>${xml(key)}</key>\n      <string>${xml(value)}</string>`
+      (key) =>
+        `      <key>${xml(key)}</key>\n      <string>${xml(env[key] ?? "")}</string>`
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -476,6 +498,10 @@ ${dictEntries}
 `;
 }
 
+export function launchdPlist(options: BridgeLaunchOptions): string {
+  return renderLaunchdPlist(options, launchdEnvironment());
+}
+
 /** Write the plist and load it (starts the bridge immediately via RunAtLoad). */
 export function launchdInstall(options: BridgeLaunchOptions): {
   ok: boolean;
@@ -486,10 +512,17 @@ export function launchdInstall(options: BridgeLaunchOptions): {
   }
   mkdirSync(path.dirname(LAUNCHD_PLIST_PATH), { recursive: true });
   mkdirSync(CONFIG_DIR, { mode: 0o700, recursive: true });
+  const env = launchdEnvironment({
+    existingPlistEnv: readPlistEnvironmentVariables(LAUNCHD_PLIST_PATH),
+  });
+  persistBridgeEnvSecrets(env);
   if (launchdStatus().loaded) {
     launchctl(["bootout", `${launchdDomain()}/${LAUNCHD_LABEL}`]);
   }
-  writeFileSync(LAUNCHD_PLIST_PATH, launchdPlist(options), { mode: 0o644 });
+  writeFileSync(LAUNCHD_PLIST_PATH, renderLaunchdPlist(options, env), {
+    mode: 0o600,
+  });
+  chmodSync(LAUNCHD_PLIST_PATH, 0o600);
   return launchdLoad();
 }
 

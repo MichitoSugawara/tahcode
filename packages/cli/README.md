@@ -63,6 +63,7 @@ Files under `~/.tahcode/` (or `$TAHCODE_HOME`):
 | `config.json` | Link (url / runtime id / token), 0600 |
 | `bridge.json` | pid, mode (`foreground` / `detached` / `launchd`), start time, cwd, provider of the running bridge. Written by the bridge process itself, removed on exit; a stale file (crash / reboot) is discarded automatically. |
 | `bridge.log` | stdout + stderr of a detached / launchd bridge (timestamped). Rotated to `bridge.log.1` when it exceeds 5 MB on start. |
+| `bridge.env` | Durable launchd / start env (`CURSOR_API_KEY`, Claude OAuth, …). `0600`, never committed. `service install` merges this file and the current plist — it does **not** wipe keys. |
 
 Only one bridge runs per config directory: `start` is a no-op (exit 0) when one is already running.
 
@@ -76,7 +77,30 @@ tahcode restart            # launchctl kickstart -k
 tahcode service uninstall  # unload + remove the plist
 ```
 
-The plist runs `node <this cli> start --foreground …` with `PATH` extended by the node directory, `/opt/homebrew/bin` and `/usr/local/bin`, and `TAHCODE_HOME` / `MULTICA_BIN` if they were set when installing. Because the launchd agent also runs `start` (without `--no-daemon`), the Multica daemon is brought up at login too.
+The plist runs `node <this cli> start --foreground …`. `PATH` always includes the `node` that ran `tahcode` (`dirname(process.execPath)`), plus Homebrew / `/usr/local/bin`. `TAHCODE_HOME` / `MULTICA_BIN` / Cursor / Claude auth env are merged from:
+
+1. the installing shell (`CURSOR_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, …)
+2. the existing plist (`~/Library/LaunchAgents/com.tahcode.bridge.plist`)
+3. `~/.tahcode/bridge.env`
+
+Re-running `tahcode service install` **does not wipe** those keys. `service uninstall` removes the plist only — `bridge.env` stays. Because the launchd agent also runs `start` (without `--no-daemon`), the Multica daemon is brought up at login too.
+
+Set Cursor headless auth once (never commit this file; doctor / logs print only 設定済み / 未設定):
+
+```bash
+mkdir -p ~/.tahcode
+cat > ~/.tahcode/bridge.env <<'EOF'
+CURSOR_API_KEY=key_…
+# optional — Claude headless when the login session is not inherited:
+# CLAUDE_CODE_OAUTH_TOKEN=…
+# ANTHROPIC_API_KEY=…
+EOF
+chmod 600 ~/.tahcode/bridge.env
+tahcode service install
+tahcode doctor    # launchd の CURSOR_API_KEY / PATH を確認（値は出さない）
+```
+
+Or export `CURSOR_API_KEY` in the shell and run `tahcode service install` — the key is copied into the plist and `bridge.env`. `tahcode start` also loads `bridge.env` into the process when a key is missing.
 
 ## Development (in the tahcode repo)
 
@@ -103,7 +127,7 @@ npm publish --workspace tahcode --access public
 
 Current version: `0.1.1` (`tahcode tool` / `tool-mcp`, leaseId on `jobs:appendEvent` / `jobs:complete`). `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`.
 
-Mac upgrade (do **not** run `tahcode service install` just to pick up the binary — it rewrites the launchd plist and can drop Cursor/Claude auth; see TAH-60):
+Mac upgrade (binary pickup: `tahcode restart` is enough. `service install` now keeps `CURSOR_API_KEY` / Claude env — see [macOS: start at login](#macos-start-at-login-launchd) / TAH-60):
 
 ```bash
 npm i -g tahcode@0.1.1

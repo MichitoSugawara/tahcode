@@ -55,11 +55,11 @@ export function classifyToolSubcommandOutput(
 
 export function staleCliAgentToolsMessage(version?: string): string {
   const current = version ? `（いま ${version}）` : "";
-  return `tahcode tool / tool-mcp には CLI ${AGENT_TOOLS_MIN_CLI_VERSION} 以上が必要です${current}。npm i -g tahcode@${AGENT_TOOLS_MIN_CLI_VERSION} のあと tahcode restart してください。tahcode service install は launchd の環境変数を上書きするので使わないでください。`;
+  return `tahcode tool / tool-mcp には CLI ${AGENT_TOOLS_MIN_CLI_VERSION} 以上が必要です${current}。npm i -g tahcode@${AGENT_TOOLS_MIN_CLI_VERSION} のあと tahcode restart してください。バイナリを拾うだけなら tahcode service install は不要です。`;
 }
 
 export const STALE_CLI_TOOL_PROMPT_HINT =
-  "If `tahcode tool` prints 「不明なコマンド: tool」, stop immediately and tell the user the tahcode CLI is older than 0.1.1. They must `npm i -g tahcode@0.1.1` then `tahcode restart`. Do not run `tahcode service install` (it can wipe launchd auth). Do not search other Linear MCP paths.";
+  "If `tahcode tool` prints 「不明なコマンド: tool」, stop immediately and tell the user the tahcode CLI is older than 0.1.1. They must `npm i -g tahcode@0.1.1` then `tahcode restart`. `tahcode service install` is unnecessary for a binary upgrade (it now keeps launchd auth, but restart is enough). Do not search other Linear MCP paths.";
 
 export function staleAgentToolsHostLogLine(input: {
   status?: "ok" | "unknown-command" | "indeterminate";
@@ -71,5 +71,5 @@ export function staleAgentToolsHostLogLine(input: {
   if (!staleVersion && !missingCommand) {
     return null;
   }
-  return `[runtime] tahcode tool / tool-mcp unavailable (CLI ${version}). Cursor @linear needs ${AGENT_TOOLS_MIN_CLI_VERSION}+. npm i -g tahcode@${AGENT_TOOLS_MIN_CLI_VERSION} && tahcode restart (avoid service install).`;
+  return `[runtime] tahcode tool / tool-mcp unavailable (CLI ${version}). Cursor @linear needs ${AGENT_TOOLS_MIN_CLI_VERSION}+. npm i -g tahcode@${AGENT_TOOLS_MIN_CLI_VERSION} && tahcode restart (service install is not required).`;
 }
