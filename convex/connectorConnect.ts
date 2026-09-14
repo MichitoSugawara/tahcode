@@ -80,22 +80,30 @@ export const startLinearConnect = action({
         reason: "oauth_not_configured",
       };
     }
-    const started = await startLinearConnectionRequest({
-      config,
-      orgSlug: access.orgSlug,
-      scope: args.scope,
-    });
     const connectionId: Id<"connectorConnections"> = await ctx.runMutation(
       internal.connectorConnectHelpers.markNeedsAuth,
       {
         connectionId: args.connectionId,
-        oauthRequestId: started.connectionRequestId,
         orgId: args.orgId,
         provider,
         scope: args.scope,
         userId,
       }
     );
+    const started = await startLinearConnectionRequest({
+      config,
+      connectionId,
+      orgSlug: access.orgSlug,
+      scope: args.scope,
+    });
+    await ctx.runMutation(internal.connectorConnectHelpers.markNeedsAuth, {
+      connectionId,
+      oauthRequestId: started.connectionRequestId,
+      orgId: args.orgId,
+      provider,
+      scope: args.scope,
+      userId,
+    });
     return {
       authorizeUrl: started.authorizationUrl,
       connectionId,
@@ -192,7 +200,7 @@ async function confirmAndStoreLinearConnect(
   const confirmed = confirmLinearConnectionRequest(request);
   if (confirmed.kind === "pending") {
     return {
-      connectionId: null,
+      connectionId: input.connectionId ?? null,
       displayLabel: null,
       status: "pending",
     };

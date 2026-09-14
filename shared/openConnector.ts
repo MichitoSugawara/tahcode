@@ -8,6 +8,7 @@ import type { ConnectorScope } from "./connectors.ts";
 
 export {
   LINEAR_CONNECT_QUERY,
+  linearConnectReturnConnectionId,
   linearConnectReturnScope,
   stripLinearConnectReturnSearch,
 } from "./connectors.ts";
@@ -132,6 +133,7 @@ export function isOpenConnectorConfigured(config: OpenConnectorEnv): boolean {
 }
 
 export function buildLinearReturnUri(input: {
+  connectionId?: string;
   orgSlug: string;
   scope: ConnectorScope;
   siteUrl: string;
@@ -143,6 +145,10 @@ export function buildLinearReturnUri(input: {
   );
   url.searchParams.set("connector", LINEAR_CONNECT_QUERY);
   url.searchParams.set("scope", input.scope);
+  const connectionId = input.connectionId?.trim();
+  if (connectionId && connectionId.length > 0) {
+    url.searchParams.set("connectionId", connectionId);
+  }
   return url.toString();
 }
 
@@ -303,15 +309,19 @@ export function confirmLinearConnectionRequest(
 
 export function linearDisplayLabel(
   viewer: LinearViewer | undefined,
-  connection: OpenConnectorManagedConnection | undefined
+  _connection?: OpenConnectorManagedConnection
 ): string | undefined {
+  const raw = viewer?.displayName ?? viewer?.name ?? viewer?.email;
+  const trimmed = raw?.trim();
+  if (!trimmed) {
+    return;
+  }
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "default" || normalized === "linear") {
+    return;
+  }
   return normalizeOptionalConnectorText(
-    viewer?.displayName ??
-      viewer?.name ??
-      viewer?.email ??
-      connection?.accountLabel ??
-      connection?.displayName ??
-      connection?.alias,
+    trimmed,
     MAX_CONNECTOR_DISPLAY_LABEL,
     "Display label"
   );
@@ -390,6 +400,7 @@ export async function openConnectorRequest(input: {
 
 export async function startLinearConnectionRequest(input: {
   config: OpenConnectorEnv;
+  connectionId?: string;
   fetchImpl?: FetchLike;
   orgSlug: string;
   scope: ConnectorScope;
@@ -400,6 +411,7 @@ export async function startLinearConnectionRequest(input: {
   const data = await openConnectorRequest({
     body: {
       returnUri: buildLinearReturnUri({
+        connectionId: input.connectionId,
         orgSlug: input.orgSlug,
         scope: input.scope,
         siteUrl: input.config.siteUrl,

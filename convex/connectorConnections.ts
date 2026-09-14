@@ -2,7 +2,9 @@ import { v } from "convex/values";
 
 import {
   MAX_CONNECTOR_CONNECTIONS,
+  MAX_CONNECTOR_DISPLAY_LABEL,
   normalizeConnectorProvider,
+  normalizeOptionalConnectorText,
 } from "../shared/connectors.ts";
 import { requireMembership } from "./lib/access";
 import {
@@ -129,6 +131,51 @@ export const disconnect = authedMutation({
       status: "disconnected",
       updatedAt: Date.now(),
     });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const rename = authedMutation({
+  args: {
+    connectionId: v.id("connectorConnections"),
+    displayLabel: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(
+      "connectorConnections",
+      args.connectionId
+    );
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+    await requireCanManageConnector(ctx, connection, ctx.user._id);
+    const displayLabel = normalizeOptionalConnectorText(
+      args.displayLabel,
+      MAX_CONNECTOR_DISPLAY_LABEL,
+      "Display label"
+    );
+    await ctx.db.patch("connectorConnections", args.connectionId, {
+      displayLabel,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const remove = authedMutation({
+  args: { connectionId: v.id("connectorConnections") },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(
+      "connectorConnections",
+      args.connectionId
+    );
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+    await requireCanManageConnector(ctx, connection, ctx.user._id);
+    await ctx.db.delete("connectorConnections", args.connectionId);
     return null;
   },
   returns: v.null(),

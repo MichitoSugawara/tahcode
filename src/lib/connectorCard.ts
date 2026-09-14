@@ -5,6 +5,8 @@ import type {
 
 export {
   LINEAR_CONNECT_QUERY,
+  isPendingConnectorAccountId,
+  linearConnectReturnConnectionId,
   linearConnectReturnScope,
   stripLinearConnectReturnSearch,
 } from "../../shared/connectors.ts";
@@ -120,10 +122,10 @@ export function connectorAccountTitle(
   return `${displayName} (${label})`;
 }
 
-/** Account-list label in the Grok detail screen (`default` when unset). */
+/** Account-list label in the Grok detail screen (`アカウント` when unset). */
 export function connectorAccountLabel(displayLabel?: string): string {
   const label = displayLabel?.trim();
-  return label && label.length > 0 ? label : "default";
+  return label && label.length > 0 ? label : "アカウント";
 }
 
 export function connectorAccountCountLabel(count: number): string | undefined {
@@ -177,6 +179,7 @@ export const CONNECTOR_CARD_COPY = {
   addAnotherAccount: "+ 別のアカウントを追加",
   authorize: "認証",
   authorizeHint: "認証すると Linear に移動し、完了後この画面に戻ります。",
+  cancelWait: "キャンセル",
   confirming: (name: string) => `${name} の認証を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
@@ -186,6 +189,11 @@ export const CONNECTOR_CARD_COPY = {
   needsAuth: "認証が必要",
   notConfigured: "認証を開始できません。管理者に連絡してください。",
   personal: "個人",
+  remove: "削除",
+  removeDetail:
+    "このアカウントの連携だけを削除します。他の Linear アカウントは残ります。Linear 側のアカウントはそのままです。",
+  rename: "名前を変更",
+  renamePlaceholder: "アカウント",
   reopen: "再表示",
   retry: "再試行",
   retryHint: (name: string) => `${name} の認証が完了しませんでした`,

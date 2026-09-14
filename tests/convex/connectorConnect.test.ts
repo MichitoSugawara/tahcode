@@ -319,9 +319,111 @@ describe("startLinearConnect", () => {
       url: "https://oc.test/v1/connections/linear/connect",
     });
     expect(calls[0]?.body).toContain(
-      `https://app.test/o/${org?.slug}/connectors?connector=linear&scope=org`
+      `https://app.test/o/${org?.slug}/connectors?connector=linear&scope=org&connectionId=${result.connectionId}`
     );
     expect(calls[0]?.body).not.toContain("connectedAccountId");
+  });
+
+  it("creates pending A first, completes A, then starts pending B without overwriting A", async () => {
+    configureOpenConnector();
+    let startCount = 0;
+    vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+      const href = String(url);
+      if (href.endsWith("/v1/connections/linear/connect")) {
+        startCount += 1;
+        const requestId = `req-start-${startCount}`;
+        return jsonResponse({
+          authorizationUrl: `https://linear.app/oauth/authorize?n=${startCount}`,
+          connectionRequestId: requestId,
+          expiresAt: "2026-09-14T07:10:00.000Z",
+          stateHandle: `state-${startCount}`,
+          status: "initiated",
+        });
+      }
+      if (href.endsWith("/v1/connection-requests/req-start-1")) {
+        return jsonResponse({
+          appId: "bbbbbbbb-2222-4f8e-9134-c1db5c9cf7f8",
+          connectionRequestId: "req-start-1",
+          errorCode: null,
+          errorMessage: null,
+          service: "linear",
+          status: "connected",
+        });
+      }
+      if (href.includes("/v1/connections/by-id/")) {
+        return jsonResponse({
+          alias: "ignored-alias",
+          id: "bbbbbbbb-2222-4f8e-9134-c1db5c9cf7f8",
+          service: "linear",
+          status: "active",
+        });
+      }
+      if (href.endsWith("/v1/actions/linear.get_current_user")) {
+        return jsonResponse({
+          viewer: { displayName: "alice", name: "Alice" },
+        });
+      }
+      throw new Error(`unexpected fetch ${href} ${init?.body ?? ""}`);
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.action(
+      api.connectorConnect.startLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const completed = await aliceCtx.action(
+      api.connectorConnect.completeLinearConnect,
+      {
+        connectionId: first.connectionId,
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const second = await aliceCtx.action(
+      api.connectorConnect.startLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+    });
+    expect({
+      completed,
+      firstReady: first.ready,
+      listed: listed
+        .map((row) => ({
+          id: row._id,
+          label: row.displayLabel ?? null,
+          status: row.status,
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id)),
+      reusedFirst: second.connectionId === first.connectionId,
+    }).toStrictEqual({
+      completed: {
+        connectionId: first.connectionId,
+        displayLabel: "alice",
+        status: "connected",
+      },
+      firstReady: true,
+      listed: [
+        {
+          id: first.connectionId,
+          label: "alice",
+          status: "connected",
+        },
+        {
+          id: second.connectionId,
+          label: null,
+          status: "needsAuth",
+        },
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+      reusedFirst: false,
+    });
   });
 });
 
@@ -460,6 +562,7 @@ describe("completeLinearConnect", () => {
     const result = await aliceCtx.action(
       api.connectorConnect.completeLinearConnect,
       {
+        connectionId: pending,
         orgId: orgA,
         scope: "org",
       }
@@ -516,10 +619,11 @@ describe("completeLinearConnect", () => {
     });
     await expect(
       aliceCtx.action(api.connectorConnect.completeLinearConnect, {
+        connectionId,
         orgId: orgA,
         scope: "org",
       })
-    ).resolves.toMatchObject({ status: "pending" });
+    ).resolves.toMatchObject({ connectionId, status: "pending" });
   });
 
   it("does not accept a browser connectedAccountId argument", async () => {

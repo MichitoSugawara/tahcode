@@ -37,6 +37,18 @@ export function linearConnectReturnScope(
   return params.get("scope") === "user" ? "user" : "org";
 }
 
+/** Convex `connectionId` from the OAuth return query (2nd+ account). */
+export function linearConnectReturnConnectionId(search: string): string | null {
+  if (linearConnectReturnScope(search) === null) {
+    return null;
+  }
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
+  const connectionId = params.get("connectionId")?.trim();
+  return connectionId && connectionId.length > 0 ? connectionId : null;
+}
+
 export function stripLinearConnectReturnSearch(search: string): string {
   const params = new URLSearchParams(
     search.startsWith("?") ? search.slice(1) : search
@@ -44,6 +56,7 @@ export function stripLinearConnectReturnSearch(search: string): string {
   for (const key of [
     "code",
     "connectedAccountId",
+    "connectionId",
     "connector",
     "message",
     "scope",

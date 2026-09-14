@@ -17,6 +17,7 @@ import {
   findInFlightConnectorConnection,
   findLatestConnectedConnector,
   listOrgConnectorConnections,
+  matchesConnectScope,
   normalizeConnectorUpsertInput,
   requireCanManageConnector,
   requireCanUpsertConnector,
@@ -65,8 +66,33 @@ export const loadConnectContext = internalQuery({
     }
     const provider = normalizeConnectorProvider(args.provider);
     const scopeUserId = args.scope === "user" ? args.userId : undefined;
+    if (args.connectionId !== undefined) {
+      const row = await ctx.db.get("connectorConnections", args.connectionId);
+      if (
+        !row ||
+        row.orgId !== args.orgId ||
+        row.provider !== provider ||
+        !matchesConnectScope(row, { scope: args.scope, userId: scopeUserId })
+      ) {
+        return {
+          connectedAccountId: null,
+          connectionId: null,
+          oauthAlias: null,
+          oauthRequestId: null,
+          orgSlug: org.slug,
+          status: null,
+        };
+      }
+      return {
+        connectedAccountId: row.connectedAccountId,
+        connectionId: row._id,
+        oauthAlias: row.oauthAlias ?? null,
+        oauthRequestId: row.oauthRequestId ?? null,
+        orgSlug: org.slug,
+        status: row.status,
+      };
+    }
     const inflight = await findInFlightConnectorConnection(ctx, {
-      connectionId: args.connectionId,
       orgId: args.orgId,
       provider,
       scope: args.scope,
@@ -214,7 +240,7 @@ export const applyConnectResult = internalMutation({
       (fields.status === "connected" ? now : byAccount?.lastVerifiedAt);
     if (byAccount) {
       await ctx.db.patch("connectorConnections", byAccount._id, {
-        displayLabel: fields.displayLabel ?? byAccount.displayLabel,
+        displayLabel: byAccount.displayLabel ?? fields.displayLabel,
         lastVerifiedAt,
         oauthAlias: oauthAlias ?? byAccount.oauthAlias,
         status: fields.status,
@@ -232,7 +258,7 @@ export const applyConnectResult = internalMutation({
     if (inflight) {
       await ctx.db.patch("connectorConnections", inflight._id, {
         connectedAccountId: fields.connectedAccountId,
-        displayLabel: fields.displayLabel ?? inflight.displayLabel,
+        displayLabel: inflight.displayLabel ?? fields.displayLabel,
         lastVerifiedAt,
         oauthAlias: oauthAlias ?? inflight.oauthAlias,
         status: fields.status,

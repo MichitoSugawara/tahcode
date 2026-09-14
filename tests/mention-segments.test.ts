@@ -87,10 +87,21 @@ describe(hasAgentMention, () => {
   });
 
   it("classifies with the server rules: @provider/model, @agent, @rt-<slug>", () => {
-    expect(hasAgentMention("@cursor/muse-spark-1.3 で")).toBeTruthy();
-    expect(hasAgentMention("@agent please")).toBeTruthy();
-    expect(hasAgentMention("run on @rt-office")).toBeTruthy();
-    expect(hasAgentMention("@claude.")).toBeTruthy();
+    expect({
+      agent: hasAgentMention("@agent please"),
+      claude: hasAgentMention("@claude."),
+      cursor: hasAgentMention("@cursor/muse-spark-1.3 で"),
+      linear: hasAgentMention("@linear"),
+      linearAccount: hasAgentMention("@linear/pottos を見て"),
+      runtime: hasAgentMention("run on @rt-office"),
+    }).toStrictEqual({
+      agent: true,
+      claude: true,
+      cursor: true,
+      linear: false,
+      linearAccount: false,
+      runtime: true,
+    });
   });
 });
 

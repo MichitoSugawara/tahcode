@@ -1,6 +1,6 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { Shimmer } from "@/components/atoms/Shimmer";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { useOrg } from "@/harness/OrgContext";
 import { Dialog, SectionLabel, Well } from "@/harness/ui/Dialog";
+import { Input } from "@/harness/ui/Field";
 import { Notice } from "@/harness/ui/Notice";
 import type {
   ConnectorCardLocalPhase,
@@ -26,6 +27,8 @@ import {
   connectorStatusTone,
   connectionsForProvider,
   filterConnectorCatalog,
+  isPendingConnectorAccountId,
+  linearConnectReturnConnectionId,
   linearConnectReturnScope,
   marketplaceConnectorPhase,
   providerIconSource,
@@ -43,6 +46,16 @@ type Connection = FunctionReturnType<
 const LINEAR_CONNECT_POLL_MS = 2000;
 const LINEAR_CONNECT_MAX_POLLS = 15;
 
+function parseReturnConnectionId(
+  search: string
+): Id<"connectorConnections"> | undefined {
+  const raw = linearConnectReturnConnectionId(search);
+  if (!raw) {
+    return;
+  }
+  return raw as Id<"connectorConnections">;
+}
+
 function useLinearConnectReturn({
   enabled,
   orgId,
@@ -50,6 +63,7 @@ function useLinearConnectReturn({
   setConfirming,
   setDetailOpen,
   setLocalPhase,
+  setWaitingConnectionId,
 }: {
   enabled: boolean;
   orgId: Id<"orgs">;
@@ -57,11 +71,15 @@ function useLinearConnectReturn({
   setConfirming: (value: boolean) => void;
   setDetailOpen: (open: boolean) => void;
   setLocalPhase: (phase: ConnectorCardLocalPhase) => void;
+  setWaitingConnectionId: (
+    value: Id<"connectorConnections"> | undefined
+  ) => void;
 }) {
   const completeConnect = useAction(api.connectorConnect.completeLinearConnect);
   const location = useLocation();
   const navigate = useNavigate();
   const returningScope = linearConnectReturnScope(location.search);
+  const returningConnectionId = parseReturnConnectionId(location.search);
 
   useEffect(() => {
     if (!enabled || returningScope !== scope) {
@@ -81,11 +99,18 @@ function useLinearConnectReturn({
       );
     };
     setDetailOpen(true);
+    if (returningConnectionId) {
+      setWaitingConnectionId(returningConnectionId);
+    }
     const run = async () => {
       setConfirming(true);
       setLocalPhase("waiting");
       try {
-        const result = await completeConnect({ orgId, scope });
+        const result = await completeConnect({
+          connectionId: returningConnectionId,
+          orgId,
+          scope,
+        });
         if (cancelled) {
           return;
         }
@@ -98,6 +123,7 @@ function useLinearConnectReturn({
         }
         if (result.status === "connected") {
           setLocalPhase("idle");
+          setWaitingConnectionId(undefined);
           toast.success("Linear を接続しました");
         } else {
           setLocalPhase("failed");
@@ -131,11 +157,13 @@ function useLinearConnectReturn({
     location.search,
     navigate,
     orgId,
+    returningConnectionId,
     returningScope,
     scope,
     setConfirming,
     setDetailOpen,
     setLocalPhase,
+    setWaitingConnectionId,
   ]);
 }
 
@@ -221,6 +249,172 @@ function ConnectorMarketplaceRow({
   );
 }
 
+function ConnectorAccountRow({
+  busy,
+  canManage,
+  connection,
+  onAuthorize,
+  onCancelWait,
+  onRemove,
+  onRename,
+  onReopen,
+  waiting,
+}: {
+  busy: boolean;
+  canManage: boolean;
+  connection: Connection;
+  onAuthorize: () => void;
+  onCancelWait: () => void;
+  onRemove: () => void;
+  onRename: (displayLabel: string) => Promise<void>;
+  onReopen: () => void;
+  waiting: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(connection.displayLabel ?? "");
+  const [saving, setSaving] = useState(false);
+  const label = connectorAccountLabel(connection.displayLabel);
+  const showAuthorize = canManage && connection.status !== "connected";
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(connection.displayLabel ?? "");
+    }
+  }, [connection.displayLabel, editing]);
+
+  const commitRename = async () => {
+    if (saving) {
+      return;
+    }
+    const next = draft.trim();
+    const previous = connection.displayLabel?.trim() ?? "";
+    setEditing(false);
+    if (next === previous) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await onRename(next);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-line flex items-center gap-3 border-b px-3 py-2.5 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <Input
+            aria-label={CONNECTOR_CARD_COPY.rename}
+            autoFocus
+            className="h-7 px-2"
+            disabled={busy || saving}
+            placeholder={CONNECTOR_CARD_COPY.renamePlaceholder}
+            value={draft}
+            onBlur={() => {
+              void commitRename();
+            }}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void commitRename();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setDraft(connection.displayLabel ?? "");
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="text-ink flex items-center gap-1.5 text-[13px] font-medium">
+            <span className="truncate">{label}</span>
+            {canManage ? (
+              <button
+                type="button"
+                aria-label={CONNECTOR_CARD_COPY.rename}
+                className="text-ink-3 hover:text-ink shrink-0 rounded-[4px] p-0.5"
+                disabled={busy || saving || waiting}
+                onClick={() => {
+                  setEditing(true);
+                }}
+              >
+                <Pencil aria-hidden size={12} strokeWidth={2.2} />
+              </button>
+            ) : null}
+            {connection.scope === "org" ? (
+              <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
+                {CONNECTOR_CARD_COPY.team}
+              </span>
+            ) : (
+              <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
+                {CONNECTOR_CARD_COPY.personal}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {waiting ? (
+        <StatusPill tone="orange">{CONNECTOR_CARD_COPY.needsAuth}</StatusPill>
+      ) : (
+        <StatusPill tone={connectorStatusTone(connection.status)}>
+          {connectorStatusLabel(connection.status)}
+        </StatusPill>
+      )}
+      {waiting ? (
+        <>
+          <Button
+            type="button"
+            size="xs"
+            variant="accent"
+            disabled={busy}
+            onClick={onReopen}
+          >
+            {CONNECTOR_CARD_COPY.reopen}
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="quiet"
+            disabled={busy}
+            onClick={onCancelWait}
+          >
+            {CONNECTOR_CARD_COPY.cancelWait}
+          </Button>
+        </>
+      ) : (
+        <>
+          {showAuthorize ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="accent"
+              disabled={busy}
+              onClick={onAuthorize}
+            >
+              {CONNECTOR_CARD_COPY.authorize}
+            </Button>
+          ) : null}
+          {canManage ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="quiet"
+              disabled={busy}
+              onClick={onRemove}
+            >
+              {CONNECTOR_CARD_COPY.remove}
+            </Button>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ConnectorDetailDialog({
   actorUserId,
   catalog,
@@ -230,8 +424,13 @@ function ConnectorDetailDialog({
   localPhase,
   onAddAccount,
   onAuthorize,
+  onCancelWait,
   onOpenChange,
+  onRemove,
+  onRename,
+  onReopen,
   open,
+  waitingConnectionId,
 }: {
   actorUserId: Id<"users">;
   catalog: ConnectorCatalogEntry;
@@ -241,34 +440,17 @@ function ConnectorDetailDialog({
   localPhase: ConnectorCardLocalPhase;
   onAddAccount: (scope: ConnectorScope) => void;
   onAuthorize: (connection: Connection) => void;
+  onCancelWait: (connection: Connection) => void;
   onOpenChange: (open: boolean) => void;
+  onRemove: (connection: Connection) => void;
+  onRename: (connection: Connection, displayLabel: string) => Promise<void>;
+  onReopen: (connection: Connection) => void;
   open: boolean;
+  waitingConnectionId?: Id<"connectorConnections">;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [pendingDisconnect, setPendingDisconnect] = useState<Connection | null>(
-    null
-  );
-  const disconnect = useMutation(api.connectorConnections.disconnect);
+  const [pendingRemove, setPendingRemove] = useState<Connection | null>(null);
   const waiting = localPhase === "waiting";
   const failed = localPhase === "failed";
-
-  const runDisconnect = async () => {
-    if (!pendingDisconnect || busy) {
-      return;
-    }
-    setBusy(true);
-    try {
-      await disconnect({ connectionId: pendingDisconnect._id });
-      setPendingDisconnect(null);
-      toast.success("Linear を切断しました");
-    } catch (error: unknown) {
-      toast.error("切断に失敗しました", {
-        description: errorSummary(error),
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <>
@@ -288,106 +470,77 @@ function ConnectorDetailDialog({
           <SectionLabel>{CONNECTOR_CARD_COPY.accounts}</SectionLabel>
           <Well>
             {connections.map((connection) => {
-              const label = connectorAccountLabel(connection.displayLabel);
               const canManageRow =
                 isAdmin || String(connection.userId) === String(actorUserId);
-              const showAuthorize =
-                canManageRow && connection.status !== "connected";
-              const showDisconnect =
-                canManageRow && connection.status !== "disconnected";
+              const rowWaiting =
+                waiting &&
+                waitingConnectionId !== undefined &&
+                String(waitingConnectionId) === String(connection._id);
               return (
-                <div
+                <ConnectorAccountRow
                   key={String(connection._id)}
-                  className="border-line flex items-center gap-3 border-b px-3 py-2.5 last:border-b-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-ink flex items-center gap-1.5 text-[13px] font-medium">
-                      <span className="truncate">{label}</span>
-                      {connection.scope === "org" ? (
-                        <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
-                          {CONNECTOR_CARD_COPY.team}
-                        </span>
-                      ) : (
-                        <span className="bg-inset text-ink-3 shrink-0 rounded-[4px] px-1 text-[10.5px] font-medium">
-                          {CONNECTOR_CARD_COPY.personal}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <StatusPill tone={connectorStatusTone(connection.status)}>
-                    {connectorStatusLabel(connection.status)}
-                  </StatusPill>
-                  {showAuthorize ? (
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="accent"
-                      disabled={busy || waiting}
-                      onClick={() => {
-                        onAuthorize(connection);
-                      }}
-                    >
-                      {CONNECTOR_CARD_COPY.authorize}
-                    </Button>
-                  ) : null}
-                  {showDisconnect ? (
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="quiet"
-                      disabled={busy}
-                      onClick={() => {
-                        setPendingDisconnect(connection);
-                      }}
-                    >
-                      {CONNECTOR_CARD_COPY.disconnect}
-                    </Button>
-                  ) : null}
-                </div>
+                  busy={confirming}
+                  canManage={canManageRow}
+                  connection={connection}
+                  waiting={rowWaiting}
+                  onAuthorize={() => {
+                    onAuthorize(connection);
+                  }}
+                  onCancelWait={() => {
+                    onCancelWait(connection);
+                  }}
+                  onRemove={() => {
+                    setPendingRemove(connection);
+                  }}
+                  onRename={async (displayLabel) => {
+                    await onRename(connection, displayLabel);
+                  }}
+                  onReopen={() => {
+                    onReopen(connection);
+                  }}
+                />
               );
             })}
-            {isAdmin ? (
-              <div className="px-3 py-2.5">
-                <button
-                  type="button"
-                  className="text-ink-2 hover:text-ink text-[13px] disabled:opacity-50"
-                  disabled={busy || waiting}
-                  onClick={() => {
-                    onAddAccount(isAdmin ? "org" : "user");
-                  }}
-                >
-                  {CONNECTOR_CARD_COPY.addAnotherAccount}
-                </button>
-                {waiting ? (
-                  <p className="text-ink-3 mt-1 text-[12px]" role="status">
-                    {confirming
-                      ? CONNECTOR_CARD_COPY.confirming(catalog.displayName)
-                      : CONNECTOR_CARD_COPY.waiting(catalog.displayName)}
-                  </p>
-                ) : null}
-                {failed ? (
-                  <p className="text-ink-3 mt-1 text-[12px]" role="status">
-                    {CONNECTOR_CARD_COPY.retryHint(catalog.displayName)}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
+            <div className="px-3 py-2.5">
+              <button
+                type="button"
+                className="text-ink-2 hover:text-ink text-[13px] disabled:opacity-50"
+                disabled={confirming || waiting}
+                onClick={() => {
+                  onAddAccount(isAdmin ? "org" : "user");
+                }}
+              >
+                {CONNECTOR_CARD_COPY.addAnotherAccount}
+              </button>
+              {waiting ? (
+                <p className="text-ink-3 mt-1 text-[12px]" role="status">
+                  {confirming
+                    ? CONNECTOR_CARD_COPY.confirming(catalog.displayName)
+                    : CONNECTOR_CARD_COPY.waiting(catalog.displayName)}
+                </p>
+              ) : null}
+              {failed ? (
+                <p className="text-ink-3 mt-1 text-[12px]" role="status">
+                  {CONNECTOR_CARD_COPY.retryHint(catalog.displayName)}
+                </p>
+              ) : null}
+            </div>
           </Well>
         </section>
       </Dialog>
 
       <Dialog
-        open={pendingDisconnect !== null}
+        open={pendingRemove !== null}
         onOpenChange={(next) => {
           if (!next) {
-            setPendingDisconnect(null);
+            setPendingRemove(null);
           }
         }}
-        title={`${catalog.displayName} を切断しますか？`}
+        title={`${catalog.displayName} を削除しますか？`}
         description={
-          pendingDisconnect?.scope === "org"
-            ? "この org の Linear 連携を切断します。状態は「切断済み」になり、再認証できます。"
-            : "あなたの Linear 連携を切断します。状態は「切断済み」になり、再認証できます。"
+          pendingRemove?.scope === "org"
+            ? "このアカウントの org 連携だけを削除します。他の Linear アカウントは残ります。"
+            : "このアカウントの個人連携だけを削除します。他の Linear アカウントは残ります。"
         }
         footer={
           <>
@@ -396,7 +549,7 @@ function ConnectorDetailDialog({
               size="sm"
               variant="secondary"
               onClick={() => {
-                setPendingDisconnect(null);
+                setPendingRemove(null);
               }}
             >
               キャンセル
@@ -405,20 +558,24 @@ function ConnectorDetailDialog({
               type="button"
               size="sm"
               variant="danger"
-              disabled={busy}
+              disabled={confirming}
               onClick={() => {
-                void runDisconnect();
+                if (!pendingRemove) {
+                  return;
+                }
+                onRemove(pendingRemove);
+                setPendingRemove(null);
               }}
             >
-              {CONNECTOR_CARD_COPY.disconnect}
+              {CONNECTOR_CARD_COPY.remove}
             </Button>
           </>
         }
       >
         <p className="text-ink-2 text-[13px] leading-relaxed">
-          {pendingDisconnect
-            ? `${connectorAccountLabel(pendingDisconnect.displayLabel)} — ${CONNECTOR_CARD_COPY.disconnectDetail}`
-            : CONNECTOR_CARD_COPY.disconnectDetail}
+          {pendingRemove
+            ? `${connectorAccountLabel(pendingRemove.displayLabel)} — ${CONNECTOR_CARD_COPY.removeDetail}`
+            : CONNECTOR_CARD_COPY.removeDetail}
         </p>
       </Dialog>
     </>
@@ -444,7 +601,12 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [localPhase, setLocalPhase] = useState<ConnectorCardLocalPhase>("idle");
   const [confirming, setConfirming] = useState(false);
+  const [waitingConnectionId, setWaitingConnectionId] = useState<
+    Id<"connectorConnections"> | undefined
+  >();
   const startConnect = useAction(api.connectorConnect.startLinearConnect);
+  const renameConnection = useMutation(api.connectorConnections.rename);
+  const removeConnection = useMutation(api.connectorConnections.remove);
 
   useLinearConnectReturn({
     enabled: returningScope !== null,
@@ -453,6 +615,7 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
     setConfirming,
     setDetailOpen,
     setLocalPhase,
+    setWaitingConnectionId,
   });
 
   const runStart = async (
@@ -470,6 +633,7 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
         orgId: org._id,
         scope,
       });
+      setWaitingConnectionId(result.connectionId);
       if (result.ready && result.authorizeUrl) {
         window.location.assign(result.authorizeUrl);
         return;
@@ -485,6 +649,49 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
       toast.error("Linear の接続を開始できませんでした", {
         description: errorSummary(error),
       });
+    }
+  };
+
+  const runRename = async (connection: Connection, displayLabel: string) => {
+    try {
+      await renameConnection({
+        connectionId: connection._id,
+        displayLabel: displayLabel.length > 0 ? displayLabel : undefined,
+      });
+    } catch (error: unknown) {
+      toast.error("名前の変更に失敗しました", {
+        description: errorSummary(error),
+      });
+    }
+  };
+
+  const runRemove = async (connection: Connection) => {
+    try {
+      await removeConnection({ connectionId: connection._id });
+      if (String(waitingConnectionId) === String(connection._id)) {
+        setWaitingConnectionId(undefined);
+        setLocalPhase("idle");
+      }
+      toast.success("Linear アカウントを削除しました");
+    } catch (error: unknown) {
+      toast.error("削除に失敗しました", {
+        description: errorSummary(error),
+      });
+    }
+  };
+
+  const runCancelWait = async (connection: Connection) => {
+    setLocalPhase("idle");
+    setConfirming(false);
+    setWaitingConnectionId(undefined);
+    if (isPendingConnectorAccountId(connection.connectedAccountId)) {
+      try {
+        await removeConnection({ connectionId: connection._id });
+      } catch (error: unknown) {
+        toast.error("キャンセルに失敗しました", {
+          description: errorSummary(error),
+        });
+      }
     }
   };
 
@@ -522,13 +729,24 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
         isAdmin={isAdmin}
         localPhase={localPhase}
         open={detailOpen}
+        waitingConnectionId={waitingConnectionId}
         onAddAccount={(scope) => {
           void runStart(scope);
         }}
         onAuthorize={(connection) => {
           void runStart(connection.scope, connection._id);
         }}
+        onCancelWait={(connection) => {
+          void runCancelWait(connection);
+        }}
         onOpenChange={setDetailOpen}
+        onRemove={(connection) => {
+          void runRemove(connection);
+        }}
+        onRename={runRename}
+        onReopen={(connection) => {
+          void runStart(connection.scope, connection._id);
+        }}
       />
 
       {isAdmin ? null : (

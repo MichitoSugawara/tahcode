@@ -99,7 +99,7 @@ export async function findConnectorConnectionByAccount(
     .first();
 }
 
-function matchesConnectScope(
+export function matchesConnectScope(
   row: Doc<"connectorConnections">,
   input: { scope: ConnectorScope; userId?: Id<"users"> }
 ) {

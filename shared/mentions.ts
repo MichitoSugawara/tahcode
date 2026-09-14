@@ -1,3 +1,4 @@
+import { CONNECTOR_PROVIDERS } from "./connectors.ts";
 import { cursorEffortChoiceId, parseCursorModel } from "./cursorModels.ts";
 import type { ProviderOptionSelection } from "./modelOptions.ts";
 import { upsertOptionSelection } from "./modelOptions.ts";
@@ -8,7 +9,12 @@ import {
 } from "./providers.ts";
 import type { ProviderDriverKind } from "./providers.ts";
 
-export type MentionKind = "user" | "runtime" | "provider" | "agent";
+export type MentionKind =
+  | "user"
+  | "runtime"
+  | "provider"
+  | "agent"
+  | "connector";
 
 export interface ParsedMention {
   kind: MentionKind;
@@ -17,6 +23,8 @@ export interface ParsedMention {
   providerKind?: ProviderDriverKind;
   /** `@provider/model` — the model slug after the first slash, alias-resolved. */
   model?: string;
+  /** `@linear` / `@linear/pottos` — catalog provider, not a harness CLI. */
+  connectorProvider?: string;
 }
 
 /** Provider + optional model a message should run with. */
@@ -75,6 +83,18 @@ export function classifyMention(
         ? resolveModelSlug(providerKind, tail)
         : undefined;
     return { handle: head, kind: "provider", model, providerKind, raw };
+  }
+  const connectorProvider = (CONNECTOR_PROVIDERS as readonly string[]).find(
+    (provider) => provider === head
+  );
+  if (connectorProvider) {
+    return {
+      connectorProvider,
+      handle:
+        tail.length > 0 ? `${connectorProvider}/${tail}` : connectorProvider,
+      kind: "connector",
+      raw,
+    };
   }
   const key = handle.toLowerCase();
   if (key.startsWith("rt-") || key.startsWith("runtime-")) {

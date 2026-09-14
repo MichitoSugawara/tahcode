@@ -16,15 +16,16 @@ import {
 } from "../shared/providers.ts";
 
 describe(parseMentions, () => {
-  it("classifies provider, agent, runtime, and user handles", () => {
+  it("classifies provider, agent, runtime, connector, and user handles", () => {
     const mentions = parseMentions(
-      "hey @claude and @rt-office plus @mai, also @agent"
+      "hey @claude and @rt-office plus @mai, also @agent then @linear"
     );
     expect(mentions.map((m) => m.kind)).toStrictEqual([
       "provider",
       "runtime",
       "user",
       "agent",
+      "connector",
     ]);
     expect(mentions[0]?.providerKind).toBe("claudeAgent");
     expect(mentions[0]?.model).toBeUndefined();
@@ -76,6 +77,19 @@ describe(parseMentions, () => {
     expect(classifyMention("agent/whatever").kind).toBe("agent");
   });
 
+  it("classifies @linear and @linear/pottos as connectors", () => {
+    expect(classifyMention("linear")).toMatchObject({
+      connectorProvider: "linear",
+      handle: "linear",
+      kind: "connector",
+    });
+    expect(classifyMention("linear/pottos")).toMatchObject({
+      connectorProvider: "linear",
+      handle: "linear/pottos",
+      kind: "connector",
+    });
+  });
+
   it("does not treat prototype property names as providers", () => {
     expect(providerKindFromHandle("__proto__")).toBeUndefined();
     expect(providerKindFromHandle("constructor")).toBeUndefined();
@@ -108,6 +122,12 @@ describe(shouldDispatchAgent, () => {
         mentions: parseMentions("please look @cursor/muse-spark-1.3"),
       })
     ).toBeTruthy();
+    expect(
+      shouldDispatchAgent({
+        chatKind: "project",
+        mentions: parseMentions("use @linear on this"),
+      })
+    ).toBeFalsy();
   });
 });
 

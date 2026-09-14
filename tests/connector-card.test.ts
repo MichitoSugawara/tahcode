@@ -106,7 +106,7 @@ describe(connectorAccountTitle, () => {
       redundant: "Linear",
       pottos: "Linear (pottos)",
     });
-    expect(connectorAccountLabel()).toBe("default");
+    expect(connectorAccountLabel()).toBe("アカウント");
     expect(connectorAccountLabel("pottos")).toBe("pottos");
     expect(connectorAccountCountLabel(2)).toBe("2アカウント");
     expect(marketplaceConnectorPhase(["connected", "needsAuth"])).toBe(
@@ -162,6 +162,8 @@ describe("connector card copy", () => {
       authorizeHint: expect.stringContaining("Linear に移動"),
       connected: "接続済み",
       disconnect: "切断",
+      remove: "削除",
+      rename: "名前を変更",
       needsAuth: "認証が必要",
       notConfigured: "認証を開始できません。管理者に連絡してください。",
       reopen: "再表示",
@@ -248,6 +250,9 @@ describe("connector marketplace layout", () => {
       complete: pane.includes("completeLinearConnect"),
       accounts: pane.includes("connector-detail-accounts"),
       addAnother: pane.includes("addAnotherAccount"),
+      rename: pane.includes("connectorConnections.rename"),
+      remove: pane.includes("connectorConnections.remove"),
+      pencil: pane.includes("Pencil"),
       grok:
         pane.includes("sand-connector-card__header") ||
         pane.includes("connector-detail-accounts"),
@@ -260,6 +265,9 @@ describe("connector marketplace layout", () => {
       actions: true,
       addAnother: true,
       assign: true,
+      pencil: true,
+      remove: true,
+      rename: true,
       centered: true,
       complete: true,
       grok: true,
