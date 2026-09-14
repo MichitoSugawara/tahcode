@@ -214,6 +214,7 @@ export const CONNECTOR_CARD_COPY = {
   notConfigured: "認証を開始できません。管理者に連絡してください。",
   personal: "個人",
   remove: "削除",
+  removeAccount: (label: string) => `${label} を削除`,
   removeDetail:
     "このアカウントの連携だけを削除します。他の Linear アカウントは残ります。Linear 側のアカウントはそのままです。",
   rename: "名前を変更",

@@ -1,6 +1,6 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check, Pencil } from "lucide-react";
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -402,15 +402,15 @@ function ConnectorAccountRow({
             </Button>
           ) : null}
           {canManage ? (
-            <Button
+            <button
               type="button"
-              size="xs"
-              variant="quiet"
-              disabled={busy}
+              aria-label={CONNECTOR_CARD_COPY.removeAccount(label)}
+              className="text-red hover:bg-red-tint shrink-0 rounded-[6px] p-1 disabled:opacity-50"
+              disabled={busy || saving}
               onClick={onRemove}
             >
-              {CONNECTOR_CARD_COPY.remove}
-            </Button>
+              <Trash2 aria-hidden size={14} strokeWidth={2.2} />
+            </button>
           ) : null}
         </>
       )}
