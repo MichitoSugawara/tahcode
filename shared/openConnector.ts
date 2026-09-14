@@ -461,9 +461,10 @@ export async function executeLinearAction(input: {
   config: OpenConnectorEnv;
   connectionAlias: string;
   fetchImpl?: FetchLike;
+  input?: Record<string, unknown>;
 }): Promise<unknown> {
   return await openConnectorRequest({
-    body: { input: {} },
+    body: { input: input.input ?? {} },
     config: input.config,
     connectionAlias: input.connectionAlias,
     fetchImpl: input.fetchImpl,

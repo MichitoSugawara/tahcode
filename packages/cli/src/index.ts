@@ -162,7 +162,7 @@ ${bold("使い方")}
   ${code("tahcode install-multica [--yes]")}   Multica CLI のインストールコマンドを表示（--yes で実行）
   ${code("tahcode multica <args…>")}          multica CLI にそのまま渡す（例: tahcode multica login）
   ${code("tahcode unlink")}     このマシンのリンクを削除
-  ${code("tahcode tool [name] [--args JSON]")}  実行中ジョブから Org / プロジェクト / チャット / ランタイム / コネクタを操作する（引数なしで一覧）
+  ${code("tahcode tool [name] [--args JSON]")}  実行中ジョブから Org / プロジェクト / チャット / ランタイム / コネクタ / Linear 課題を操作する（引数なしで一覧）
   ${code("tahcode tool-mcp")}   ハーネスが stdio で同じツールを呼ぶためのホスト（ジョブ中）
 
 ${bold("オプション")}

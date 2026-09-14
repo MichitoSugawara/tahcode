@@ -69,7 +69,7 @@ describe(parseClaimedPreviewFromDeployOutput, () => {
 });
 
 describe(functionSpecHasCanaryTools, () => {
-  it("requires agentTools plus both connector tool literals", () => {
+  it("requires agentTools plus connector and Linear tool literals", () => {
     expect(
       functionSpecHasCanaryTools(
         JSON.stringify({

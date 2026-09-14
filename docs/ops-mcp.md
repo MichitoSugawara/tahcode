@@ -18,11 +18,11 @@
 ジョブ claim（`jobs:claimNext`）が `opsBundle` を返します。中身は:
 
 - `connectors` — ジョブ Org で acting user が見える `connectorConnections`（シークレットなし）
-- `mentionedConnectors` — プロンプトの `@linear` / `@linear/<slug>`（TAH-54 が対象を決めるフック）
+- `mentionedConnectors` — プロンプトの `@linear` / `@linear/<slug>`
 - `mcp.attachment` — `mcp-config` / `cli` / `unsupported`
-- `mcp.servers` — `tahcode` ops は `inject: true`。コネクタは Phase 1 では `inject: false`
+- `mcp.servers` — `tahcode` ops は常に `inject: true`。Linear は **メンション ∩ `connected`** のときだけ `inject: true`
 
-ブリッジは `shared/opsMcp.ts` の `buildJobMcpConfig` でファイルを生成します。Phase 1 のファイルには **tahcode ops サーバだけ**が入ります。コネクタ行はプランに載るだけで、MCP サーバにはなりません。
+ブリッジは `shared/opsMcp.ts` の `buildJobMcpConfig` で `tahcode-mcp.json` を書きます。tahcode ops に加え、注入対象の Linear サーバ（名前 `tahcode-linear-<connectionId 末尾8文字>`）が同じファイルに入ります。どちらも `tahcode tool-mcp`（ジョブ認証 env）。Linear 側だけ `TAHCODE_CONNECTOR_CONNECTION_ID` が付きます。Linear / ゲートウェイのトークンと URL はファイルに出さず、Convex `invokeConnector` 側に残します。
 
 ## エージェントから見えるコネクタツール
 
@@ -33,17 +33,27 @@
 
 認可は UI と同じ（org スコープはメンバー全員、user スコープは本人または Admin）。`connectedAccountId` は claim の内部スナップショットにだけ載せ、ツール応答には出しません。
 
-## TAH-54 の載せ方（未実装・フックのみ）
+## TAH-54 の載せ方
 
 `@linear` で tahcode コネクタの Linear ツールを渡すときは、**この基盤の上に載せる**。Linear 専用の起動フラグや Cursor マーケットプレイス MCP は足さない。
 
-1. `shared/opsMcp.ts` の `resolveConnectorMcpServer`（または `buildJobMcpConfig` の `resolveConnector`）で、`provider === "linear"` かつ `status === "connected"` のスナップショットから MCP サーバ仕様を返す。
-2. `buildJobMcpConfig` が `tahcode` ops と同じ `mcpServers` にマージする。Claude は既存の `--mcp-config` で両方を読む。注入サーバ名は `tahcode-<provider>-<last8>` なので、`jobMcpCliFlags` の `--allowedTools mcp__tahcode__*` だけでは足りない。注入名ごとに `mcp__<name>__*` を足す。
-3. Cursor は CLI に MCP フラグが無いあいだ `tahcode tool`（または後続の stdio ホスト）で同じ Convex 経路を呼ぶ。`agent` が `--mcp-config` 相当を持ったら `jobMcpCliFlags` に足す。
-4. 対象アカウントは `opsBundle.mentionedConnectors`（`@linear` / `@linear/pottos`）と `opsBundle.connectors` を突き合わせる。メンション解決は `shared/mentions.ts` + `src/lib/connectorMentions.ts` が既にある。
-5. トークンやゲートウェイ URL をプロンプトや UI に出さない。UI 文言は「コネクタ」のまま。
+1. `resolveConnectorMcpServer` は `provider === "linear"` かつ `status === "connected"` のときだけ MCP サーバ仕様を返す（ホストは `tahcode tool-mcp`）。
+2. 実際にファイルへ入れる対象は `mentionedConnectors ∩ connectors`（connected のみ）。`buildJobMcpConfig` が tahcode ops と同じ `mcpServers` にマージする。
+3. Claude は既存の `--mcp-config` で両方を読む。`jobMcpCliFlags` は `mcp__tahcode__*` に加え、注入名ごとに `mcp__<name>__*` をカンマ連結する。
+4. Cursor / Codex / ほかは `--mcp-config` が無いあいだ `tahcode tool` カタログに同じ Linear ツールを出す。実行は Convex `agentTools:invokeConnector`（ops の `invoke` と同じランタイムトークン + ジョブリース）。
+5. トークン・ゲートウェイ URL・OpenConnector / OOMOL / workers.dev はプロンプト・UI・ツール応答に出さない。
 
-Phase 1 では `resolveConnectorMcpServer` は常に `null` です。テスト `tests/ops-mcp.test.ts` が、リゾルバを渡したときにサーバがマージされることだけ保証します。
+### `@linear`（slug なし）の既定アカウント
+
+コンポーザが素の `@linear` に割り当てるアカウントと同じ優先順位:
+
+1. ラベルなしの接続済みアカウント（複数なら mention ハンドル割り当て順の先頭）
+2. それが無いときは、その provider の接続済みが 1 件だけならそれ
+3. 複数で全部ラベル付きなら **org スコープ優先**、同列なら `connectionId`
+
+`@linear/<slug>` は displayLabel の slug、または `connectionId` そのもの。切断済み・未メンションは注入しない。
+
+Linear ツール（最低限の issue 面）: `list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue`。実体は OpenConnector Action（`linear.list_linear_issues` など）だが、エージェントから見える名前と説明は Linear だけ。
 
 ## Preview での確認
 
@@ -51,6 +61,6 @@ Phase 1 では `resolveConnectorMcpServer` は常に `null` です。テスト `
 2. `/o/preview/connectors` で Linear を接続（未接続でも claim の `opsBundle.connectors` は空配列で返る）。
 3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。起動 argv に `--allowedTools mcp__tahcode__*` が付き、MCP の `list_connectors` は権限未承認にならない（`bypassPermissions` は使わない）。
 4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` / `--allowedTools` は付かず、`tahcode tool` 案内になる。
-5. Linear の課題ツール（作成・検索など）は **まだ付かない**。それが TAH-54。
+5. Linear を接続したうえで `@claude @linear 課題を一覧` を流す。思考トレースの injected が 1 以上、起動 argv に `mcp__tahcode-linear-<last8>__*` が付き、課題一覧は tahcode コネクタ経由（Cursor 内蔵 Linear MCP ではない）。Cursor ジョブでは `tahcode tool list_linear_issues` がカタログに出る。
 
 Cloudflare の preview Worker は `pr-<number>` で分かれている。Convex も同じ `pr-<number>` 識別子に載せる。チームの deployment 上限（40）で新規作成できないときは、閉じた PR の残りプレビューを 1 件消してから `pr-<number>` を取り直す。マージ済みブランチ名へ関数だけ載せて他 PR と共有すると、後から来た preview が `agentTools:invoke` のバリデータを上書きする。

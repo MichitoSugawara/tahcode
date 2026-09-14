@@ -1,3 +1,4 @@
+import { selectInjectedConnections } from "./connectorMentions.ts";
 import type { ConnectorScope, ConnectorStatus } from "./connectors.ts";
 import { parseMentions } from "./mentions.ts";
 
@@ -9,14 +10,16 @@ import { parseMentions } from "./mentions.ts";
  * has no equivalent flag today — tools stay on `tahcode tool` + the prompt
  * catalog (do not fall back to Cursor marketplace MCP).
  *
- * TAH-54 rides `resolveConnectorMcpServer`: inject Linear (and later other
- * connector) tools from tahcode `connectorConnections`, on this same plan.
+ * TAH-54 rides `resolveConnectorMcpServer`: inject Linear tools from
+ * tahcode `connectorConnections` when the prompt mentions `@linear`.
  */
 
 export const JOB_MCP_CONFIG_FILENAME = "tahcode-mcp.json";
 export const TAHCODE_OPS_MCP_NAME = "tahcode";
 /** Claude `--allowedTools` glob for every tool on the tahcode ops server. */
 export const TAHCODE_OPS_MCP_ALLOWED_TOOLS = `mcp__${TAHCODE_OPS_MCP_NAME}__*`;
+/** Sentinel command: `buildJobMcpConfig` rewrites this to the job's tahcode CLI. */
+export const CONNECTOR_MCP_HOST_COMMAND = "tahcode";
 
 export type JobMcpAttachmentMode = "mcp-config" | "cli" | "unsupported";
 
@@ -97,9 +100,26 @@ export function jobMcpAttachmentMode(kind: string): JobMcpAttachmentMode {
   return "cli";
 }
 
+export function mcpAllowedToolsValue(
+  injectedServerNames: readonly string[] = []
+): string {
+  const names = [TAHCODE_OPS_MCP_NAME, ...injectedServerNames];
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) {
+      continue;
+    }
+    seen.add(name);
+    unique.push(name);
+  }
+  return unique.map((name) => `mcp__${name}__*`).join(",");
+}
+
 export function jobMcpCliFlags(
   kind: string,
-  mcpConfigPath: string | undefined
+  mcpConfigPath: string | undefined,
+  injectedServerNames: readonly string[] = []
 ): string[] {
   if (!mcpConfigPath || jobMcpAttachmentMode(kind) !== "mcp-config") {
     return [];
@@ -112,7 +132,7 @@ export function jobMcpCliFlags(
     "--mcp-config",
     mcpConfigPath,
     "--allowedTools",
-    TAHCODE_OPS_MCP_ALLOWED_TOOLS,
+    mcpAllowedToolsValue(injectedServerNames),
   ];
 }
 
@@ -146,28 +166,62 @@ export function connectorMcpServerName(
 }
 
 /**
- * TAH-54 hook. Phase 1 always returns null — jobs list tahcode-owned
- * connector status, but do not spawn vendor MCP (Linear issues, etc.).
+ * Linear (and later other connector) MCP host. Only `linear` + `connected`
+ * returns a spec. Mention filtering happens in `buildJobMcpConfig` /
+ * `planJobMcpServers` so disconnected or unmentioned accounts stay off
+ * the Claude `--mcp-config` file.
  *
- * Implement Linear here (or pass a resolver into `buildJobMcpConfig`) so
- * every provider shares one injection path. Do not add a Cursor-only
- * marketplace bypass.
+ * The command is rewritten to the job's `tahcode tool-mcp` host so tokens
+ * never go in the prompt — Convex `agentTools:invokeConnector` holds them.
  */
 export function resolveConnectorMcpServer(
   connection: JobConnectorSnapshot
 ): JobMcpServerSpec | null {
-  switch (connection.provider) {
-    case "linear":
-      return null;
-    default:
-      return null;
+  if (connection.provider !== "linear" || connection.status !== "connected") {
+    return null;
   }
+  return {
+    args: ["tool-mcp"],
+    command: CONNECTOR_MCP_HOST_COMMAND,
+    env: {
+      TAHCODE_CONNECTOR_CONNECTION_ID: connection.connectionId,
+      TAHCODE_CONNECTOR_PROVIDER: connection.provider,
+    },
+    name: connectorMcpServerName(connection),
+  };
+}
+
+export function injectedConnectorConnections(
+  connections: readonly JobConnectorSnapshot[],
+  mentions: readonly MentionedConnector[],
+  resolve: ConnectorMcpResolver = resolveConnectorMcpServer
+): JobConnectorSnapshot[] {
+  return selectInjectedConnections(connections, mentions).filter(
+    (connection) => resolve(connection) !== null
+  );
+}
+
+export function injectedMcpServerNames(
+  connections: readonly JobConnectorSnapshot[],
+  mentions: readonly MentionedConnector[],
+  resolve: ConnectorMcpResolver = resolveConnectorMcpServer
+): string[] {
+  return injectedConnectorConnections(connections, mentions, resolve).map(
+    (connection) =>
+      resolve(connection)?.name ?? connectorMcpServerName(connection)
+  );
 }
 
 export function planJobMcpServers(
   connections: readonly JobConnectorSnapshot[],
-  resolve: ConnectorMcpResolver = resolveConnectorMcpServer
+  resolve: ConnectorMcpResolver = resolveConnectorMcpServer,
+  mentions: readonly MentionedConnector[] = []
 ): JobMcpServerPlan[] {
+  const injected = new Set(
+    injectedConnectorConnections(connections, mentions, resolve).map(
+      (connection) => connection.connectionId
+    )
+  );
   const servers: JobMcpServerPlan[] = [
     {
       inject: true,
@@ -178,7 +232,7 @@ export function planJobMcpServers(
   for (const connection of connections) {
     servers.push({
       connectionId: connection.connectionId,
-      inject: resolve(connection) !== null,
+      inject: injected.has(connection.connectionId),
       kind: "connector",
       name: connectorMcpServerName(connection),
       provider: connection.provider,
@@ -187,8 +241,32 @@ export function planJobMcpServers(
   return servers;
 }
 
+function materializeConnectorServer(
+  spec: JobMcpServerSpec,
+  tahcodeOps: {
+    args: string[];
+    command: string;
+    env?: Record<string, string>;
+  }
+): JobMcpConfig["mcpServers"][string] {
+  const viaTahcodeHost = spec.command === CONNECTOR_MCP_HOST_COMMAND;
+  const next: JobMcpConfig["mcpServers"][string] = {
+    args: viaTahcodeHost ? tahcodeOps.args : spec.args,
+    command: viaTahcodeHost ? tahcodeOps.command : spec.command,
+  };
+  const env = {
+    ...(viaTahcodeHost ? tahcodeOps.env : undefined),
+    ...spec.env,
+  };
+  if (Object.keys(env).length > 0) {
+    next.env = env;
+  }
+  return next;
+}
+
 export function buildJobMcpConfig(input: {
   connections: readonly JobConnectorSnapshot[];
+  mentionedConnectors?: readonly MentionedConnector[];
   resolveConnector?: ConnectorMcpResolver;
   tahcodeOps: {
     args: string[];
@@ -197,6 +275,7 @@ export function buildJobMcpConfig(input: {
   };
 }): JobMcpConfig {
   const resolve = input.resolveConnector ?? resolveConnectorMcpServer;
+  const mentions = input.mentionedConnectors ?? [];
   const tahcode: JobMcpConfig["mcpServers"][string] = {
     args: input.tahcodeOps.args,
     command: input.tahcodeOps.command,
@@ -207,19 +286,19 @@ export function buildJobMcpConfig(input: {
   const mcpServers: JobMcpConfig["mcpServers"] = {
     [TAHCODE_OPS_MCP_NAME]: tahcode,
   };
-  for (const connection of input.connections) {
+  for (const connection of injectedConnectorConnections(
+    input.connections,
+    mentions,
+    resolve
+  )) {
     const server = resolve(connection);
     if (!server) {
       continue;
     }
-    const spec: JobMcpConfig["mcpServers"][string] = {
-      args: server.args,
-      command: server.command,
-    };
-    if (server.env) {
-      spec.env = server.env;
-    }
-    mcpServers[server.name] = spec;
+    mcpServers[server.name] = materializeConnectorServer(
+      server,
+      input.tahcodeOps
+    );
   }
   return { mcpServers };
 }
@@ -230,16 +309,19 @@ export function buildJobOpsBundle(input: {
   prompt: string;
   resolveConnector?: ConnectorMcpResolver;
 }): JobOpsBundle {
+  const mentionedConnectors = mentionedConnectorsFromText(input.prompt);
+  const resolve = input.resolveConnector ?? resolveConnectorMcpServer;
   return {
     connectors: [...input.connections],
     mcp: {
       attachment: jobMcpAttachmentMode(input.driverKind),
       servers: planJobMcpServers(
         input.connections,
-        input.resolveConnector ?? resolveConnectorMcpServer
+        resolve,
+        mentionedConnectors
       ),
     },
-    mentionedConnectors: mentionedConnectorsFromText(input.prompt),
+    mentionedConnectors,
   };
 }
 
@@ -257,9 +339,18 @@ export function formatJobOpsPromptSuffix(bundle: JobOpsBundle): string {
       );
     }
   }
-  lines.push(
-    "Provider-specific issue tools are not injected yet; status is tahcode-owned."
+  const injected = bundle.mcp.servers.filter(
+    (server) => server.kind === "connector" && server.inject
   );
+  if (injected.length > 0) {
+    lines.push(
+      "Linear issue tools for mentioned `@linear` accounts: `tahcode tool list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue` (same Convex invoke as ops tools; Claude also has them on the injected MCP server). Not Cursor marketplace MCP."
+    );
+  } else {
+    lines.push(
+      "Provider-specific issue tools are injected only when the prompt mentions a connected `@linear` account."
+    );
+  }
   return lines.join("\n");
 }
 

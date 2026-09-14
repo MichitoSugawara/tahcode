@@ -105,11 +105,65 @@ describe("jobs claim opsBundle", () => {
         }),
         expect.objectContaining({
           connectionId,
-          inject: false,
+          inject: true,
           kind: "connector",
           provider: "linear",
         }),
       ])
     );
+  });
+
+  it("does not inject Linear MCP when the prompt omits @linear", async () => {
+    const t = fresh();
+    const alice = await insertUser(t, { handle: "alice-quiet" });
+    const aliceCtx = asUser(t, alice);
+    const orgId = await aliceCtx.mutation(api.orgs.create, { name: "Quiet" });
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      name: "Public",
+      orgId,
+      visibility: "org",
+    });
+    const chatId = await aliceCtx.mutation(api.chats.createProjectChat, {
+      projectId,
+      title: "Room",
+      visibility: "inherit",
+    });
+    await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_default-quiet",
+      displayLabel: "pottos",
+      orgId,
+      provider: "linear",
+      scope: "org",
+    });
+    const tokenHash = await sha256Hex("th_ops_quiet");
+    const runtimeId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("runtimes", {
+          lastSeenAt: Date.now(),
+          name: "box",
+          orgId,
+          ownerUserId: alice,
+          slug: "box-quiet",
+          status: "online",
+          tokenHash,
+        })
+    );
+    await aliceCtx.mutation(api.messages.send, {
+      body: "@claude just say hi",
+      chatId,
+    });
+    const claimed = await t.mutation(api.jobs.claimNext, {
+      runtimeId,
+      token: "th_ops_quiet",
+    });
+    if (!claimed) {
+      throw new Error("expected a claimed job");
+    }
+    expect(claimed.opsBundle.mentionedConnectors).toStrictEqual([]);
+    expect(
+      claimed.opsBundle.mcp.servers.some(
+        (server) => server.kind === "connector" && server.inject
+      )
+    ).toBeFalsy();
   });
 });

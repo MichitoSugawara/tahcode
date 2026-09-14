@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -418,5 +418,171 @@ describe("agent tools authz", () => {
         "th_bob_ops"
       )
     ).rejects.toThrow(/connection not found/i);
+  });
+});
+
+describe("agent Linear connector tools", () => {
+  const previousEnv = {
+    OPENCONNECTOR_ADMIN_TOKEN: process.env.OPENCONNECTOR_ADMIN_TOKEN,
+    OPENCONNECTOR_BASE_URL: process.env.OPENCONNECTOR_BASE_URL,
+    OPENCONNECTOR_RUNTIME_TOKEN: process.env.OPENCONNECTOR_RUNTIME_TOKEN,
+  };
+
+  afterEach(() => {
+    if (previousEnv.OPENCONNECTOR_ADMIN_TOKEN === undefined) {
+      delete process.env.OPENCONNECTOR_ADMIN_TOKEN;
+    } else {
+      process.env.OPENCONNECTOR_ADMIN_TOKEN =
+        previousEnv.OPENCONNECTOR_ADMIN_TOKEN;
+    }
+    if (previousEnv.OPENCONNECTOR_BASE_URL === undefined) {
+      delete process.env.OPENCONNECTOR_BASE_URL;
+    } else {
+      process.env.OPENCONNECTOR_BASE_URL = previousEnv.OPENCONNECTOR_BASE_URL;
+    }
+    if (previousEnv.OPENCONNECTOR_RUNTIME_TOKEN === undefined) {
+      delete process.env.OPENCONNECTOR_RUNTIME_TOKEN;
+    } else {
+      process.env.OPENCONNECTOR_RUNTIME_TOKEN =
+        previousEnv.OPENCONNECTOR_RUNTIME_TOKEN;
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("lists issues through the mentioned Linear connection without leaking vendor internals", async () => {
+    process.env.OPENCONNECTOR_ADMIN_TOKEN = "test-admin";
+    process.env.OPENCONNECTOR_BASE_URL = "https://oc.test";
+    process.env.OPENCONNECTOR_RUNTIME_TOKEN = "oct_runtime";
+    const calls: {
+      body?: string;
+      headers?: Record<string, string>;
+      url: string;
+    }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      async (
+        url: string,
+        init?: { body?: string; headers?: Record<string, string> }
+      ) => {
+        calls.push({
+          body: init?.body,
+          headers: init?.headers,
+          url: String(url),
+        });
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              data: {
+                alias: "should-not-leak",
+                issues: [
+                  {
+                    identifier: "TAH-54",
+                    title: "inject Linear",
+                    url: "https://linear.app/tahcode/issue/TAH-54",
+                  },
+                ],
+              },
+              message: "OK",
+              success: true,
+            }),
+        };
+      }
+    );
+
+    const t = fresh();
+    const { aliceCtx, claimed, orgId, runtimeId } = await seedJob(t);
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: "ca_linear-alice",
+        displayLabel: "pottos",
+        orgId,
+        provider: "linear",
+        scope: "org",
+      }
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch("connectorConnections", connectionId, {
+        oauthAlias: "work",
+      });
+      const job = await ctx.db.get("jobs", claimed._id);
+      if (!job) {
+        throw new Error("job missing");
+      }
+      await ctx.db.patch("jobs", claimed._id, {
+        prompt: "@claude @linear/pottos 課題を一覧",
+      });
+      const trigger = await ctx.db.get("messages", job.triggerMessageId);
+      if (trigger) {
+        await ctx.db.patch("messages", trigger._id, {
+          body: "@claude @linear/pottos 課題を一覧",
+        });
+      }
+    });
+
+    const result = await t.action(api.agentTools.invokeConnector, {
+      argsJson: JSON.stringify({ limit: 10 }),
+      jobId: claimed._id,
+      leaseId: claimed.leaseId,
+      name: "list_linear_issues",
+      runtimeId,
+      token: TOKEN,
+    });
+    const parsed = JSON.parse(result.resultJson) as {
+      issues?: { identifier?: string }[];
+    };
+    expect({
+      identifier: parsed.issues?.[0]?.identifier,
+      actionUrl: calls[0]?.url,
+      alias: calls[0]?.headers?.["x-oo-connector-alias"],
+      first: calls[0]?.body.includes('"first":10'),
+      leaked: ["openconnector", "should-not-leak", "oct_runtime"].filter(
+        (needle) => result.resultJson.toLowerCase().includes(needle)
+      ),
+    }).toStrictEqual({
+      identifier: "TAH-54",
+      actionUrl: "https://oc.test/v1/actions/linear.list_linear_issues",
+      alias: "work",
+      first: true,
+      leaked: [],
+    });
+  });
+
+  it("refuses a disconnected Linear mapping", async () => {
+    process.env.OPENCONNECTOR_ADMIN_TOKEN = "test-admin";
+    process.env.OPENCONNECTOR_BASE_URL = "https://oc.test";
+    process.env.OPENCONNECTOR_RUNTIME_TOKEN = "oct_runtime";
+    const t = fresh();
+    const { aliceCtx, claimed, orgId, runtimeId } = await seedJob(t);
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: "ca_linear-off",
+        displayLabel: "pottos",
+        orgId,
+        provider: "linear",
+        scope: "org",
+      }
+    );
+    await aliceCtx.mutation(api.connectorConnections.disconnect, {
+      connectionId,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch("jobs", claimed._id, {
+        prompt: "@claude @linear/pottos",
+      });
+    });
+    await expect(
+      t.action(api.agentTools.invokeConnector, {
+        argsJson: "{}",
+        jobId: claimed._id,
+        leaseId: claimed.leaseId,
+        name: "list_linear_issues",
+        runtimeId,
+        token: TOKEN,
+      })
+    ).rejects.toThrow(/no connected linear account is mentioned/i);
   });
 });

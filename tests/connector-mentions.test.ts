@@ -3,6 +3,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  defaultConnectedConnector,
+  matchMentionedConnector,
+  selectInjectedConnections,
+} from "../shared/connectorMentions.ts";
+import {
   CONNECTOR_MENTION_HINT,
   CONNECTOR_MENTION_TRAILING,
   connectorMentionHandle,
@@ -86,6 +91,56 @@ describe(connectorMentionSuggestItems, () => {
     ]);
     expect(filterSuggestItems(items, "lin")[0]?.name).toBe("Linear");
     expect(filterSuggestItems(items, "pott")[0]?.name).toBe("Linear (pottos)");
+  });
+});
+
+describe("TAH-54 mention → connection", () => {
+  const unnamed = {
+    connectionId: "id-unnamed",
+    provider: "linear",
+    scope: "org" as const,
+    status: "connected",
+  };
+  const pottos = {
+    connectionId: "id-pottos",
+    displayLabel: "pottos",
+    provider: "linear",
+    scope: "org" as const,
+    status: "connected",
+  };
+  const offline = {
+    connectionId: "id-offline",
+    displayLabel: "pottos",
+    provider: "linear",
+    scope: "org" as const,
+    status: "disconnected",
+  };
+
+  it("maps @linear/pottos to the labeled account and ignores disconnected", () => {
+    expect(
+      matchMentionedConnector({ handle: "linear/pottos", provider: "linear" }, [
+        unnamed,
+        pottos,
+        offline,
+      ])
+    ).toMatchObject({ connectionId: "id-pottos" });
+    expect(
+      selectInjectedConnections(
+        [offline],
+        [{ handle: "linear/pottos", provider: "linear" }]
+      )
+    ).toStrictEqual([]);
+  });
+
+  it("picks the unlabeled account for bare @linear, else the only connected one", () => {
+    expect(
+      defaultConnectedConnector([unnamed, pottos], "linear")?.connectionId
+    ).toBe("id-unnamed");
+    expect(
+      matchMentionedConnector({ handle: "linear", provider: "linear" }, [
+        pottos,
+      ])?.connectionId
+    ).toBe("id-pottos");
   });
 });
 

@@ -17,6 +17,7 @@ export const MANAGEMENT_API_BASE = "https://api.convex.dev/v1";
 export const PREVIEW_TOOL_CANARIES = [
   "list_connectors",
   "get_connector_status",
+  "list_linear_issues",
 ];
 export const DELETE_SETTLE_MS = 8000;
 export const MAX_PRUNE_DELETES = 3;
