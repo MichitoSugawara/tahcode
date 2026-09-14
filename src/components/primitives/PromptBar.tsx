@@ -52,6 +52,7 @@ export interface PromptPickerItem {
   name: string;
   tag?: string;
   disabled?: boolean;
+  icon?: ReactNode;
 }
 
 export interface PromptPicker {
@@ -553,6 +554,9 @@ export default function PromptBar({
                   }}
                   className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left disabled:opacity-45"
                 >
+                  {item.icon && (
+                    <span className="flex shrink-0">{item.icon}</span>
+                  )}
                   <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
                     {item.name}
                   </span>
@@ -725,7 +729,7 @@ export default function PromptBar({
             {/* pickers — provider · runtime */}
             <div
               ref={pickersRef}
-              className={`flex items-center gap-0.5 ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
+              className={`flex max-w-full items-center gap-0.5 overflow-x-auto ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
             >
               {pickers.map((item) => (
                 <button

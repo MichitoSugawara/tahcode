@@ -2,7 +2,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Monogram } from "@/components/atoms/EntityChip";
+import { ProviderMark } from "@/components/atoms/ProviderIcon";
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { relativeTime } from "@/lib/format";
@@ -10,20 +10,22 @@ import {
   PROVIDERS,
   agentMention,
   catalogModelHint,
-  effortFooterFor,
+  descriptorPickerItems,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
   modelCatalogFor,
   modelDisplayName,
+  optionAriaLabel,
   optionDescriptorsFor,
+  optionFooterFor,
   pickerModelSlug,
-  primaryOptionDescriptor,
   retainValidOptions,
   supportsModelPick,
   upsertOptionSelection,
 } from "@/lib/providers";
 import type {
   ProviderDriverKind,
+  ProviderOptionDescriptor,
   ProviderOptionSelection,
 } from "@/lib/providers";
 
@@ -111,7 +113,7 @@ export function AgentPicker({
                   : "bg-field text-ink-2 shadow-hairline hover:bg-hover hover:text-ink"
               }`}
             >
-              <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>
+              <ProviderMark kind={kind} />
               <span className="min-w-0 flex-1 truncate font-medium">
                 {info.label}
               </span>
@@ -251,7 +253,7 @@ export function AgentPicker({
         </Popover.Portal>
       </Popover.Root>
 
-      <EffortPicker
+      <OptionPickers
         driverKind={driverKind}
         model={model}
         options={options}
@@ -270,7 +272,7 @@ export function AgentPicker({
   );
 }
 
-function EffortPicker({
+function OptionPickers({
   driverKind,
   model,
   options,
@@ -285,33 +287,54 @@ function EffortPicker({
     options?: ProviderOptionSelection[] | null
   ) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const org = useOrg();
   const catalog = useMemo(
     () => modelCatalogFor(driverKind, org.runtimes),
     [driverKind, org.runtimes]
   );
   const hint = catalogModelHint(driverKind, model, catalog.models);
-  const primary = primaryOptionDescriptor(
-    optionDescriptorsFor(driverKind, model, hint)
-  );
-  if (!primary) {
+  const descriptors = optionDescriptorsFor(driverKind, model, hint);
+  if (descriptors.length === 0) {
     return null;
   }
-  const current = getProviderOptionCurrentValue(primary, options);
-  const items =
-    primary.type === "boolean"
-      ? [
-          {
-            id: "false",
-            label: "Off",
-            isDefault: primary.currentValue === false,
-          },
-          { id: "true", label: "On", isDefault: primary.currentValue === true },
-        ]
-      : primary.options;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {descriptors.map((descriptor) => (
+        <OptionPickerRow
+          key={descriptor.id}
+          descriptor={descriptor}
+          driverKind={driverKind}
+          model={model}
+          options={options}
+          onChange={onChange}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OptionPickerRow({
+  descriptor,
+  driverKind,
+  model,
+  options,
+  onChange,
+}: {
+  descriptor: ProviderOptionDescriptor;
+  driverKind: ProviderDriverKind;
+  model: string | null;
+  options?: ProviderOptionSelection[];
+  onChange: (
+    driverKind: ProviderDriverKind,
+    model: string | null,
+    options?: ProviderOptionSelection[] | null
+  ) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = getProviderOptionCurrentValue(descriptor, options);
+  const items = descriptorPickerItems(descriptor);
   const currentKey =
-    primary.type === "boolean"
+    descriptor.type === "boolean"
       ? current
         ? "true"
         : "false"
@@ -322,15 +345,15 @@ function EffortPicker({
       <Popover.Trigger asChild>
         <button
           type="button"
-          aria-label="推論レベルを選択"
+          aria-label={optionAriaLabel(descriptor)}
           aria-expanded={open}
           className="rounded-control bg-field text-ink shadow-hairline flex h-9 w-full items-center gap-2 px-3 text-left text-[13px] transition-[box-shadow] duration-150 hover:shadow-[0_0_0_1px_var(--line-strong)]"
         >
           <span className="text-ink-3 shrink-0 text-[12px]">
-            {primary.label}
+            {descriptor.label}
           </span>
           <span className="min-w-0 flex-1 truncate font-medium">
-            {getProviderOptionCurrentLabel(primary, options)}
+            {getProviderOptionCurrentLabel(descriptor, options)}
           </span>
           <ChevronDown size={13} className="text-ink-3 shrink-0" />
         </button>
@@ -347,28 +370,28 @@ function EffortPicker({
             highlightClassName="inset-x-0 rounded-[6px] bg-hover"
           >
             {items.map((option) => {
-              const on = currentKey === option.id;
+              const on = currentKey === option.key;
               return (
                 <button
-                  key={option.id}
+                  key={option.key}
                   type="button"
                   data-menu-row
                   onClick={() => {
                     setOpen(false);
                     const value =
-                      primary.type === "boolean"
-                        ? option.id === "true"
-                        : option.id;
+                      descriptor.type === "boolean"
+                        ? option.key === "true"
+                        : option.key;
                     onChange(
                       driverKind,
                       pickerModelSlug(driverKind, model) || null,
-                      upsertOptionSelection(options, primary.id, value)
+                      upsertOptionSelection(options, descriptor.id, value)
                     );
                   }}
                   className="relative z-10 flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left"
                 >
                   <span className="text-ink min-w-0 flex-1 truncate text-[12.5px] font-medium">
-                    {option.label}
+                    {option.name}
                   </span>
                   {option.isDefault && (
                     <span className="text-green shrink-0 text-[10.5px]">
@@ -385,7 +408,7 @@ function EffortPicker({
             })}
           </GlideMenu>
           <div className="border-line text-ink-3 mt-1 border-t px-2 pt-1.5 pb-1 text-[11px] leading-relaxed">
-            {effortFooterFor(driverKind)}
+            {optionFooterFor(driverKind, descriptor.id)}
           </div>
         </Popover.Content>
       </Popover.Portal>

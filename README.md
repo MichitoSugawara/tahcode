@@ -97,20 +97,20 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 ### 推論レベル（effort / reasoning）
 
-t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存エージェント結びつけ（チャット保存 → job → `headlessArgs`）に載せたもの。コンポーザと「新しいチャット」に **Reasoning** ピルが出る（対応プロバイダだけ。Antigravity はモデル slug に High/Medium/Low が含まれるので非表示）。ラベル・値・既定は t3code に合わせてある。
+t3code の `TraitsPicker` + `ProviderOptionDescriptor` を、tahcode の既存エージェント結びつけ（チャット保存 → job → `headlessArgs`）に載せたもの。コンポーザと「新しいチャット」に **descriptor ごとの SELECT / On-Off ピル** が出る（対応プロバイダだけ。Antigravity はモデル slug に High/Medium/Low が含まれるので非表示）。ラベル・値・既定は t3code に合わせてある。
 
 | プロバイダ | option id | 既定 | 実行時 |
 | --- | --- | --- | --- |
-| Codex | `reasoningEffort`（None…Ultra、`xhigh` = Extra High） | `medium`（`gpt-6-astra` も medium。ライブ `codex debug models` に `supported_reasoning_levels` があればそれを使う） | `codex exec --config model_reasoning_effort=high`（未選択ならフラグなし = CLI の設定） |
-| Claude | `effort`（Low…Max / Ultracode / Ultrathink）。Haiku は `thinking` On/Off | Fable `medium`、Opus/Sonnet `high`、Opus 4.7 `xhigh` | `claude -p --effort …`。Ultrathink はプロンプト先頭 `Ultrathink:\n`（`--effort` なし）。Ultracode は `--effort xhigh` + `--settings {"ultracode":true}`。モデルごとの `effortMap`（Opus 4.7 の `xhigh`→`max`、Sonnet 4.6 の `max`→`high`）も t3code と同じ |
-| OpenCode | `variant`（low / medium / high / xhigh） | Anthropic/Google `high`、OpenAI `medium` | `opencode run --variant high` |
+| Codex | `reasoningEffort`（None…Ultra、`xhigh` = Extra High）+ `serviceTier`（Standard / Fast） | Reasoning `medium`（`gpt-6-astra` も medium。ライブ `codex debug models` に `supported_reasoning_levels` があればそれを使う）。Service Tier `standard` | `codex exec --config model_reasoning_effort=high` · `--config service_tier=fast`（未選択ならフラグなし = CLI の設定） |
+| Claude | `effort`（Low…Max / Ultracode / Ultrathink）。Haiku は `thinking` On/Off。Opus 系は `fastMode`。Fable / Opus 5 / Sonnet は `contextWindow`（200k / 1M） | Fable `medium`、Opus/Sonnet `high`、Opus 4.7 `xhigh`。Fast Mode Off。Context Window は Fable/Opus 5 が 1M、Sonnet が 200k | `claude -p --effort …`。Ultrathink はプロンプト先頭 `Ultrathink:\n`（`--effort` なし）。Ultracode は `--effort xhigh` + `--settings {"ultracode":true}`。Fast Mode は `--settings {"fastMode":true}`。1M は `--model {slug}[1m]`。モデルごとの `effortMap`（Opus 4.7 の `xhigh`→`max`、Sonnet 4.6 の `max`→`high`）も t3code と同じ |
+| OpenCode | `variant`（low / medium / high / xhigh）+ `agent`（Build / Plan） | Anthropic/Google `high`、OpenAI `medium`。Agent `build` | `opencode run --variant high` · `--agent plan` |
 | Cursor | `reasoning`（ライブカタログの suffix。未取得時は low…xhigh） | `medium` | `agent --model {family}-{effort}`（例 `cursor-grok-4.6-medium`）。モデル一覧は家族のみ。`@cursor` だけなら `--model` なし |
 | Grok | `reasoningEffort` | `high` | **保存のみ。** headless `grok --prompt` のフラグは未確定（t3code は ACP） |
 | Antigravity | （なし） | — | モデル slug で切り替え |
 
 **t3code との差（意図的な簡略化）**
 
-- Composer は primary select（+ Haiku の Thinking）だけ。`fastMode` / `serviceTier` / `contextWindow` / OpenCode `agent` は未配線。
+- Composer / AgentPicker は `optionDescriptorsFor` の全 descriptor を SELECT / On-Off ピルで出す（t3code TraitsPicker の 1 メニューではなく PromptBar パターン）。`fastMode` / `serviceTier` / `contextWindow` / OpenCode `agent` は明示選択時だけ CLI フラグになる。
 - Ultrathink はチャットの `options` に保存する（t3code Web はプロンプト注入だけで option には残さない）。本文に `ultrathink` があれば二重付与しない。スラッシュコマンドは注入しない。
 - Grok の選択はチャットに残るが headless 実行には乗らない（上記）。Cursor は family + effort を `--model` に合成する。
 - モバイル専用の `selectableChoices`（ultrathink / ultracode を隠す）は Web のみの tahcode には無い。

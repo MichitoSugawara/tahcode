@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
-import { Monogram } from "@/components/atoms/EntityChip";
+import { ProviderMark } from "@/components/atoms/ProviderIcon";
 import { Shimmer } from "@/components/atoms/Shimmer";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { isLive, useOrg } from "@/harness/OrgContext";
@@ -471,7 +471,7 @@ function ProviderRow({
       className={`rounded-card bg-surface overflow-hidden transition-[box-shadow] duration-200 ${focused ? "shadow-[0_0_0_1px_var(--accent),var(--shadow-card)]" : "shadow-card"}`}
     >
       <div className="primitive-card-bar border-line flex flex-wrap items-center gap-2 border-b">
-        <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>
+        <ProviderMark kind={kind} />
         <span className="text-ink text-[13px] font-medium">{info.label}</span>
         <StatusPill tone={status.tone} className="h-5 text-[11px]">
           {status.label}
@@ -870,9 +870,7 @@ function History({ commands, now }: { commands: Command[]; now: number }) {
                 key={String(command._id)}
                 className="border-line flex flex-wrap items-center gap-2 border-b px-3 py-2 text-[12px] last:border-b-0"
               >
-                <Monogram color={PROVIDERS[command.driverKind].color}>
-                  {PROVIDERS[command.driverKind].label.charAt(0)}
-                </Monogram>
+                <ProviderMark kind={command.driverKind} />
                 <span className="text-ink font-medium">
                   {MAINTENANCE_NOUN[command.kind]}
                 </span>

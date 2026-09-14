@@ -7,6 +7,7 @@ import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
   AtSign,
+  Bot,
   Brain,
   Cpu,
   Folder,
@@ -14,14 +15,17 @@ import {
   MessageSquarePlus,
   Paperclip,
   Sparkles,
+  UnfoldHorizontal,
   UserPlus,
   UserRound,
+  Zap,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Monogram } from "@/components/atoms/EntityChip";
+import { ProviderMark } from "@/components/atoms/ProviderIcon";
 import PromptBar from "@/components/primitives/PromptBar";
 import type {
   PromptMenuItem,
@@ -46,16 +50,17 @@ import {
   catalogModelHint,
   cursorMentionSuggestItems,
   cursorModelFamily,
-  effortFooterFor,
+  descriptorPickerItems,
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
   isProviderKind,
   modelCatalogFor,
   modelDisplayName,
   modelMentionExample,
+  optionAriaLabel,
   optionDescriptorsFor,
+  optionFooterFor,
   pickerModelSlug,
-  primaryOptionDescriptor,
   retainValidOptions,
   supportsModelPick,
   upsertOptionSelection,
@@ -71,7 +76,20 @@ import type { Id } from "../../convex/_generated/dataModel";
 /* the draft ends in an @token still being typed — hold the auto-mention hint */
 const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
-function effortPickers(
+function optionPickerIcon(optionId: string) {
+  if (optionId === "fastMode" || optionId === "serviceTier") {
+    return <Zap size={12} />;
+  }
+  if (optionId === "contextWindow") {
+    return <UnfoldHorizontal size={12} />;
+  }
+  if (optionId === "agent") {
+    return <Bot size={12} />;
+  }
+  return <Brain size={12} />;
+}
+
+function optionPickers(
   agent: ComposerAgent,
   models: {
     slug: string;
@@ -85,56 +103,42 @@ function effortPickers(
   ) => void
 ): PromptPicker[] {
   const hint = catalogModelHint(agent.driverKind, agent.model, models);
-  const primary = primaryOptionDescriptor(
-    optionDescriptorsFor(agent.driverKind, agent.model, hint)
-  );
-  if (!primary) {
-    return [];
-  }
-  const current = getProviderOptionCurrentValue(primary, agent.options);
-  if (primary.type === "boolean") {
-    return [
-      {
-        id: "effort",
-        ariaLabel: "Thinking を切替",
-        icon: <Brain size={12} />,
-        label: getProviderOptionCurrentLabel(primary, agent.options),
-        items: [
-          { key: "false", name: "Off" },
-          { key: "true", name: "On" },
-        ],
-        value: current ? "true" : "false",
-        onChange: (key) =>
-          setAgent(
-            agent.driverKind,
-            agent.model,
-            upsertOptionSelection(agent.options, primary.id, key === "true")
-          ),
-        footer: effortFooterFor(agent.driverKind),
-      },
-    ];
-  }
-  return [
-    {
-      id: "effort",
-      ariaLabel: "推論レベルを選択",
-      icon: <Brain size={12} />,
-      label: getProviderOptionCurrentLabel(primary, agent.options),
-      items: primary.options.map((option) => ({
-        key: option.id,
-        name: option.label,
-        tag: option.isDefault ? "既定" : undefined,
+  const descriptors = optionDescriptorsFor(agent.driverKind, agent.model, hint);
+  return descriptors.map((descriptor) => {
+    const current = getProviderOptionCurrentValue(descriptor, agent.options);
+    const items = descriptorPickerItems(descriptor);
+    const value =
+      descriptor.type === "boolean"
+        ? current
+          ? "true"
+          : "false"
+        : typeof current === "string"
+          ? current
+          : "";
+    return {
+      ariaLabel: optionAriaLabel(descriptor),
+      footer: optionFooterFor(agent.driverKind, descriptor.id),
+      icon: optionPickerIcon(descriptor.id),
+      id: `opt-${descriptor.id}`,
+      items: items.map((item) => ({
+        key: item.key,
+        name: item.name,
+        tag: item.isDefault ? "既定" : undefined,
       })),
-      value: typeof current === "string" ? current : "",
+      label: getProviderOptionCurrentLabel(descriptor, agent.options),
       onChange: (key) =>
         setAgent(
           agent.driverKind,
           agent.model,
-          upsertOptionSelection(agent.options, primary.id, key)
+          upsertOptionSelection(
+            agent.options,
+            descriptor.id,
+            descriptor.type === "boolean" ? key === "true" : key
+          )
         ),
-      footer: effortFooterFor(agent.driverKind),
-    },
-  ];
+      value,
+    };
+  });
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -445,7 +449,6 @@ export function Composer({
   const mentions: PromptMenuItem[] = useMemo(() => {
     if (modelToken) {
       const kind = modelToken.providerKind;
-      const info = PROVIDERS[kind];
       const catalog = modelCatalogFor(kind, org.runtimes);
       const rows =
         kind === "cursor"
@@ -474,7 +477,7 @@ export function Composer({
             }));
       return rows.map((row) => ({
         desc: row.desc,
-        icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
+        icon: <ProviderMark kind={kind} />,
         insert: row.insert,
         key: row.key,
         name: row.name,
@@ -492,7 +495,7 @@ export function Composer({
       },
       ...Object.entries(PROVIDERS).map(([kind, info]) => ({
         desc: `${info.label} で実行（@${info.handle}/… でモデル指定）`,
-        icon: <Monogram color={info.color}>{info.label.charAt(0)}</Monogram>,
+        icon: <ProviderMark kind={kind} />,
         insert: `@${info.handle} `,
         key: kind,
         name: `@${info.handle}`,
@@ -623,7 +626,9 @@ export function Composer({
       footer:
         "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start / Multica daemon）",
       id: "provider",
+      icon: <ProviderMark kind={agent.driverKind} />,
       items: Object.entries(PROVIDERS).map(([kind, info]) => ({
+        icon: <ProviderMark kind={kind} />,
         key: kind,
         name: info.label,
         tag: installed.has(kind as never)
@@ -667,7 +672,7 @@ export function Composer({
       onChange: (key) => setAgent(agent.driverKind, key || null),
       value: pickerModelSlug(agent.driverKind, agent.model),
     },
-    ...effortPickers(agent, catalog.models, setAgent),
+    ...optionPickers(agent, catalog.models, setAgent),
     {
       ariaLabel: "ランタイムを選択",
       emptyHint: "ランタイムがありません",
