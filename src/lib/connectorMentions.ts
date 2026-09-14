@@ -71,9 +71,20 @@ export function connectorMentionSuggestItems(
   const taken = new Set<string>();
   let assignedBare = false;
   const items: ConnectorMentionSuggestItem[] = [];
-  const ordered = [...connected].sort((left, right) =>
-    left._id < right._id ? -1 : 1
-  );
+  const ordered = [...connected].sort((left, right) => {
+    const leftLabel = left.displayLabel?.trim() ?? "";
+    const rightLabel = right.displayLabel?.trim() ?? "";
+    if (leftLabel.length === 0 && rightLabel.length > 0) {
+      return -1;
+    }
+    if (leftLabel.length > 0 && rightLabel.length === 0) {
+      return 1;
+    }
+    if (leftLabel !== rightLabel) {
+      return leftLabel < rightLabel ? -1 : 1;
+    }
+    return left._id < right._id ? -1 : 1;
+  });
   for (const row of ordered) {
     const label = row.displayLabel?.trim();
     const preferBare = !assignedBare && (!label || label.length === 0);
