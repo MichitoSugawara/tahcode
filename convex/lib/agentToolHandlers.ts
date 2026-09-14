@@ -24,6 +24,12 @@ import {
   listRuntimeGrants,
 } from "./access";
 import type { OrgRole } from "./access";
+import { isVisibleConnectorConnection } from "./connectors";
+import {
+  agentConnectorView,
+  listVisibleJobConnectors,
+  toJobConnectorSnapshot,
+} from "./jobOps";
 import { isProviderDriverKind } from "./providers";
 import { STALE_RUNTIME_MS } from "./runtimeHealth";
 import { sendUserMessage } from "./sendMessage";
@@ -58,6 +64,10 @@ export async function runAgentTool(
       return await listRuntimes(ctx, scope, args);
     case "get_runtime_status":
       return await getRuntimeStatus(ctx, scope, args);
+    case "list_connectors":
+      return await listConnectors(ctx, scope, args);
+    case "get_connector_status":
+      return await getConnectorStatus(ctx, scope, args);
     default: {
       const _exhaustive: never = name;
       return _exhaustive;
@@ -285,6 +295,65 @@ async function listRuntimes(
   return { orgId, runtimes: out };
 }
 
+async function listConnectors(
+  ctx: MutationCtx,
+  scope: AgentToolScope,
+  args: Record<string, unknown>
+) {
+  const orgId = await requireOrgId(ctx, scope, optionalString(args, "orgId"));
+  const connectors = await listVisibleJobConnectors(ctx, {
+    orgId,
+    provider: optionalString(args, "provider"),
+    userId: scope.user._id,
+  });
+  return {
+    connectors: connectors.map(agentConnectorView),
+    orgId,
+  };
+}
+
+async function getConnectorStatus(
+  ctx: MutationCtx,
+  scope: AgentToolScope,
+  args: Record<string, unknown>
+) {
+  const connectionId = optionalString(args, "connectionId");
+  if (connectionId) {
+    const row = await ctx.db.get(
+      "connectorConnections",
+      asId<"connectorConnections">(connectionId)
+    );
+    if (!row) {
+      throw new Error("Connection not found");
+    }
+    const membership = await requireActorMembership(
+      ctx,
+      row.orgId,
+      scope.user._id
+    );
+    if (
+      !isVisibleConnectorConnection(row, {
+        role: membership.role,
+        userId: scope.user._id,
+      })
+    ) {
+      throw new Error("Connection not found");
+    }
+    return { connection: agentConnectorView(toJobConnectorSnapshot(row)) };
+  }
+  const provider = optionalString(args, "provider");
+  if (!provider) {
+    throw new Error("connectionId or provider is required");
+  }
+  const orgId = await requireOrgId(ctx, scope, optionalString(args, "orgId"));
+  const connections = await listVisibleJobConnectors(ctx, {
+    orgId,
+    provider,
+    userId: scope.user._id,
+  });
+  return { connections: connections.map(agentConnectorView), orgId };
+}
+
 async function getRuntimeStatus(
   ctx: MutationCtx,
   scope: AgentToolScope,
@@ -467,6 +536,7 @@ async function enrichMessage(ctx: MutationCtx, row: Doc<"messages">) {
 function asId<
   Table extends
     | "chats"
+    | "connectorConnections"
     | "orgs"
     | "projects"
     | "runtimes"

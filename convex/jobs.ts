@@ -12,11 +12,13 @@ import {
   jobCancelDenial,
   markJobCancelled,
 } from "./lib/jobCancel";
+import { loadJobOpsBundle } from "./lib/jobOps";
 import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
 import { loadJobSkills } from "./lib/skills";
 import {
+  jobOpsBundle,
   jobSkillPayload,
   jobStatus,
   optionSelection,
@@ -75,6 +77,7 @@ const claimView = v.union(
     triggerMessageId: v.id("messages"),
     leaseId: v.string(),
     multicaTaskId: v.optional(v.string()),
+    opsBundle: jobOpsBundle,
     skills: v.array(jobSkillPayload),
     toolChatId: v.optional(v.id("chats")),
   }),
@@ -169,6 +172,7 @@ export const claimNext = mutation({
     });
     const chat = await ctx.db.get("chats", job.chatId);
     const skills = chat ? await loadJobSkills(ctx, chat) : [];
+    const opsBundle = await loadJobOpsBundle(ctx, job);
     return {
       _id: job._id,
       assistantMessageId: job.assistantMessageId,
@@ -178,6 +182,7 @@ export const claimNext = mutation({
       leaseId,
       model: job.model,
       multicaTaskId: job.multicaTaskId,
+      opsBundle,
       options: job.options,
       prompt: job.prompt,
       runtimeId: job.runtimeId,

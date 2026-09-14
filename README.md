@@ -245,7 +245,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
 - **スキル同期のギャップ**: Codex / Claude / Cursor / OpenCode はジョブ開始時にローカルのスキルディレクトリへ SKILL.md を書く。Grok / Antigravity はストア規約がなく未書き込み。詳細は [`docs/skills.md`](docs/skills.md)。
-- **Agent Tools（Phase 1）**: ジョブ中のエージェントは `tahcode tool`（Claude は一時 MCP 設定も）で Org / プロジェクト / チャット / ランタイムを操作できる。詳細は [`docs/agent-tools.md`](docs/agent-tools.md)。
+- **Agent Tools / ops MCP（TAH-55）**: ジョブ中のエージェントは `tahcode tool`（Claude は一時 `--mcp-config`）で Org / プロジェクト / チャット / ランタイム / コネクタ状態を操作できる。コネクタのベンダーツール注入は TAH-54。詳細は [`docs/agent-tools.md`](docs/agent-tools.md) と [`docs/ops-mcp.md`](docs/ops-mcp.md)。
 
 ## CI/CD（Convex + Cloudflare）
 

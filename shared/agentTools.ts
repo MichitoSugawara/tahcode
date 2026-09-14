@@ -1,10 +1,15 @@
+import { jobMcpCliFlags } from "./opsMcp.ts";
+
 /**
- * Native tahcode agent tools (Phase 1).
+ * Native tahcode agent tools (Phase 1 + TAH-55 ops surface).
  *
  * These are in-app tools the job's acting user can call — not a published
- * MCP product. The bridge injects the catalog (names + descriptions only)
- * and `tahcode tool` / an optional stdio host call Convex `agentTools:invoke`
- * with the runtime token + job lease. Skill bodies are never inlined here.
+ * MCP product and not Cursor marketplace MCP. The bridge injects the catalog
+ * (names + descriptions only) and `tahcode tool` / an optional stdio host
+ * call Convex `agentTools:invoke` with the runtime token + job lease. Skill
+ * bodies are never inlined here. Connector tools read tahcode
+ * `connectorConnections`. TAH-54 injects vendor Linear tools on the same
+ * MCP plan (`shared/opsMcp.ts`).
  */
 
 export const BRIDGE_CAPABILITY_AGENT_TOOLS = "agentTools";
@@ -19,6 +24,8 @@ export const AGENT_TOOL_NAMES = [
   "send_message",
   "list_runtimes",
   "get_runtime_status",
+  "list_connectors",
+  "get_connector_status",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
@@ -158,6 +165,30 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
     },
     name: "get_runtime_status",
   },
+  {
+    description:
+      "List tahcode-owned connector mappings visible in an organization (defaults to the job org). Status only — not marketplace MCP.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: { orgId: STRING, provider: STRING },
+      type: "object",
+    },
+    name: "list_connectors",
+  },
+  {
+    description:
+      "Get one tahcode-owned connector mapping by connectionId, or matching mappings by provider.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {
+        connectionId: STRING,
+        orgId: STRING,
+        provider: STRING,
+      },
+      type: "object",
+    },
+    name: "get_connector_status",
+  },
 ] as const;
 
 const TOOL_BY_NAME = new Map(
@@ -286,13 +317,10 @@ export function agentToolJobEnv(
   };
 }
 
-/** Claude's headless CLI accepts `--mcp-config`. Other CLIs use `tahcode tool`. */
+/** Claude `--mcp-config` + `--allowedTools`; other CLIs use `tahcode tool`. */
 export function agentToolsMcpFlags(
   kind: string,
   mcpConfigPath: string | undefined
 ): string[] {
-  if (!mcpConfigPath || kind !== "claudeAgent") {
-    return [];
-  }
-  return ["--mcp-config", mcpConfigPath];
+  return jobMcpCliFlags(kind, mcpConfigPath);
 }

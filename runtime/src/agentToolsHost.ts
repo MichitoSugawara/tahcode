@@ -14,6 +14,11 @@ import type {
   AgentToolJobAuth,
   AgentToolName,
 } from "../../shared/agentTools.ts";
+import type { JobConnectorSnapshot } from "../../shared/opsMcp.ts";
+import {
+  JOB_MCP_CONFIG_FILENAME,
+  buildJobMcpConfig,
+} from "../../shared/opsMcp.ts";
 import { posixShellQuote } from "../../shared/shellQuote.ts";
 import {
   encodeMcpFrame,
@@ -49,20 +54,20 @@ export async function invokeAgentTool(
 export async function writeAgentToolsMcpConfig(input: {
   auth: AgentToolJobAuth;
   cliEntry: string;
+  connections?: readonly JobConnectorSnapshot[];
   dir: string;
   nodePath: string;
 }): Promise<string> {
-  const configPath = path.join(input.dir, "tahcode-mcp.json");
+  const configPath = path.join(input.dir, JOB_MCP_CONFIG_FILENAME);
   const env = agentToolJobEnv(input.auth);
-  const config = {
-    mcpServers: {
-      tahcode: {
-        args: [input.cliEntry, "tool-mcp"],
-        command: input.nodePath,
-        env,
-      },
+  const config = buildJobMcpConfig({
+    connections: input.connections ?? [],
+    tahcodeOps: {
+      args: [input.cliEntry, "tool-mcp"],
+      command: input.nodePath,
+      env,
     },
-  };
+  });
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
   return configPath;
 }

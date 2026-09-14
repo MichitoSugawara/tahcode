@@ -21,6 +21,10 @@ inputs:
     required: false
     default: ""
     description: Comma-separated preview names owned by other open PRs (never steal)
+  preview_prune:
+    required: false
+    default: ""
+    description: Comma-separated stale preview names (closed/merged branches) to delete when quota blocks pr-N
   convex_env_extra:
     required: false
     default: ""
@@ -73,12 +77,14 @@ runs:
       run: |
         if [ "${{ inputs.name }}" = "preview" ] && [ -n "${{ inputs.preview_name }}" ]; then
           # Unique per-branch preview names filled the team quota (40).
-          # Prefer pr-<n>; on DeploymentQuotaReached reuse an existing name.
+          # Prefer pr-<n>. On quota, delete a stale leftover then retry pr-<n>
+          # so this PR does not share Convex with every other open PR.
           node scripts/convex-preview-deploy.mjs \
             --dotenv "${{ inputs.dotenv_file }}" \
             --preview-name "${{ inputs.preview_name }}" \
             --fallback-names "${{ inputs.preview_fallbacks }}" \
-            --exclude-names "${{ inputs.preview_exclude }}"
+            --exclude-names "${{ inputs.preview_exclude }}" \
+            --prune-names "${{ inputs.preview_prune }}"
         else
           extra=()
           if [ -n "${{ inputs.preview_name }}" ]; then

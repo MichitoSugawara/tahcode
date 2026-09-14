@@ -278,6 +278,8 @@ export function headlessArgs(
     case "claudeAgent": {
       // `--verbose` is required by the Claude CLI when combining
       // `-p/--print` with `--output-format stream-json`.
+      // `toolFlags` include `--mcp-config` and `--allowedTools mcp__tahcode__*`
+      // so headless jobs can invoke tahcode MCP without a permission prompt.
       return [
         "-p",
         ...modelFlag,
@@ -293,6 +295,7 @@ export function headlessArgs(
     }
     case "cursor": {
       // Non-interactive bridge cannot answer the Workspace Trust prompt.
+      // `agent -p` has no `--mcp-config` (TAH-55). Tools stay on `tahcode tool`.
       return [
         "-p",
         "--trust",
