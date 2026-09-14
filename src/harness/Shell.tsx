@@ -29,8 +29,14 @@ import { isLive, useOrg } from "@/harness/OrgContext";
 import { isRightRailVisible } from "@/harness/rail/flags";
 import type { RailTab } from "@/harness/rail/flags";
 import { RightRail } from "@/harness/rail/RightRail";
-import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
-import { monogram, roleLabel, truncate } from "@/lib/format";
+import { isDesktopShell } from "@/lib/desktop";
+import {
+  colorFor,
+  displayName,
+  monogram,
+  roleLabel,
+  truncate,
+} from "@/lib/format";
 import type { Theme } from "@/lib/theme";
 
 import type { Id } from "../../convex/_generated/dataModel";
@@ -160,7 +166,7 @@ function useSidebarModel() {
     return [personal, ...projectGroups];
   }, [org]);
 
-  return { chatId: chatId ?? null, groups, liveCount, org, rail, runtimeCount };
+  return { chatId: chatId ?? null, groups, org, rail };
 }
 
 function Sidebar({
@@ -174,12 +180,12 @@ function Sidebar({
   collapsible: boolean;
   onNavigate?: () => void;
 }) {
-  const { org, chatId, rail, groups, liveCount, runtimeCount } =
-    useSidebarModel();
+  const { org, chatId, rail, groups } = useSidebarModel();
   const wrap = (fn?: () => void) => () => {
     fn?.();
     onNavigate?.();
   };
+  const meName = displayName(org.me);
   return (
     <SidebarNav
       fill
@@ -233,22 +239,13 @@ function Sidebar({
         org.goChat(id as Id<"chats">);
         onNavigate?.();
       }}
-      footerLabel={
-        runtimeCount === 0
-          ? isDesktopShell()
-            ? registerRuntimeCtaLabel()
-            : "ランタイムを登録"
-          : liveCount === 0
-            ? "ランタイムがオフライン"
-            : `ランタイム ${liveCount} 台オンライン`
-      }
-      footerIcon={<Cpu size={14} />}
-      footerTone={runtimeCount === 0 ? "accent" : "neutral"}
-      onFooterClick={wrap(
-        runtimeCount === 0
-          ? () => org.openDialog({ kind: "registerRuntime" })
-          : org.goSettings
-      )}
+      user={{
+        color: colorFor(String(org.me._id)),
+        email: org.me.email,
+        image: org.me.image,
+        monogram: monogram(meName),
+        name: meName,
+      }}
     />
   );
 }
