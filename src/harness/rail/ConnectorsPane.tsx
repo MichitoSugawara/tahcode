@@ -1,5 +1,6 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +12,7 @@ import { Dialog } from "@/harness/ui/Dialog";
 import { Notice } from "@/harness/ui/Notice";
 import type {
   ConnectorCardLocalPhase,
+  ConnectorCardPhase,
   ConnectorScope,
 } from "@/lib/connectorCard";
 import {
@@ -50,6 +52,117 @@ function LinearMark() {
         />
       </svg>
     </span>
+  );
+}
+
+/** Grok marketplace / `sand-connector-card__header`: action/status sits
+ *  to the right of the text block, never stacked under the description. */
+function ConnectorCardActions({
+  busy,
+  canManage,
+  displayName,
+  onDisconnect,
+  onStart,
+  phase,
+  showDisconnect,
+}: {
+  busy: boolean;
+  canManage: boolean;
+  displayName: string;
+  onDisconnect: () => void;
+  onStart: () => void;
+  phase: ConnectorCardPhase;
+  showDisconnect: boolean;
+}) {
+  const disconnectButton =
+    canManage && showDisconnect ? (
+      <Button
+        type="button"
+        size="xs"
+        variant="quiet"
+        disabled={busy}
+        onClick={onDisconnect}
+      >
+        {CONNECTOR_CARD_COPY.disconnect}
+      </Button>
+    ) : null;
+
+  if (phase === "connected") {
+    return (
+      <div className="connector-card-actions flex shrink-0 items-center gap-2">
+        <span
+          className="text-ink-2 inline-flex items-center gap-1 text-[12.5px]"
+          role="status"
+        >
+          <Check aria-hidden size={14} strokeWidth={2.5} />
+          {CONNECTOR_CARD_COPY.connected}
+        </span>
+        {disconnectButton}
+      </div>
+    );
+  }
+
+  if (!canManage) {
+    return null;
+  }
+
+  if (phase === "waiting") {
+    return (
+      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1.5 text-right">
+        <span className="text-ink-2 text-[12px] leading-snug" role="status">
+          {CONNECTOR_CARD_COPY.waiting(displayName)}
+        </span>
+        <Button
+          type="button"
+          size="xs"
+          variant="secondary"
+          disabled={busy}
+          onClick={onStart}
+        >
+          {CONNECTOR_CARD_COPY.reopen}
+        </Button>
+      </div>
+    );
+  }
+
+  if (phase === "retry") {
+    return (
+      <div className="connector-card-actions flex max-w-[15rem] shrink-0 flex-col items-end gap-1.5 text-right">
+        <span className="text-ink-2 text-[12px] leading-snug" role="status">
+          {CONNECTOR_CARD_COPY.retryHint(displayName)}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="xs"
+            variant="accent"
+            disabled={busy}
+            onClick={onStart}
+          >
+            {CONNECTOR_CARD_COPY.retry}
+          </Button>
+          {disconnectButton}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="connector-card-actions flex shrink-0 items-center gap-2">
+      <Button
+        type="button"
+        size="xs"
+        variant="accent"
+        disabled={busy}
+        aria-busy={busy}
+        onClick={onStart}
+      >
+        {phase === "add"
+          ? CONNECTOR_CARD_COPY.add
+          : CONNECTOR_CARD_COPY.authorize}
+      </Button>
+      {disconnectButton}
+    </div>
   );
 }
 
@@ -143,9 +256,9 @@ function ConnectorCard({
 
   return (
     <article className="rounded-card bg-surface shadow-card overflow-hidden">
-      <div className="primitive-card-bar border-line flex items-start gap-3 border-b">
+      <div className="connector-card-header primitive-card-bar flex items-start gap-3">
         <LinearMark />
-        <div className="min-w-0 flex-1">
+        <div className="connector-card-text min-w-0 flex-1">
           <div className="text-ink flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
             <h3 className="truncate">{catalog.displayName}</h3>
             {team ? (
@@ -153,7 +266,7 @@ function ConnectorCard({
                 {CONNECTOR_CARD_COPY.team}
               </span>
             ) : null}
-            {connection ? (
+            {connection && phase !== "connected" ? (
               <StatusPill tone={connectorStatusTone(connection.status)}>
                 {connectorStatusLabel(connection.status)}
               </StatusPill>
@@ -169,111 +282,24 @@ function ConnectorCard({
               {verified ? `確認 ${verified}` : ""}
             </p>
           ) : null}
-        </div>
-      </div>
-
-      {canManage && (phase !== "connected" || showDisconnect) ? (
-        <div className="flex flex-col gap-2 px-3 py-2.5">
-          {phase === "connected" && showDisconnect ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="xs"
-                variant="quiet"
-                disabled={busy}
-                onClick={() => setConfirmOpen(true)}
-              >
-                {CONNECTOR_CARD_COPY.disconnect}
-              </Button>
-            </div>
-          ) : null}
-
-          {phase === "waiting" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-ink-2 text-[12.5px]">
-                {CONNECTOR_CARD_COPY.waiting(catalog.displayName)}
-              </span>
-              <Button
-                type="button"
-                size="xs"
-                variant="secondary"
-                disabled={busy}
-                onClick={() => {
-                  void runStart();
-                }}
-              >
-                {CONNECTOR_CARD_COPY.reopen}
-              </Button>
-            </div>
-          ) : null}
-
-          {phase === "retry" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-ink-2 text-[12.5px]">
-                {CONNECTOR_CARD_COPY.retryHint(catalog.displayName)}
-              </span>
-              <Button
-                type="button"
-                size="xs"
-                variant="accent"
-                disabled={busy}
-                onClick={() => {
-                  void runStart();
-                }}
-              >
-                {CONNECTOR_CARD_COPY.retry}
-              </Button>
-              {showDisconnect ? (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="quiet"
-                  disabled={busy}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  {CONNECTOR_CARD_COPY.disconnect}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {phase === "add" || phase === "authorize" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="xs"
-                variant="accent"
-                disabled={busy}
-                aria-busy={busy}
-                onClick={() => {
-                  void runStart();
-                }}
-              >
-                {phase === "add"
-                  ? CONNECTOR_CARD_COPY.add
-                  : CONNECTOR_CARD_COPY.authorize}
-              </Button>
-              {showDisconnect ? (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="quiet"
-                  disabled={busy}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  {CONNECTOR_CARD_COPY.disconnect}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {phase === "connected" ? null : (
-            <p className="text-ink-3 text-[11.5px] leading-relaxed">
+          {canManage && phase !== "connected" ? (
+            <p className="text-ink-3 mt-1 text-[11.5px] leading-relaxed">
               {CONNECTOR_CARD_COPY.oauthPending}
             </p>
-          )}
+          ) : null}
         </div>
-      ) : null}
+        <ConnectorCardActions
+          busy={busy}
+          canManage={canManage}
+          displayName={catalog.displayName}
+          phase={phase}
+          showDisconnect={showDisconnect}
+          onDisconnect={() => setConfirmOpen(true)}
+          onStart={() => {
+            void runStart();
+          }}
+        />
+      </div>
 
       <Dialog
         open={confirmOpen}
