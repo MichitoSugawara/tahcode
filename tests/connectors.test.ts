@@ -4,10 +4,13 @@ import {
   canManageConnectorConnection,
   canUpsertConnectorConnection,
   canViewConnectorConnection,
+  firstConnectorCardAttachment,
   isPendingConnectorAccountId,
+  normalizeConnectorCardAttachment,
   normalizeConnectorProvider,
   normalizeOpaqueConnectorId,
   pendingConnectorAccountId,
+  sanitizeLinearReturnPath,
 } from "../shared/connectors.ts";
 
 describe(normalizeConnectorProvider, () => {
@@ -58,6 +61,49 @@ describe(normalizeOpaqueConnectorId, () => {
     ).toThrow(/opaque/i);
     expect(() => normalizeOpaqueConnectorId("access_token=abc")).toThrow(
       /opaque/i
+    );
+  });
+});
+
+describe(normalizeConnectorCardAttachment, () => {
+  it("defaults to Linear org scope and rejects unknown providers", () => {
+    expect(normalizeConnectorCardAttachment({})).toStrictEqual({
+      kind: "connector",
+      provider: "linear",
+      scope: "org",
+    });
+    expect(
+      normalizeConnectorCardAttachment({ provider: "Linear", scope: "user" })
+    ).toStrictEqual({
+      kind: "connector",
+      provider: "linear",
+      scope: "user",
+    });
+    expect(() =>
+      normalizeConnectorCardAttachment({ provider: "github" })
+    ).toThrow(/unknown connector/i);
+  });
+
+  it("reads the first connector attachment on a message", () => {
+    expect(
+      firstConnectorCardAttachment([
+        { kind: "connector", provider: "linear", scope: "org" },
+      ])
+    ).toMatchObject({ provider: "linear", scope: "org" });
+    expect(firstConnectorCardAttachment([])).toBeUndefined();
+  });
+});
+
+describe(sanitizeLinearReturnPath, () => {
+  it("allows the chat and connectors surfaces for the same org", () => {
+    expect(sanitizeLinearReturnPath(undefined, "preview")).toBe(
+      "/o/preview/connectors"
+    );
+    expect(sanitizeLinearReturnPath("/o/preview/c/k17chat", "preview")).toBe(
+      "/o/preview/c/k17chat"
+    );
+    expect(sanitizeLinearReturnPath("/o/other/c/k17chat", "preview")).toBe(
+      "/o/preview/connectors"
     );
   });
 });

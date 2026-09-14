@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import {
   chatKind,
   chatVisibility,
+  connectorCardAttachment,
   connectorScope,
   connectorStatus,
   grantTarget,
@@ -181,6 +182,8 @@ export default defineSchema({
     model: v.optional(v.string()),
     body: v.string(),
     mentions: v.array(v.string()),
+    /* Structured timeline cards (Grok Bot connector.tsx). Optional so older rows stay valid. */
+    attachments: v.optional(v.array(connectorCardAttachment)),
     status: v.optional(
       v.union(
         v.literal("streaming"),

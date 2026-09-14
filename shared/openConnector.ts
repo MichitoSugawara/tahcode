@@ -3,6 +3,7 @@ import {
   MAX_CONNECTOR_DISPLAY_LABEL,
   normalizeOpaqueConnectorId,
   normalizeOptionalConnectorText,
+  sanitizeLinearReturnPath,
 } from "./connectors.ts";
 import type { ConnectorScope } from "./connectors.ts";
 
@@ -202,12 +203,13 @@ export function resolveLinearReturnSiteUrl(input: {
 export function buildLinearReturnUri(input: {
   connectionId?: string;
   orgSlug: string;
+  returnPath?: string;
   scope: ConnectorScope;
   siteUrl: string;
 }): string {
   const origin = trimTrailingSlash(input.siteUrl);
   const url = new URL(
-    `/o/${encodeURIComponent(input.orgSlug)}/connectors`,
+    sanitizeLinearReturnPath(input.returnPath, input.orgSlug),
     origin
   );
   url.searchParams.set("connector", LINEAR_CONNECT_QUERY);
@@ -470,6 +472,7 @@ export async function startLinearConnectionRequest(input: {
   connectionId?: string;
   fetchImpl?: FetchLike;
   orgSlug: string;
+  returnPath?: string;
   scope: ConnectorScope;
 }): Promise<OpenConnectorConnectionRequestStart> {
   if (!input.config.adminToken || !input.config.siteUrl) {
@@ -480,6 +483,7 @@ export async function startLinearConnectionRequest(input: {
       returnUri: buildLinearReturnUri({
         connectionId: input.connectionId,
         orgSlug: input.orgSlug,
+        returnPath: input.returnPath,
         scope: input.scope,
         siteUrl: input.config.siteUrl,
       }),

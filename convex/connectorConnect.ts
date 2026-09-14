@@ -56,6 +56,7 @@ export const startLinearConnect = action({
     connectionId: v.optional(v.id("connectorConnections")),
     orgId: v.id("orgs"),
     returnOrigin: v.optional(v.string()),
+    returnPath: v.optional(v.string()),
     scope: connectorScope,
   },
   handler: async (ctx, args): Promise<StartLinearConnectResult> => {
@@ -99,6 +100,7 @@ export const startLinearConnect = action({
         config,
         connectionId,
         orgSlug: access.orgSlug,
+        returnPath: args.returnPath,
         scope: args.scope,
       });
     } catch {

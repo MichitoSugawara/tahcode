@@ -21,7 +21,9 @@ describe("agent tool catalog", () => {
     expect(text).toContain("不明なコマンド: tool");
     expect(text).toContain("tahcode CLI is older than 0.1.1");
     expect(isAgentToolName("list_orgs")).toBeTruthy();
+    expect(isAgentToolName("suggest_connector")).toBeTruthy();
     expect(isAgentToolName("rm_rf")).toBeFalsy();
+    expect(text).not.toMatch(/OpenConnector|OOMOL|workers\.dev/i);
   });
 
   it("parses object arguments and rejects arrays", () => {

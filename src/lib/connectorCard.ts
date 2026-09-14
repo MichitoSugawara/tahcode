@@ -5,11 +5,14 @@ import type {
 
 export {
   LINEAR_CONNECT_QUERY,
+  firstConnectorCardAttachment,
   isPendingConnectorAccountId,
   linearConnectReturnConnectionId,
   linearConnectReturnScope,
   stripLinearConnectReturnSearch,
 } from "../../shared/connectors.ts";
+
+export type { ConnectorCardAttachment } from "../../shared/connectors.ts";
 
 export type { ConnectorScope, ConnectorStatus };
 
@@ -203,6 +206,9 @@ export const CONNECTOR_CARD_COPY = {
   addAnotherAccount: "+ 別のアカウントを追加",
   authorize: "認証",
   authorizeHint: "認証すると Linear に移動し、完了後この画面に戻ります。",
+  chatIntro: (name: string) => `${name} をこの org に接続します。`,
+  chatIntroUser: (name: string) => `${name} を個人アカウントとして接続します。`,
+  chatMemberHint: "Team 連携の認証は Owner / Admin が行います。",
   cancelWait: "キャンセル",
   confirming: (name: string) => `${name} の認証を確認しています…`,
   connected: "接続済み",

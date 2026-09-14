@@ -3,9 +3,15 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
+import { postConnectorCardMessage } from "./lib/connectorCards";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { sendUserMessage } from "./lib/sendMessage";
-import { messageDoc, optionSelection, providerKind } from "./lib/validators";
+import {
+  connectorScope,
+  messageDoc,
+  optionSelection,
+  providerKind,
+} from "./lib/validators";
 
 async function enrichMessages(
   ctx: { db: QueryCtx["db"] },
@@ -78,5 +84,25 @@ export const send = authedMutation({
     jobId: v.optional(v.id("jobs")),
     driverKind: v.optional(providerKind),
     model: v.optional(v.string()),
+  }),
+});
+
+export const suggestConnector = authedMutation({
+  args: {
+    chatId: v.id("chats"),
+    provider: v.optional(v.string()),
+    scope: v.optional(connectorScope),
+  },
+  handler: async (ctx, args) =>
+    await postConnectorCardMessage(ctx, {
+      chatId: args.chatId,
+      provider: args.provider,
+      scope: args.scope,
+      userId: ctx.user._id,
+    }),
+  returns: v.object({
+    messageId: v.id("messages"),
+    provider: v.string(),
+    scope: connectorScope,
   }),
 });
