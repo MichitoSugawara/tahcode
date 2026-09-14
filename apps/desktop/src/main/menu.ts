@@ -1,5 +1,9 @@
 import { app, Menu, shell } from "electron";
-import type { BrowserWindow, MenuItemConstructorOptions } from "electron";
+import type {
+  BrowserWindow,
+  MenuItem,
+  MenuItemConstructorOptions,
+} from "electron";
 
 import { SERVER_PRESETS } from "./config";
 import type { ServerPreset, ShellConfig } from "./config";
@@ -7,7 +11,10 @@ import type { ServerPreset, ShellConfig } from "./config";
 const REPO_URL = "https://github.com/MichitoSugawara/tahcode";
 
 export interface MenuHandlers {
+  checkForUpdates: () => void;
+  getAutoUpdateEnabled: () => boolean;
   reload: () => void;
+  setAutoUpdateEnabled: (enabled: boolean) => void;
   switchServer: (preset: ServerPreset) => void;
 }
 
@@ -41,6 +48,18 @@ export function installMenu(
             label: app.name,
             submenu: [
               { role: "about" as const },
+              { type: "separator" as const },
+              {
+                label: "アップデートを確認…",
+                click: handlers.checkForUpdates,
+              },
+              {
+                checked: handlers.getAutoUpdateEnabled(),
+                click: (item: MenuItem) =>
+                  handlers.setAutoUpdateEnabled(item.checked),
+                label: "自動アップデート",
+                type: "checkbox" as const,
+              },
               { type: "separator" as const },
               { role: "services" as const },
               { type: "separator" as const },
@@ -137,7 +156,18 @@ export function installMenu(
           click: () => void shell.openExternal(REPO_URL),
         },
         { type: "separator" },
-        { label: `Version ${app.getVersion()}`, enabled: false },
+        {
+          click: handlers.checkForUpdates,
+          label: "アップデートを確認…",
+        },
+        {
+          checked: handlers.getAutoUpdateEnabled(),
+          click: (item: MenuItem) =>
+            handlers.setAutoUpdateEnabled(item.checked),
+          label: "自動アップデート",
+          type: "checkbox",
+        },
+        { enabled: false, label: `Version ${app.getVersion()}` },
       ],
     },
   ];

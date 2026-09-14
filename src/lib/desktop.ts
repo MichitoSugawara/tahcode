@@ -1,4 +1,8 @@
-import { DESKTOP_BRIDGE_KEY } from "@tahcode/core/desktop";
+import {
+  DESKTOP_BRIDGE_KEY,
+  DESKTOP_RELEASES_URL,
+  supportsDesktopUpdater,
+} from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
   TahcodeDesktopBridge,
@@ -83,3 +87,9 @@ export async function desktopCliStatusOrNull(): Promise<DesktopCliStatus | null>
     return null;
   }
 }
+
+export function hasDesktopUpdater(): boolean {
+  return supportsDesktopUpdater(getDesktopBridge());
+}
+
+export { DESKTOP_RELEASES_URL, supportsDesktopUpdater };

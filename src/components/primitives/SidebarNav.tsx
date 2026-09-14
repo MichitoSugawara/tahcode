@@ -72,6 +72,11 @@ interface SidebarNavProps {
   onWorkspaceSettings?: () => void;
   onInvite?: () => void;
   onSignOut?: () => void;
+  extraMenuItems?: {
+    icon: ReactNode;
+    label: string;
+    onClick: () => void;
+  }[];
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
   rail: SidebarRailItem[];
@@ -182,6 +187,7 @@ function WorkspaceMenu({
   onWorkspaceSettings,
   onInvite,
   onSignOut,
+  extraMenuItems,
   theme,
   onToggleTheme,
 }: Pick<
@@ -193,6 +199,7 @@ function WorkspaceMenu({
   | "onWorkspaceSettings"
   | "onInvite"
   | "onSignOut"
+  | "extraMenuItems"
   | "theme"
   | "onToggleTheme"
 > & {
@@ -266,8 +273,26 @@ function WorkspaceMenu({
             )}
           </button>
         ))}
-        {rows.length > 0 && <div className="bg-line my-1 h-px" />}
+        {(rows.length > 0 || (extraMenuItems && extraMenuItems.length > 0)) && (
+          <div className="bg-line my-1 h-px" />
+        )}
         {rows.map((item) => (
+          <button
+            key={item.label}
+            data-menu-row
+            type="button"
+            onClick={run(item.onClick)}
+            className="relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2 text-left"
+          >
+            <span className="text-ink-2 flex size-5 shrink-0 items-center justify-center">
+              {item.icon}
+            </span>
+            <span className="text-ink min-w-0 flex-1 truncate text-[13.5px]">
+              {item.label}
+            </span>
+          </button>
+        ))}
+        {extraMenuItems?.map((item) => (
           <button
             key={item.label}
             data-menu-row
@@ -328,6 +353,7 @@ export default function SidebarNav({
   onWorkspaceSettings,
   onInvite,
   onSignOut,
+  extraMenuItems,
   theme,
   onToggleTheme,
   rail,
@@ -475,6 +501,7 @@ export default function SidebarNav({
               onWorkspaceSettings={onWorkspaceSettings}
               onInvite={onInvite}
               onSignOut={onSignOut}
+              extraMenuItems={extraMenuItems}
               theme={theme}
               onToggleTheme={onToggleTheme}
             />

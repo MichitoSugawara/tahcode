@@ -2,10 +2,12 @@ import {
   DESKTOP_BRIDGE_KEY,
   DESKTOP_IPC,
   desktopOAuthRedirectTo,
+  isDesktopUpdateState,
   isRegisterProgressStep,
 } from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
+  DesktopUpdateState,
   OAuthStrategy,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
@@ -23,8 +25,8 @@ import { contextBridge, ipcRenderer } from "electron";
  * TahcodeDesktopBridge from @tahcode/core/desktop.
  *
  * IPC is allow-listed: hostname, CLI status, the fixed
- * registerLocalRuntime sequence, and progress events for that
- * sequence. No arbitrary shell.
+ * registerLocalRuntime sequence, progress events for that
+ * sequence, and desktop update invoke/events. No arbitrary shell.
  * ───────────────────────────────────────────────────────── */
 
 function argValue(name: string): string | undefined {
@@ -65,6 +67,49 @@ const bridge: TahcodeDesktopBridge = {
       ipcRenderer.off(DESKTOP_IPC.registerProgress, listener);
     });
   },
+  applyUpdate: () =>
+    ipcRenderer.invoke(DESKTOP_IPC.applyUpdate) as Promise<DesktopUpdateState>,
+  checkForUpdates: () =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.checkForUpdates
+    ) as Promise<DesktopUpdateState>,
+  downloadUpdate: () =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.downloadUpdate
+    ) as Promise<DesktopUpdateState>,
+  getUpdateState: () =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.getUpdateState
+    ) as Promise<DesktopUpdateState>,
+  markUpdateUiReady: () =>
+    ipcRenderer.invoke(DESKTOP_IPC.updateUiReady) as Promise<void>,
+  onOpenUpdateUi: (listener) => {
+    const wrapped = () => {
+      listener();
+    };
+    ipcRenderer.on(DESKTOP_IPC.openUpdateUi, wrapped);
+    return () => {
+      ipcRenderer.off(DESKTOP_IPC.openUpdateUi, wrapped);
+    };
+  },
+  onUpdateState: (listener) => {
+    const wrapped = (_event: unknown, state: unknown) => {
+      if (isDesktopUpdateState(state)) {
+        listener(state);
+      }
+    };
+    ipcRenderer.on(DESKTOP_IPC.updateState, wrapped);
+    return () => {
+      ipcRenderer.off(DESKTOP_IPC.updateState, wrapped);
+    };
+  },
+  openLatestRelease: () =>
+    ipcRenderer.invoke(DESKTOP_IPC.openLatestRelease) as Promise<void>,
+  setAutoUpdate: (enabled) =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.setAutoUpdate,
+      enabled
+    ) as Promise<DesktopUpdateState>,
   version: process.env.TAHCODE_DESKTOP_VERSION ?? "0.0.0",
 };
 

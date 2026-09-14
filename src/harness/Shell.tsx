@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
+  ArrowUpCircle,
   Cpu,
   Folder,
   Home,
@@ -204,6 +205,17 @@ function Sidebar({
       onWorkspaceSettings={wrap(org.goSettings)}
       onInvite={
         org.isAdmin ? () => org.openDialog({ kind: "invite" }) : undefined
+      }
+      extraMenuItems={
+        isDesktopShell()
+          ? [
+              {
+                icon: <ArrowUpCircle size={16} />,
+                label: "デスクトップの更新",
+                onClick: () => org.goSettings("desktop"),
+              },
+            ]
+          : undefined
       }
       onSignOut={org.signOut}
       theme={theme}
