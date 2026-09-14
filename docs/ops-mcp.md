@@ -8,7 +8,7 @@
 
 | ハーネス | ブリッジの起動 | tahcode ops の渡し方 |
 | --- | --- | --- |
-| Claude | `claude -p --output-format stream-json --verbose` | **`--mcp-config <tmpdir>/tahcode-mcp.json`**（stdio: `tahcode tool-mcp`） |
+| Claude | `claude -p --output-format stream-json --verbose` | **`--mcp-config`** + **`--allowedTools mcp__tahcode__*`**（stdio: `tahcode tool-mcp`。`-p` の既定 permission だと MCP が権限未承認になる） |
 | Cursor | `agent -p --trust --output-format stream-json` | **未配線。** `agent -p` に `--mcp-config` 相当はない。`tahcode tool` + プロンプトカタログ |
 | Codex | `codex exec --json` | `tahcode tool` + プロンプトカタログ |
 | OpenCode | `opencode run` | 同上 |
@@ -38,7 +38,7 @@
 `@linear` で tahcode コネクタの Linear ツールを渡すときは、**この基盤の上に載せる**。Linear 専用の起動フラグや Cursor マーケットプレイス MCP は足さない。
 
 1. `shared/opsMcp.ts` の `resolveConnectorMcpServer`（または `buildJobMcpConfig` の `resolveConnector`）で、`provider === "linear"` かつ `status === "connected"` のスナップショットから MCP サーバ仕様を返す。
-2. `buildJobMcpConfig` が `tahcode` ops と同じ `mcpServers` にマージする。Claude は既存の `--mcp-config` で両方を読む。
+2. `buildJobMcpConfig` が `tahcode` ops と同じ `mcpServers` にマージする。Claude は既存の `--mcp-config` で両方を読む。注入サーバ名は `tahcode-<provider>-<last8>` なので、`jobMcpCliFlags` の `--allowedTools mcp__tahcode__*` だけでは足りない。注入名ごとに `mcp__<name>__*` を足す。
 3. Cursor は CLI に MCP フラグが無いあいだ `tahcode tool`（または後続の stdio ホスト）で同じ Convex 経路を呼ぶ。`agent` が `--mcp-config` 相当を持ったら `jobMcpCliFlags` に足す。
 4. 対象アカウントは `opsBundle.mentionedConnectors`（`@linear` / `@linear/pottos`）と `opsBundle.connectors` を突き合わせる。メンション解決は `shared/mentions.ts` + `src/lib/connectorMentions.ts` が既にある。
 5. トークンやゲートウェイ URL をプロンプトや UI に出さない。UI 文言は「コネクタ」のまま。
@@ -49,8 +49,8 @@ Phase 1 では `resolveConnectorMcpServer` は常に `null` です。テスト `
 
 1. preview / staging にログイン（`test@test.com` / `test1234`）。
 2. `/o/preview/connectors` で Linear を接続（未接続でも claim の `opsBundle.connectors` は空配列で返る）。
-3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。
-4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` は付かず、`tahcode tool` 案内になる。
+3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。起動 argv に `--allowedTools mcp__tahcode__*` が付き、MCP の `list_connectors` は権限未承認にならない（`bypassPermissions` は使わない）。
+4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` / `--allowedTools` は付かず、`tahcode tool` 案内になる。
 5. Linear の課題ツール（作成・検索など）は **まだ付かない**。それが TAH-54。
 
 Cloudflare の preview Worker は `pr-<number>` で分かれている。Convex も同じ `pr-<number>` 識別子に載せる。チームの deployment 上限（40）で新規作成できないときは、閉じた PR の残りプレビューを 1 件消してから `pr-<number>` を取り直す。マージ済みブランチ名へ関数だけ載せて他 PR と共有すると、後から来た preview が `agentTools:invoke` のバリデータを上書きする。

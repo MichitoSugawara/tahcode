@@ -15,6 +15,8 @@ import { parseMentions } from "./mentions.ts";
 
 export const JOB_MCP_CONFIG_FILENAME = "tahcode-mcp.json";
 export const TAHCODE_OPS_MCP_NAME = "tahcode";
+/** Claude `--allowedTools` glob for every tool on the tahcode ops server. */
+export const TAHCODE_OPS_MCP_ALLOWED_TOOLS = `mcp__${TAHCODE_OPS_MCP_NAME}__*`;
 
 export type JobMcpAttachmentMode = "mcp-config" | "cli" | "unsupported";
 
@@ -76,7 +78,7 @@ export type ConnectorMcpResolver = (
 /**
  * How this harness receives tahcode-owned tools.
  *
- * - `mcp-config`: Claude `claude -p --mcp-config <file>`
+ * - `mcp-config`: Claude `claude -p --mcp-config <file> --allowedTools mcp__tahcode__*`
  * - `cli`: Codex / Cursor / Grok / OpenCode — `tahcode tool` on PATH
  * - `unsupported`: Antigravity has no headless CLI in Phase 1
  *
@@ -102,7 +104,16 @@ export function jobMcpCliFlags(
   if (!mcpConfigPath || jobMcpAttachmentMode(kind) !== "mcp-config") {
     return [];
   }
-  return ["--mcp-config", mcpConfigPath];
+  // `-p` starts in permission mode `default`. With no TTY the first MCP
+  // call is denied as 権限未承認. `--allowedTools mcp__<server>__*` is
+  // the documented allow-glob for one named server (unanchored `mcp__*`
+  // is ignored). Narrower than `--permission-mode bypassPermissions`.
+  return [
+    "--mcp-config",
+    mcpConfigPath,
+    "--allowedTools",
+    TAHCODE_OPS_MCP_ALLOWED_TOOLS,
+  ];
 }
 
 export function mentionedConnectorsFromText(

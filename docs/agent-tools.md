@@ -26,7 +26,7 @@ tahcode tool switch_session --args '{"chatId":"…"}'
 tahcode tool send_message --args '{"body":"メモ"}'
 ```
 
-Claude の headless CLI には、同じツールを stdio で渡すための一時 `--mcp-config` も付けます（`tahcode tool-mcp`）。他のハーネスは `tahcode tool` をシェルから呼びます。PATH 先頭に、このジョブ用の `tahcode` ラッパを置きます。ジョブ claim の `opsBundle` と MCP 生成の共通経路は [ops MCP（TAH-55）](ops-mcp.md)。
+Claude の headless CLI には、同じツールを stdio で渡すための一時 `--mcp-config` と、無対話で MCP を実行するための `--allowedTools mcp__tahcode__*` も付けます（`tahcode tool-mcp`）。他のハーネスは `tahcode tool` をシェルから呼びます。PATH 先頭に、このジョブ用の `tahcode` ラッパを置きます。ジョブ claim の `opsBundle` と MCP 生成の共通経路は [ops MCP（TAH-55）](ops-mcp.md)。
 
 ジョブ外（対話ターミナルだけ）では呼べません。ユーザー JWT ではなく、**ランタイムトークン + ジョブリース**で認証し、トリガーしたユーザーとして認可します。
 

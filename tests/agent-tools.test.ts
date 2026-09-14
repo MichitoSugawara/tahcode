@@ -49,19 +49,41 @@ describe("agent tool catalog", () => {
   });
 
   it("adds Claude MCP flags only", () => {
-    expect(agentToolsMcpFlags("claudeAgent", "/tmp/mcp.json")).toStrictEqual([
-      "--mcp-config",
-      "/tmp/mcp.json",
-    ]);
-    expect(agentToolsMcpFlags("codex", "/tmp/mcp.json")).toStrictEqual([]);
-    expect(
-      headlessArgs("claudeAgent", "hi", undefined, undefined, "/tmp/mcp.json")
-    ).toContain("--mcp-config");
-    expect(
-      headlessArgs("codex", "hi", undefined, undefined, "/tmp/mcp.json")
-    ).not.toContain("--mcp-config");
-    expect(
-      headlessArgs("cursor", "hi", undefined, undefined, "/tmp/mcp.json")
-    ).not.toContain("--mcp-config");
+    const claude = headlessArgs(
+      "claudeAgent",
+      "hi",
+      undefined,
+      undefined,
+      "/tmp/mcp.json"
+    );
+    const cursor = headlessArgs(
+      "cursor",
+      "hi",
+      undefined,
+      undefined,
+      "/tmp/mcp.json"
+    );
+    expect({
+      claudeFlags: agentToolsMcpFlags("claudeAgent", "/tmp/mcp.json"),
+      claudeHasBypass: claude.includes("--permission-mode"),
+      claudeHasMcp:
+        claude.includes("--mcp-config") &&
+        claude.includes("--allowedTools") &&
+        claude.includes("mcp__tahcode__*"),
+      codexFlags: agentToolsMcpFlags("codex", "/tmp/mcp.json"),
+      cursorHasMcp:
+        cursor.includes("--mcp-config") || cursor.includes("--allowedTools"),
+    }).toStrictEqual({
+      claudeFlags: [
+        "--mcp-config",
+        "/tmp/mcp.json",
+        "--allowedTools",
+        "mcp__tahcode__*",
+      ],
+      claudeHasBypass: false,
+      claudeHasMcp: true,
+      codexFlags: [],
+      cursorHasMcp: false,
+    });
   });
 });

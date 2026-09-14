@@ -10,6 +10,7 @@ import {
   jobMcpAttachmentMode,
   jobMcpCliFlags,
   mentionedConnectorsFromText,
+  TAHCODE_OPS_MCP_ALLOWED_TOOLS,
   planJobMcpServers,
   resolveConnectorMcpServer,
   TAHCODE_OPS_MCP_NAME,
@@ -41,16 +42,25 @@ describe("job MCP attachment", () => {
         undefined,
         undefined,
         "/tmp/tahcode-mcp.json"
-      ).includes("--mcp-config"),
+      ),
     }).toStrictEqual({
       antigravity: "unsupported",
       claude: "mcp-config",
-      claudeFlags: ["--mcp-config", "/tmp/tahcode-mcp.json"],
+      claudeFlags: [
+        "--mcp-config",
+        "/tmp/tahcode-mcp.json",
+        "--allowedTools",
+        TAHCODE_OPS_MCP_ALLOWED_TOOLS,
+      ],
       codex: "cli",
       cursor: "cli",
       cursorFlags: [],
-      cursorHeadless: false,
+      cursorHeadless: expect.not.arrayContaining([
+        "--mcp-config",
+        "--allowedTools",
+      ]),
     });
+    expect(TAHCODE_OPS_MCP_ALLOWED_TOOLS).toBe("mcp__tahcode__*");
   });
 
   it("builds a Claude MCP file with tahcode ops only until TAH-54 resolves Linear", () => {

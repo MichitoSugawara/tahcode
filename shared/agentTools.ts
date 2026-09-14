@@ -317,7 +317,7 @@ export function agentToolJobEnv(
   };
 }
 
-/** Claude `--mcp-config`; other CLIs use `tahcode tool`. See `jobMcpCliFlags`. */
+/** Claude `--mcp-config` + `--allowedTools`; other CLIs use `tahcode tool`. */
 export function agentToolsMcpFlags(
   kind: string,
   mcpConfigPath: string | undefined
