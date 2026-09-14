@@ -3,6 +3,7 @@ import {
   hasUsableOnlineRuntime,
   isNoOnlineRuntimeNotice,
   noRuntimeReplyCopy,
+  queuedRuntimeWaitLabel,
 } from "@shared/runtimeHealth.ts";
 import { useQuery } from "convex/react";
 import {
@@ -22,7 +23,7 @@ import type { ThinkingRow } from "@/components/primitives/ThinkingState";
 import ToolChips from "@/components/primitives/ToolChips";
 import type { ToolStep } from "@/components/primitives/ToolChips";
 import { useCancelJob } from "@/harness/Composer";
-import { useOrg } from "@/harness/OrgContext";
+import { isLive, useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { copyText, clockTime } from "@/lib/format";
 import { providerLabel } from "@/lib/providers";
@@ -353,7 +354,15 @@ export function AgentReply({
           <LoadingState
             label={
               job?.job.status === "queued"
-                ? "ランタイムの受付待ち"
+                ? queuedRuntimeWaitLabel({
+                    assignedLive:
+                      runtimes === undefined
+                        ? null
+                        : runtime
+                          ? isLive(runtime, now)
+                          : false,
+                    runtimeName: runtime?.name,
+                  })
                 : "考えています"
             }
             variant="Dots"

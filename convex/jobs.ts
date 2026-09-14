@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { resolveCompletedMessageBody } from "../shared/jobs.ts";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { assertChatVisible, getMembership } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
@@ -12,6 +12,7 @@ import {
   jobCancelDenial,
   markJobCancelled,
 } from "./lib/jobCancel";
+import { expireUnclaimedJob, expireUnclaimedJobs } from "./lib/jobExpire";
 import { loadJobOpsBundle } from "./lib/jobOps";
 import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
@@ -453,6 +454,25 @@ export const activeForChat = authedQuery({
     return latest ? await toJobView(ctx, ctx.user._id, latest) : null;
   },
   returns: v.union(jobView, v.null()),
+});
+
+export const failIfUnclaimed = internalMutation({
+  args: { jobId: v.id("jobs") },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get("jobs", args.jobId);
+    if (!job) {
+      return null;
+    }
+    await expireUnclaimedJob(ctx, job, Date.now(), { force: true });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const failUnclaimedSweep = internalMutation({
+  args: {},
+  handler: async (ctx) => await expireUnclaimedJobs(ctx, Date.now()),
+  returns: v.number(),
 });
 
 export const cancel = authedMutation({

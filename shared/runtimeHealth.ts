@@ -68,3 +68,48 @@ export function noRuntimeReplyCopy(connected: boolean): string {
     ? "このメッセージの送信時はオンラインのランタイムがなかったため、実行しませんでした。"
     : "オンラインのランタイムがなかったため、この回は実行しませんでした。";
 }
+
+/** Queued chat jobs that nobody claims fail after this window. */
+export const QUEUED_CLAIM_TIMEOUT_MS = STALE_RUNTIME_MS;
+
+/**
+ * If the assigned machine is already stale, fail sooner than the full
+ * claim window so the wait spinner does not run out the clock.
+ */
+export const UNCLAIMED_OFFLINE_GRACE_MS = 15_000;
+
+export function unclaimedJobError(runtimeName?: string): string {
+  const who = runtimeName?.trim()
+    ? `「${runtimeName.trim()}」`
+    : "割り当てたマシン";
+  return `${who} がジョブを受け取りませんでした。設定のランタイムでオンラインか確認し、tahcode start を実行してください。別の環境にリンクしたままなら、この画面の登録手順でつなぎ直してください。`;
+}
+
+export function queuedRuntimeWaitLabel(input: {
+  assignedLive: boolean | null;
+  runtimeName?: string;
+}): string {
+  if (input.assignedLive === true || input.assignedLive === null) {
+    return "ランタイムの受付待ち";
+  }
+  const name = input.runtimeName?.trim();
+  return name
+    ? `${name} が応答していません`
+    : "割り当てたマシンが応答していません";
+}
+
+export function shouldFailUnclaimedJob(input: {
+  assignedLive: boolean;
+  now: number;
+  queuedAt: number;
+  claimTimeoutMs?: number;
+  offlineGraceMs?: number;
+}): boolean {
+  const age = input.now - input.queuedAt;
+  const timeout = input.claimTimeoutMs ?? QUEUED_CLAIM_TIMEOUT_MS;
+  if (age >= timeout) {
+    return true;
+  }
+  const grace = input.offlineGraceMs ?? UNCLAIMED_OFFLINE_GRACE_MS;
+  return !input.assignedLive && age >= grace;
+}
