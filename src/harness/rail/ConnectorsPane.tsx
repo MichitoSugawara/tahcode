@@ -32,7 +32,6 @@ import {
   linearConnectReturnScope,
   marketplaceConnectorPhase,
   providerIconSource,
-  redactConnectorInfrastructure,
   shouldShowAddAnotherAccount,
   shouldStartOauthFromMarketplace,
   stripLinearConnectReturnSearch,
@@ -138,15 +137,13 @@ function useLinearConnectReturn({
         }
         setConfirming(false);
         clearReturnQuery();
-      } catch (error: unknown) {
+      } catch {
         if (cancelled) {
           return;
         }
         setConfirming(false);
         setLocalPhase("failed");
-        toast.error("Linear の認証を確認できませんでした", {
-          description: redactConnectorInfrastructure(errorSummary(error)),
-        });
+        toast.error("Linear の認証を確認できませんでした");
         clearReturnQuery();
       }
     };
@@ -684,10 +681,10 @@ export function ConnectorsPane({ query = "" }: { query?: string }) {
           ? CONNECTOR_CARD_COPY.notConfigured
           : CONNECTOR_CARD_COPY.authorizeHint
       );
-    } catch (error: unknown) {
+    } catch {
       setLocalPhase("failed");
       toast.error("Linear の接続を開始できませんでした", {
-        description: redactConnectorInfrastructure(errorSummary(error)),
+        description: CONNECTOR_CARD_COPY.notConfigured,
       });
     }
   };

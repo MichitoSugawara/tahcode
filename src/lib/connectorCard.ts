@@ -226,22 +226,6 @@ export const CONNECTOR_CARD_COPY = {
   waiting: (name: string) => `${name} の認証を待っています…`,
 } as const;
 
-const CONNECTOR_INFRASTRUCTURE_RE = /openconnector|oomol|workers\.dev|gateway/i;
-
-/** Keep connector toasts on service names — never infrastructure hosts. */
-export function redactConnectorInfrastructure(
-  message?: string
-): string | undefined {
-  const trimmed = message?.trim();
-  if (!trimmed) {
-    return;
-  }
-  if (CONNECTOR_INFRASTRUCTURE_RE.test(trimmed)) {
-    return CONNECTOR_CARD_COPY.notConfigured;
-  }
-  return trimmed;
-}
-
 export function connectorStatusLabel(status: ConnectorStatus): string {
   switch (status) {
     case "connected": {

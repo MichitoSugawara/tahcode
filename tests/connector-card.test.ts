@@ -17,7 +17,6 @@ import {
   filterConnectorCatalog,
   marketplaceConnectorPhase,
   providerIconSource,
-  redactConnectorInfrastructure,
   resolveConnectorCardPhase,
   shouldShowAddAnotherAccount,
   shouldStartOauthFromMarketplace,
@@ -223,18 +222,6 @@ describe("connector card copy", () => {
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
 
-  it("redacts infrastructure names from connector toasts", () => {
-    expect({
-      keep: redactConnectorInfrastructure("ok"),
-      infra: redactConnectorInfrastructure(
-        "OpenConnector request failed (401)"
-      ),
-    }).toStrictEqual({
-      keep: "ok",
-      infra: CONNECTOR_CARD_COPY.notConfigured,
-    });
-  });
-
   it("labels Convex statuses for the card badge", () => {
     const statuses: ConnectorStatus[] = [
       "connected",
@@ -291,7 +278,6 @@ describe("connector marketplace layout", () => {
       accounts: pane.includes("connector-detail-accounts"),
       addAnother: pane.includes("shouldShowAddAnotherAccount"),
       firstOauth: pane.includes("shouldStartOauthFromMarketplace"),
-      redact: pane.includes("redactConnectorInfrastructure"),
       rename: pane.includes("connectorConnections.rename"),
       remove: pane.includes("connectorConnections.remove"),
       pencil: pane.includes("Pencil"),
@@ -307,7 +293,6 @@ describe("connector marketplace layout", () => {
       actions: true,
       addAnother: true,
       firstOauth: true,
-      redact: true,
       assign: true,
       pencil: true,
       remove: true,

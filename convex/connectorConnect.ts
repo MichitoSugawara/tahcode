@@ -23,6 +23,12 @@ import { connectorScope } from "./lib/validators";
 declare const process: { env: Record<string, string | undefined> };
 
 const LINEAR_PROVIDER = "linear";
+const LINEAR_CONNECT_USER_ERROR =
+  "認証を開始できません。管理者に連絡してください。";
+
+function throwLinearConnectUserError(): never {
+  throw new Error(LINEAR_CONNECT_USER_ERROR);
+}
 
 type StartLinearConnectResult = {
   authorizeUrl: string | null;
@@ -87,12 +93,17 @@ export const startLinearConnect = action({
         userId,
       }
     );
-    const started = await startLinearConnectionRequest({
-      config,
-      connectionId,
-      orgSlug: access.orgSlug,
-      scope: args.scope,
-    });
+    let started: Awaited<ReturnType<typeof startLinearConnectionRequest>>;
+    try {
+      started = await startLinearConnectionRequest({
+        config,
+        connectionId,
+        orgSlug: access.orgSlug,
+        scope: args.scope,
+      });
+    } catch {
+      throwLinearConnectUserError();
+    }
     await ctx.runMutation(internal.connectorConnectHelpers.markNeedsAuth, {
       connectionId,
       oauthRequestId: started.connectionRequestId,
@@ -157,14 +168,18 @@ export const completeLinearConnect = action({
         status: "missing_request",
       };
     }
-    return await confirmAndStoreLinearConnect(ctx, {
-      connectionId: context.connectionId ?? undefined,
-      orgId: args.orgId,
-      provider,
-      requestId: context.oauthRequestId,
-      scope: args.scope,
-      userId,
-    });
+    try {
+      return await confirmAndStoreLinearConnect(ctx, {
+        connectionId: context.connectionId ?? undefined,
+        orgId: args.orgId,
+        provider,
+        requestId: context.oauthRequestId,
+        scope: args.scope,
+        userId,
+      });
+    } catch {
+      throwLinearConnectUserError();
+    }
   },
   returns: v.object({
     connectionId: v.union(v.id("connectorConnections"), v.null()),

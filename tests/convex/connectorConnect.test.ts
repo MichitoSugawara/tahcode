@@ -318,6 +318,21 @@ describe("startLinearConnect", () => {
     expect(calls[0]?.body).not.toContain("connectedAccountId");
   });
 
+  it("maps connector backend failures to a service-neutral error", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("backend request failed (401)");
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    await expect(
+      aliceCtx.action(api.connectorConnect.startLinearConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
+    ).rejects.toThrow(/認証を開始できません/);
+  });
+
   it("creates pending A first, completes A, then starts pending B without overwriting A", async () => {
     configureOpenConnector();
     let startCount = 0;
