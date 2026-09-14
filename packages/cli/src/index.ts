@@ -39,10 +39,12 @@ import {
   warnStaleAgentToolsOnStart,
 } from "./agentToolsCheck.ts";
 import {
+  BRIDGE_ENV_PATH,
   BRIDGE_LOG_PATH,
   LAUNCHD_LABEL,
   LAUNCHD_PLIST_PATH,
   followLog,
+  launchdEnvironment,
   launchdInstall,
   launchdInstalled,
   launchdLoad,
@@ -69,6 +71,13 @@ import {
   writeLink,
 } from "./config.ts";
 import type { LinkConfig } from "./config.ts";
+import {
+  applyBridgeEnvToProcess,
+  launchdAuthSummary,
+  launchdDoctorFindings,
+  readBridgeEnvFile,
+  readPlistEnvironmentVariables,
+} from "./launchdEnv.ts";
 import {
   MULTICA_BIN,
   MULTICA_DOCS,
@@ -177,7 +186,7 @@ ${bold("オプション")}
   --cwd <dir>         エージェントの作業ディレクトリ（既定: カレント）
   --provider <kind>   ブリッジのプロバイダを固定（codex / claudeAgent / cursor / grok / opencode）。固定中は @provider/model のモデル指定は無視
 
-ファイル: ~/.tahcode/config.json（リンク）· bridge.json（ブリッジの pid）· bridge.log（ブリッジのログ）
+ファイル: ~/.tahcode/config.json（リンク）· bridge.json（ブリッジの pid）· bridge.log（ログ）· bridge.env（CURSOR_API_KEY など。service install は消さない）
 環境変数でもリンクできます: TAHCODE_URL, TAHCODE_RUNTIME_ID, TAHCODE_TOKEN
 （互換: DALECODE_*, CONVEX_URL, HARNESS_RUNTIME_ID, HARNESS_RUNTIME_TOKEN。旧 dalecode CLI の ~/.dalecode/config.json も読みます）
 Multica: ${MULTICA_DOCS}`);
@@ -545,6 +554,9 @@ async function cmdDoctor(): Promise<void> {
       "codex / claude / agent(cursor) / grok / opencode のいずれかにログインしてください。"
     );
   }
+  reportLaunchdDoctor(
+    probes.some((probe) => probe.kind === "cursor" && probe.available)
+  );
 
   heading("tahcode");
   const link = resolveLink();
@@ -971,6 +983,7 @@ async function cmdService(flags: Flags, positional: string[]): Promise<void> {
         fail(`launchctl に失敗しました: ${result.detail}`);
         process.exit(1);
       }
+      printLaunchdAuthSummary();
       const state = await waitForBridge(8000);
       if (state) {
         ok(
@@ -1019,7 +1032,45 @@ async function cmdService(flags: Flags, positional: string[]): Promise<void> {
   }
 }
 
+function presenceLabel(value: "present" | "missing"): string {
+  return value === "present" ? "設定済み" : "未設定";
+}
+
+function printLaunchdAuthSummary(): void {
+  const summary = launchdAuthSummary(launchdEnvironment());
+  info(`CURSOR_API_KEY: ${presenceLabel(summary.cursorApiKey)}`);
+  info(
+    `CLAUDE_CODE_OAUTH_TOKEN: ${presenceLabel(summary.claudeOAuth)} · ANTHROPIC_API_KEY: ${presenceLabel(summary.anthropicApiKey)}`
+  );
+  info(`永続化: ${BRIDGE_ENV_PATH}（service install は既存の値を消しません）`);
+}
+
+function reportLaunchdDoctor(cursorAvailable: boolean): void {
+  if (!launchdSupported()) {
+    return;
+  }
+  heading("launchd");
+  const findings = launchdDoctorFindings({
+    cursorAvailable,
+    execPath: process.execPath,
+    fileEnv: readBridgeEnvFile(),
+    installed: launchdInstalled(),
+    plistEnv: readPlistEnvironmentVariables(LAUNCHD_PLIST_PATH),
+    supported: true,
+  });
+  for (const finding of findings) {
+    if (finding.level === "ok") {
+      ok(finding.message);
+    } else if (finding.level === "warn") {
+      warn(finding.message);
+    } else {
+      info(finding.message);
+    }
+  }
+}
+
 async function main(): Promise<void> {
+  applyBridgeEnvToProcess();
   if (process.argv[2] === "multica") {
     process.exit(await passthrough(process.argv.slice(3)));
   }
