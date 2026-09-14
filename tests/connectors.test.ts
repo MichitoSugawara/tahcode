@@ -6,6 +6,7 @@ import {
   canViewConnectorConnection,
   normalizeConnectorProvider,
   normalizeOpaqueConnectorId,
+  pendingConnectorAccountId,
 } from "../shared/connectors.ts";
 
 describe(normalizeConnectorProvider, () => {
@@ -18,6 +19,15 @@ describe(normalizeConnectorProvider, () => {
     expect(() => normalizeConnectorProvider("Linear Cloud")).toThrow(
       /lowercase/i
     );
+  });
+});
+
+describe(pendingConnectorAccountId, () => {
+  it("builds an opaque pending id for a provider slug", () => {
+    expect(pendingConnectorAccountId("Linear")).toBe("pending:linear");
+    expect(() =>
+      normalizeOpaqueConnectorId(pendingConnectorAccountId("linear"))
+    ).not.toThrow();
   });
 });
 

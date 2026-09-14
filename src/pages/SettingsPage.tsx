@@ -1,4 +1,11 @@
-import { ArrowUpCircle, BookOpen, Building2, Cpu, Users } from "lucide-react";
+import {
+  ArrowUpCircle,
+  BookOpen,
+  Building2,
+  Cpu,
+  Plug,
+  Users,
+} from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -10,6 +17,7 @@ import {
 } from "@/harness/desktop/DesktopUpdatePanel";
 import { useDesktopUpdate } from "@/harness/desktop/useDesktopUpdate";
 import { useOrg } from "@/harness/OrgContext";
+import { ConnectorsPane } from "@/harness/rail/ConnectorsPane";
 import { RuntimePane } from "@/harness/rail/RuntimePane";
 import { SkillsPane } from "@/harness/rail/SkillsPane";
 import { TeamPane } from "@/harness/rail/TeamPane";
@@ -19,9 +27,9 @@ import { roleLabel } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/title";
 
 /* ─────────────────────────────────────────────────────────
- * ORG SETTINGS — minimal by design: identity, members and
- * roles, runtimes and grants. The same panes as the rail,
- * given room to breathe.
+ * ORG SETTINGS — identity, connectors, members and roles,
+ * runtimes and grants, skills. The same panes as the rail,
+ * given room to breathe. Harness settings do not live here.
  * ───────────────────────────────────────────────────────── */
 export default function SettingsPage() {
   const { org, role, projects, chats } = useOrg();
@@ -103,6 +111,19 @@ export default function SettingsPage() {
           <div className="border-line text-ink-3 border-t px-3 py-2 text-[12px]">
             名前変更・削除は Phase 1 の範囲外です（Owner のみ、後続フェーズ）。
           </div>
+        </section>
+
+        <section
+          id="connectors"
+          className="scroll-mt-4"
+          style={{
+            animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) 90ms both",
+          }}
+        >
+          <div className="text-ink-3 mb-3 flex items-center gap-2 text-[12px]">
+            <Plug size={13} /> コネクタ
+          </div>
+          <ConnectorsPane />
         </section>
 
         <div className="grid gap-6 lg:grid-cols-2">
