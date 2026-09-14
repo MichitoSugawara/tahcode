@@ -3,6 +3,12 @@ import type {
   ConnectorStatus,
 } from "../../shared/connectors.ts";
 
+export {
+  LINEAR_CONNECT_QUERY,
+  linearConnectReturnScope,
+  stripLinearConnectReturnSearch,
+} from "../../shared/openConnector.ts";
+
 export type { ConnectorScope, ConnectorStatus };
 
 export type ConnectorCardPhase =
@@ -72,10 +78,11 @@ export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
 export const CONNECTOR_CARD_COPY = {
   add: "追加",
   authorize: "認可",
+  authorizeHint: "認可すると Linear に移動し、完了後この画面に戻ります。",
+  confirming: (name: string) => `${name} の認可を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
-  oauthPending:
-    "認可の開始は準備中です。切断と状態表示はこの画面で利用できます。",
+  notConfigured: "OpenConnector が未設定です。認可を開始できません。",
   reopen: "再表示",
   retry: "再試行",
   retryHint: (name: string) => `${name} の認可が完了しませんでした`,

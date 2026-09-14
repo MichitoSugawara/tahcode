@@ -90,12 +90,16 @@ describe("connector card copy", () => {
     expect(CONNECTOR_CARD_COPY).toMatchObject({
       add: "追加",
       authorize: "認可",
+      authorizeHint: expect.stringContaining("Linear に移動"),
       connected: "接続済み",
       disconnect: "切断",
       reopen: "再表示",
       retry: "再試行",
       team: "Team",
     });
+    expect(JSON.stringify(CONNECTOR_CARD_COPY)).not.toContain(
+      "認可の開始は準備中です"
+    );
     expect(CONNECTOR_CARD_COPY.waiting("Linear")).toContain(
       "認可を待っています"
     );

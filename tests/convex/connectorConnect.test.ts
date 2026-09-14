@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -48,7 +48,61 @@ async function seedOrg(t: ReturnType<typeof fresh>) {
   };
 }
 
+const previousEnv = {
+  OPENCONNECTOR_ADMIN_TOKEN: process.env.OPENCONNECTOR_ADMIN_TOKEN,
+  OPENCONNECTOR_BASE_URL: process.env.OPENCONNECTOR_BASE_URL,
+  OPENCONNECTOR_RUNTIME_TOKEN: process.env.OPENCONNECTOR_RUNTIME_TOKEN,
+  SITE_URL: process.env.SITE_URL,
+};
+
+function restoreConnectorEnv() {
+  if (previousEnv.OPENCONNECTOR_ADMIN_TOKEN === undefined) {
+    delete process.env.OPENCONNECTOR_ADMIN_TOKEN;
+  } else {
+    process.env.OPENCONNECTOR_ADMIN_TOKEN =
+      previousEnv.OPENCONNECTOR_ADMIN_TOKEN;
+  }
+  if (previousEnv.OPENCONNECTOR_BASE_URL === undefined) {
+    delete process.env.OPENCONNECTOR_BASE_URL;
+  } else {
+    process.env.OPENCONNECTOR_BASE_URL = previousEnv.OPENCONNECTOR_BASE_URL;
+  }
+  if (previousEnv.OPENCONNECTOR_RUNTIME_TOKEN === undefined) {
+    delete process.env.OPENCONNECTOR_RUNTIME_TOKEN;
+  } else {
+    process.env.OPENCONNECTOR_RUNTIME_TOKEN =
+      previousEnv.OPENCONNECTOR_RUNTIME_TOKEN;
+  }
+  if (previousEnv.SITE_URL === undefined) {
+    delete process.env.SITE_URL;
+  } else {
+    process.env.SITE_URL = previousEnv.SITE_URL;
+  }
+  vi.unstubAllGlobals();
+}
+
+function configureOpenConnector() {
+  process.env.OPENCONNECTOR_ADMIN_TOKEN = "test-admin-token";
+  process.env.OPENCONNECTOR_BASE_URL = "https://oc.test";
+  process.env.SITE_URL = "https://app.test";
+}
+
+function jsonResponse(data: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () =>
+      JSON.stringify({
+        data,
+        message: status >= 200 && status < 300 ? "OK" : "error",
+        success: status >= 200 && status < 300,
+      }),
+  };
+}
+
 describe("startLinearConnect", () => {
+  afterEach(restoreConnectorEnv);
+
   it("marks an org Linear mapping needsAuth without storing a token", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);
@@ -204,5 +258,204 @@ describe("startLinearConnect", () => {
       scope: "user",
       status: "needsAuth",
     });
+  });
+
+  it("starts OpenConnector OAuth and stores the request id, not a token", async () => {
+    configureOpenConnector();
+    const calls: { body?: string; url: string }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+      calls.push({ body: init?.body, url: String(url) });
+      return jsonResponse({
+        authorizationUrl: "https://linear.app/oauth/authorize?client_id=x",
+        connectionRequestId: "req-start-1",
+        expiresAt: "2026-09-14T07:10:00.000Z",
+        stateHandle: "state-1",
+        status: "initiated",
+      });
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const org = await aliceCtx.query(api.orgs.get, { orgId: orgA });
+    const result = await aliceCtx.action(
+      api.connectorConnect.startLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const stored = await t.run(async (ctx) => {
+      const row = await ctx.db.get("connectorConnections", result.connectionId);
+      if (!row) {
+        throw new Error("expected connection row");
+      }
+      return row;
+    });
+    expect({
+      action: result,
+      body: calls[0]?.body,
+      stored: {
+        hasAccessToken: Object.hasOwn(stored, "accessToken"),
+        oauthRequestId: stored.oauthRequestId,
+        status: stored.status,
+      },
+      url: calls[0]?.url,
+    }).toMatchObject({
+      action: {
+        authorizeUrl: "https://linear.app/oauth/authorize?client_id=x",
+        ready: true,
+        reason: "started",
+      },
+      stored: {
+        hasAccessToken: false,
+        oauthRequestId: "req-start-1",
+        status: "needsAuth",
+      },
+      url: "https://oc.test/v1/connections/linear/connect",
+    });
+    expect(calls[0]?.body).toContain(
+      `https://app.test/o/${org?.slug}/settings?connector=linear&scope=org`
+    );
+    expect(calls[0]?.body).not.toContain("connectedAccountId");
+  });
+});
+
+describe("completeLinearConnect", () => {
+  afterEach(restoreConnectorEnv);
+
+  it("confirms the saved request server-side and marks Connected after health check", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async (url: string) => {
+      const href = String(url);
+      if (href.endsWith("/v1/connection-requests/req-complete-1")) {
+        return jsonResponse({
+          appId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+          connectionRequestId: "req-complete-1",
+          errorCode: null,
+          errorMessage: null,
+          service: "linear",
+          status: "connected",
+        });
+      }
+      if (href.includes("/v1/connections/by-id/")) {
+        return jsonResponse({
+          accountLabel: "michitogawara",
+          alias: "work",
+          displayName: "michitogawara",
+          id: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+          service: "linear",
+          status: "active",
+        });
+      }
+      if (href.endsWith("/v1/actions/linear.get_current_user")) {
+        return jsonResponse({
+          viewer: {
+            displayName: "michitogawara",
+            email: "owner@example.com",
+            name: "Michito",
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${href}`);
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: pendingConnectorAccountId("linear"),
+        orgId: orgA,
+        provider: "linear",
+        scope: "org",
+        status: "needsAuth",
+      }
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch("connectorConnections", connectionId, {
+        oauthRequestId: "req-complete-1",
+      });
+    });
+    const result = await aliceCtx.action(
+      api.connectorConnect.completeLinearConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    expect(result).toMatchObject({
+      connectionId,
+      displayLabel: "michitogawara",
+      status: "connected",
+    });
+    expect(
+      (
+        await aliceCtx.query(api.connectorConnections.listByOrg, {
+          orgId: orgA,
+        })
+      )[0]
+    ).toMatchObject({
+      connectedAccountId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+      displayLabel: "michitogawara",
+      status: "connected",
+    });
+  });
+
+  it("returns pending while the request is still initiated", async () => {
+    configureOpenConnector();
+    vi.stubGlobal("fetch", async () =>
+      jsonResponse({
+        appId: null,
+        connectionRequestId: "req-pending-1",
+        errorCode: null,
+        errorMessage: null,
+        service: "linear",
+        status: "initiated",
+      })
+    );
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: pendingConnectorAccountId("linear"),
+        orgId: orgA,
+        provider: "linear",
+        scope: "org",
+        status: "needsAuth",
+      }
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch("connectorConnections", connectionId, {
+        oauthRequestId: "req-pending-1",
+      });
+    });
+    await expect(
+      aliceCtx.action(api.connectorConnect.completeLinearConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
+    ).resolves.toMatchObject({ status: "pending" });
+  });
+
+  it("does not accept a browser connectedAccountId argument", async () => {
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    await expect(
+      aliceCtx.action(api.connectorConnect.completeLinearConnect, {
+        connectedAccountId: "spoofed-from-browser",
+        orgId: orgA,
+        scope: "org",
+      } as never)
+    ).resolves.toMatchObject({ status: "missing_request" });
+  });
+
+  it("blocks members from completing an org-scope connect", async () => {
+    const t = fresh();
+    const { memberCtx, orgA } = await seedOrg(t);
+    await expect(
+      memberCtx.action(api.connectorConnect.completeLinearConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
+    ).rejects.toThrow(/admin access required/i);
   });
 });

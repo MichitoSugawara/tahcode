@@ -65,6 +65,8 @@ export default defineSchema({
     lastVerifiedAt: v.optional(v.number()),
     createdBy: v.id("users"),
     updatedAt: v.number(),
+    oauthRequestId: v.optional(v.string()),
+    oauthAlias: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_and_provider", ["orgId", "provider"])

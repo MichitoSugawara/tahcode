@@ -20,6 +20,8 @@
 //   JWKS              optional  JSON web key set; derived from the key if unusable
 //   AUTH_GOOGLE_ID    optional  Google OAuth client id (synced when present)
 //   AUTH_GOOGLE_SECRET optional Google OAuth client secret (synced when present)
+//   OPENCONNECTOR_*   optional  self-hosted OpenConnector admin/runtime tokens
+//                               and base URL (synced when present)
 //   CONVEX_ENV_ARGS   optional  deployment selector flags, e.g. "--prod" or
 //                               "--preview-name my-branch"
 //   DRY_RUN=1         optional  print what would change without calling convex
@@ -170,6 +172,38 @@ function assertEffectiveProductionSiteUrl() {
   console.log(`Verified production SITE_URL=${effective}`);
 }
 
+function syncOptionalConnectorEnv() {
+  const pairs = [
+    ["OPENCONNECTOR_BASE_URL", process.env.OPENCONNECTOR_BASE_URL],
+    [
+      "OPENCONNECTOR_ADMIN_TOKEN",
+      process.env.OPENCONNECTOR_ADMIN_TOKEN ||
+        process.env.OOMOL_CONNECT_ADMIN_TOKEN,
+    ],
+    [
+      "OPENCONNECTOR_RUNTIME_TOKEN",
+      process.env.OPENCONNECTOR_RUNTIME_TOKEN ||
+        process.env.OOMOL_CONNECT_RUNTIME_TOKEN,
+    ],
+  ];
+  const synced = [];
+  for (const [name, raw] of pairs) {
+    const value = (raw ?? "").trim();
+    if (!value) {
+      continue;
+    }
+    setEnv(name, value);
+    synced.push(name);
+  }
+  if (synced.length === 0) {
+    console.log(
+      "OPENCONNECTOR_* not in env file; leaving dashboard-configured OpenConnector secrets untouched."
+    );
+    return;
+  }
+  console.log(`Synced ${synced.join(" / ")}.`);
+}
+
 const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/$/, "");
 if (!siteUrl) {
   fail(
@@ -188,6 +222,7 @@ if (!rawPrivateKey.trim()) {
       "Generate a pair with `node scripts/generate-auth-keys.mjs` and add both values to the env file."
   );
   setEnv("SITE_URL", siteUrl);
+  syncOptionalConnectorEnv();
   assertEffectiveProductionSiteUrl();
   console.log("Synced SITE_URL only.");
   process.exit(0);
@@ -274,3 +309,5 @@ if (googleId && googleSecret) {
     "AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET not in env file; leaving any dashboard-configured Google credentials untouched."
   );
 }
+
+syncOptionalConnectorEnv();

@@ -1,6 +1,7 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
@@ -19,8 +20,10 @@ import {
   connectionMeta,
   connectorStatusLabel,
   connectorStatusTone,
+  linearConnectReturnScope,
   partitionConnectorConnections,
   resolveConnectorCardPhase,
+  stripLinearConnectReturnSearch,
 } from "@/lib/connectorCard";
 import { errorSummary, relativeTime } from "@/lib/format";
 
@@ -30,6 +33,103 @@ import type { Id } from "../../../convex/_generated/dataModel";
 type Connection = FunctionReturnType<
   typeof api.connectorConnections.listByOrg
 >[number];
+
+const LINEAR_CONNECT_POLL_MS = 2000;
+const LINEAR_CONNECT_MAX_POLLS = 15;
+
+function useLinearConnectReturn({
+  enabled,
+  orgId,
+  scope,
+  setConfirming,
+  setLocalPhase,
+}: {
+  enabled: boolean;
+  orgId: Id<"orgs">;
+  scope: ConnectorScope;
+  setConfirming: (value: boolean) => void;
+  setLocalPhase: (phase: ConnectorCardLocalPhase) => void;
+}) {
+  const completeConnect = useAction(api.connectorConnect.completeLinearConnect);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const returningScope = linearConnectReturnScope(location.search);
+
+  useEffect(() => {
+    if (!enabled || returningScope !== scope) {
+      return;
+    }
+    let cancelled = false;
+    let polls = 0;
+    let timer: ReturnType<typeof window.setTimeout> | undefined;
+    const finishSearch = stripLinearConnectReturnSearch(location.search);
+    const clearReturnQuery = () => {
+      navigate(
+        {
+          hash: location.hash || "#connectors",
+          pathname: location.pathname,
+          search: finishSearch,
+        },
+        { replace: true }
+      );
+    };
+    const run = async () => {
+      setConfirming(true);
+      setLocalPhase("waiting");
+      try {
+        const result = await completeConnect({ orgId, scope });
+        if (cancelled) {
+          return;
+        }
+        if (result.status === "pending" && polls < LINEAR_CONNECT_MAX_POLLS) {
+          polls += 1;
+          timer = window.setTimeout(() => {
+            void run();
+          }, LINEAR_CONNECT_POLL_MS);
+          return;
+        }
+        if (result.status === "connected") {
+          setLocalPhase("idle");
+          toast.success("Linear を接続しました");
+        } else {
+          setLocalPhase("failed");
+          toast.error("Linear の認可を確認できませんでした");
+        }
+        setConfirming(false);
+        clearReturnQuery();
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+        setConfirming(false);
+        setLocalPhase("failed");
+        toast.error("Linear の認可を確認できませんでした", {
+          description: errorSummary(error),
+        });
+        clearReturnQuery();
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [
+    completeConnect,
+    enabled,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate,
+    orgId,
+    returningScope,
+    scope,
+    setConfirming,
+    setLocalPhase,
+  ]);
+}
 
 function LinearMark() {
   return (
@@ -54,12 +154,14 @@ function LinearMark() {
 }
 
 function ConnectorCard({
+  actorUserId,
   canManage,
   connection,
   now,
   orgId,
   scope,
 }: {
+  actorUserId: Id<"users">;
   canManage: boolean;
   connection?: Connection;
   now: number;
@@ -70,10 +172,21 @@ function ConnectorCard({
   const disconnect = useMutation(api.connectorConnections.disconnect);
   const [localPhase, setLocalPhase] = useState<ConnectorCardLocalPhase>("idle");
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  useLinearConnectReturn({
+    enabled:
+      canManage &&
+      (scope === "org" || String(connection?.userId) === String(actorUserId)),
+    orgId,
+    scope,
+    setConfirming,
+    setLocalPhase,
+  });
   useEffect(() => {
     if (connection?.status === "connected") {
       setLocalPhase("idle");
+      setConfirming(false);
     }
   }, [connection?.status]);
   const phase = resolveConnectorCardPhase({
@@ -98,11 +211,11 @@ function ConnectorCard({
     try {
       const result = await startConnect({ orgId, scope });
       if (result.ready && result.authorizeUrl) {
-        window.open(result.authorizeUrl, "_blank", "noopener,noreferrer");
+        window.location.assign(result.authorizeUrl);
         return;
       }
       setLocalPhase("failed");
-      toast.message(CONNECTOR_CARD_COPY.oauthPending);
+      toast.message(CONNECTOR_CARD_COPY.notConfigured);
     } catch (error: unknown) {
       setLocalPhase("failed");
       toast.error("Linear の接続を開始できませんでした", {
@@ -187,7 +300,9 @@ function ConnectorCard({
           {phase === "waiting" ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-ink-2 text-[12.5px]">
-                {CONNECTOR_CARD_COPY.waiting(catalog.displayName)}
+                {confirming
+                  ? CONNECTOR_CARD_COPY.confirming(catalog.displayName)
+                  : CONNECTOR_CARD_COPY.waiting(catalog.displayName)}
               </span>
               <Button
                 type="button"
@@ -263,9 +378,9 @@ function ConnectorCard({
             </div>
           ) : null}
 
-          {phase === "connected" ? null : (
+          {phase === "connected" || phase === "waiting" ? null : (
             <p className="text-ink-3 text-[11.5px] leading-relaxed">
-              {CONNECTOR_CARD_COPY.oauthPending}
+              {CONNECTOR_CARD_COPY.authorizeHint}
             </p>
           )}
         </div>
@@ -337,6 +452,7 @@ export function ConnectorsPane() {
       ) : (
         <div className="flex flex-col gap-3">
           <ConnectorCard
+            actorUserId={me._id}
             canManage={isAdmin}
             connection={primary}
             now={now}
@@ -346,6 +462,7 @@ export function ConnectorsPane() {
           {extras.map((connection) => (
             <ConnectorCard
               key={String(connection._id)}
+              actorUserId={me._id}
               canManage={
                 isAdmin || String(connection.userId) === String(me._id)
               }
