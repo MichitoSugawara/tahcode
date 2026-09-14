@@ -325,4 +325,44 @@ describe(headlessArgs, () => {
     expect(ultracode).toContain("xhigh");
     expect(ultracode).toContain(JSON.stringify({ ultracode: true }));
   });
+
+  it("passes Codex serviceTier, Claude extras, and OpenCode agent", () => {
+    expect(
+      headlessArgs("codex", "hi", "gpt-5.6-sol", [
+        { id: "reasoningEffort", value: "high" },
+        { id: "serviceTier", value: "fast" },
+      ])
+    ).toStrictEqual([
+      "exec",
+      "--model",
+      "gpt-5.6-sol",
+      "--config",
+      "model_reasoning_effort=high",
+      "--config",
+      "service_tier=fast",
+      "--json",
+      "hi",
+    ]);
+    expect(
+      headlessArgs("claudeAgent", "hi", "claude-opus-5", [
+        { id: "contextWindow", value: "1m" },
+        { id: "fastMode", value: true },
+      ]).slice(0, 5)
+    ).toStrictEqual(["-p", "--model", "claude-opus-5[1m]"]);
+    expect(
+      headlessArgs("opencode", "hi", "anthropic/claude-sonnet-5", [
+        { id: "variant", value: "high" },
+        { id: "agent", value: "plan" },
+      ])
+    ).toStrictEqual([
+      "run",
+      "--model",
+      "anthropic/claude-sonnet-5",
+      "--variant",
+      "high",
+      "--agent",
+      "plan",
+      "hi",
+    ]);
+  });
 });

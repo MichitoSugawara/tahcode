@@ -5,8 +5,10 @@ import {
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
   optionDescriptorsFor,
+  optionFooterFor,
   planHeadlessEffort,
   primaryOptionDescriptor,
+  resolveClaudeCliModel,
   retainValidOptions,
   sanitizeOptionSelections,
   supportsEffortPick,
@@ -142,6 +144,30 @@ describe(optionDescriptorsFor, () => {
     expect(live?.type === "select" ? live.currentValue : null).toBe("low");
   });
 
+  it("exposes Codex serviceTier, Claude extras, and OpenCode agent", () => {
+    const ids = (
+      kind: Parameters<typeof optionDescriptorsFor>[0],
+      model: string
+    ) => optionDescriptorsFor(kind, model).map((item) => item.id);
+    expect({
+      claudeFable: ids("claudeAgent", "claude-fable-5-1"),
+      claudeHaiku: ids("claudeAgent", "claude-haiku-4-5"),
+      claudeOpus: ids("claudeAgent", "claude-opus-5"),
+      claudeSonnet: ids("claudeAgent", "claude-sonnet-5"),
+      codex: ids("codex", "gpt-5.6-sol"),
+      cursor: ids("cursor", "composer-2.5"),
+      opencode: ids("opencode", "anthropic/claude-sonnet-5"),
+    }).toStrictEqual({
+      claudeFable: ["effort", "contextWindow"],
+      claudeHaiku: ["thinking"],
+      claudeOpus: ["effort", "fastMode", "contextWindow"],
+      claudeSonnet: ["effort", "contextWindow"],
+      codex: ["reasoningEffort", "serviceTier"],
+      cursor: ["reasoning"],
+      opencode: ["variant", "agent"],
+    });
+  });
+
   it("sizes the Cursor effort SELECT from the family's live suffixes", () => {
     const cursorLive = primaryOptionDescriptor(
       optionDescriptorsFor("cursor", "cursor-grok-4.6", {
@@ -213,6 +239,26 @@ describe("selections + labels", () => {
         { id: "effort", value: "ultrathink" },
       ])
     ).toBeUndefined();
+    expect(
+      retainValidOptions("claudeAgent", "claude-opus-5", [
+        { id: "effort", value: "high" },
+        { id: "fastMode", value: true },
+        { id: "contextWindow", value: "1m" },
+      ])
+    ).toStrictEqual([
+      { id: "effort", value: "high" },
+      { id: "fastMode", value: true },
+      { id: "contextWindow", value: "1m" },
+    ]);
+    expect(
+      retainValidOptions("codex", "gpt-5.6-sol", [
+        { id: "reasoningEffort", value: "high" },
+        { id: "serviceTier", value: "fast" },
+      ])
+    ).toStrictEqual([
+      { id: "reasoningEffort", value: "high" },
+      { id: "serviceTier", value: "fast" },
+    ]);
   });
 });
 
@@ -258,6 +304,66 @@ describe(planHeadlessEffort, () => {
       applyClaudePromptEffortPrefix("please ultrathink this", "ultrathink")
     ).toBe("please ultrathink this");
     expect(applyClaudePromptEffortPrefix("fix it", "high")).toBe("fix it");
+  });
+
+  it("maps non-effort descriptors to CLI flags", () => {
+    expect({
+      claudeFast: planHeadlessEffort("claudeAgent", "hi", "claude-opus-5", [
+        { id: "fastMode", value: true },
+      ]).flags,
+      claudeUltraFast: planHeadlessEffort(
+        "claudeAgent",
+        "hi",
+        "claude-opus-5",
+        [
+          { id: "effort", value: "ultracode" },
+          { id: "fastMode", value: true },
+        ]
+      ).flags,
+      codexLegacyFast: planHeadlessEffort("codex", "hi", "gpt-5.6-sol", [
+        { id: "fastMode", value: true },
+      ]).flags,
+      codexTier: planHeadlessEffort("codex", "hi", "gpt-5.6-sol", [
+        { id: "serviceTier", value: "fast" },
+      ]).flags,
+      opencodeAgent: planHeadlessEffort(
+        "opencode",
+        "hi",
+        "anthropic/claude-sonnet-5",
+        [{ id: "agent", value: "plan" }]
+      ).flags,
+    }).toStrictEqual({
+      claudeFast: ["--settings", JSON.stringify({ fastMode: true })],
+      claudeUltraFast: [
+        "--effort",
+        "xhigh",
+        "--settings",
+        JSON.stringify({ ultracode: true, fastMode: true }),
+      ],
+      codexLegacyFast: ["--config", "service_tier=fast"],
+      codexTier: ["--config", "service_tier=fast"],
+      opencodeAgent: ["--agent", "plan"],
+    });
+  });
+
+  it("appends Claude [1m] only when contextWindow is selected", () => {
+    expect({
+      alreadySuffixed: resolveClaudeCliModel("claude-opus-5[1m]", [
+        { id: "contextWindow", value: "1m" },
+      ]),
+      defaultModel: resolveClaudeCliModel("claude-opus-5"),
+      oneMillion: resolveClaudeCliModel("claude-opus-5", [
+        { id: "contextWindow", value: "1m" },
+      ]),
+      serviceTierFooter: optionFooterFor("codex", "serviceTier").includes(
+        "service_tier"
+      ),
+    }).toStrictEqual({
+      alreadySuffixed: "claude-opus-5[1m]",
+      defaultModel: "claude-opus-5",
+      oneMillion: "claude-opus-5[1m]",
+      serviceTierFooter: true,
+    });
   });
 
   it("marks Cursor and Grok as persisted-only", () => {

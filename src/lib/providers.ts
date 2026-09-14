@@ -9,7 +9,9 @@ import {
   getProviderOptionCurrentLabel,
   getProviderOptionCurrentValue,
   optionDescriptorsFor,
+  optionFooterFor,
   primaryOptionDescriptor,
+  resolveClaudeCliModel,
   retainValidOptions,
   sanitizeOptionSelections,
   supportsEffortPick,
@@ -73,7 +75,9 @@ export {
   modelDisplayName,
   modelsCommandLabel,
   optionDescriptorsFor,
+  optionFooterFor,
   primaryOptionDescriptor,
+  resolveClaudeCliModel,
   resolveCursorCliModel,
   resolveModelSlug,
   retainValidOptions,
@@ -333,4 +337,51 @@ export function modelMentionExample(current: ProviderDriverKind): string {
   return current === "cursor"
     ? agentMention("codex", "gpt-5.6-sol")
     : agentMention("cursor", "muse-spark-1.3");
+}
+
+export type DescriptorPickerItem = {
+  key: string;
+  name: string;
+  isDefault?: boolean;
+};
+
+export function descriptorPickerItems(
+  descriptor: ProviderOptionDescriptor
+): DescriptorPickerItem[] {
+  if (descriptor.type === "boolean") {
+    return [
+      {
+        isDefault: descriptor.currentValue === false,
+        key: "false",
+        name: "Off",
+      },
+      {
+        isDefault: descriptor.currentValue === true,
+        key: "true",
+        name: "On",
+      },
+    ];
+  }
+  return descriptor.options.map((option) => ({
+    isDefault: option.isDefault,
+    key: option.id,
+    name: option.label,
+  }));
+}
+
+export function optionAriaLabel(descriptor: ProviderOptionDescriptor): string {
+  switch (descriptor.id) {
+    case "thinking":
+      return "Thinking を切替";
+    case "fastMode":
+      return "Fast Mode を切替";
+    case "contextWindow":
+      return "コンテキストウィンドウを選択";
+    case "serviceTier":
+      return "サービス階層を選択";
+    case "agent":
+      return "エージェントを選択";
+    default:
+      return `${descriptor.label} を選択`;
+  }
 }
