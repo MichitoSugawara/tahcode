@@ -6,6 +6,7 @@ import {
   isEnvChangedDuringPush,
   nextPreviewClaim,
   previewNameCandidates,
+  protectedPreviewNames,
   slugPreviewName,
   splitNameList,
 } from "../scripts/convex-preview-names.mjs";
@@ -102,5 +103,23 @@ describe(splitNameList, () => {
   it("splits a comma list and drops empties", () => {
     expect(splitNameList("a, b,,c")).toStrictEqual(["a", "b", "c"]);
     expect(splitNameList("")).toStrictEqual([]);
+  });
+});
+
+describe(protectedPreviewNames, () => {
+  it("never deletes this PR, other open PRs, or the shared ci name", () => {
+    expect(
+      protectedPreviewNames({
+        exclude: "cursor/ux-shell-codex-layout-d576,pr-48",
+        preferred: "pr-46",
+      })
+    ).toStrictEqual(
+      new Set([
+        "pr-46",
+        SHARED_PREVIEW_NAME,
+        "cursor-ux-shell-codex-layout-d576",
+        "pr-48",
+      ])
+    );
   });
 });

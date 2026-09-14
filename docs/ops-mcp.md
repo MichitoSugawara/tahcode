@@ -52,3 +52,5 @@ Phase 1 では `resolveConnectorMcpServer` は常に `null` です。テスト `
 3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。
 4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` は付かず、`tahcode tool` 案内になる。
 5. Linear の課題ツール（作成・検索など）は **まだ付かない**。それが TAH-54。
+
+Cloudflare の preview Worker は `pr-<number>` で分かれている。Convex も同じ `pr-<number>` 識別子に載せる。チームの deployment 上限（40）で新規作成できないときは、閉じた PR の残りプレビューを 1 件消してから `pr-<number>` を取り直す。マージ済みブランチ名へ関数だけ載せて他 PR と共有すると、後から来た preview が `agentTools:invoke` のバリデータを上書きする。

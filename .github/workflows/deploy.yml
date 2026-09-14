@@ -43,15 +43,20 @@ jobs:
             --jq '[.[].headRefName] | join(",")' || true)
           echo "preview_fallbacks=$fallbacks" >> "$GITHUB_OUTPUT"
 
+          prune=$(gh pr list --state closed --limit 50 --json headRefName \
+            --jq '[.[].headRefName] | join(",")' || true)
+          echo "preview_prune=$prune" >> "$GITHUB_OUTPUT"
+
           exclude=$(gh pr list --state open --json number,headRefName \
             --jq '[.[] | select(.number != ${{ github.event.number }}) | .headRefName, "pr-\(.number)"] | join(",")' \
             || true)
           echo "preview_exclude=$exclude" >> "$GITHUB_OUTPUT"
-          echo "Using Convex preview name: $name (fallbacks from recently merged PRs)"
+          echo "Using Convex preview name: $name (prune closed-PR leftovers on quota)"
 
       # Preview-only: deploy-stack lists/creates team-harness-files-preview
       # when credentials allow, then retries transient Wrangler `fetch failed`.
-      # Convex: claim pr-<n>, or reuse an existing preview if the quota is full.
+      # Convex: claim pr-<n>. On quota, delete a stale leftover then retry
+      # pr-<n> so preview Convex is per-PR (not a shared last-writer slot).
       - id: deploy
         uses: ./.github/actions/deploy-stack
         with:
@@ -61,6 +66,7 @@ jobs:
           preview_name: ${{ steps.meta.outputs.preview_name }}
           preview_fallbacks: ${{ steps.meta.outputs.preview_fallbacks }}
           preview_exclude: ${{ steps.meta.outputs.preview_exclude }}
+          preview_prune: ${{ steps.meta.outputs.preview_prune }}
           convex_env_extra: --preview-name ${{ steps.meta.outputs.preview_name }}
 
       - name: Comment preview URLs on the PR

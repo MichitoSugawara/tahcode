@@ -1,7 +1,7 @@
 // Convex preview identifiers for CI.
 // Unique per-branch names (`cursor-…-40chars`) fill the team quota (40).
-// Prefer a stable `pr-<number>` and, on DeploymentQuotaReached, reuse a
-// preview that already exists (recently merged PR branches).
+// Prefer a stable `pr-<number>`. On DeploymentQuotaReached, prune a stale
+// leftover (closed/merged branch) and retry `pr-<number>` instead of sharing.
 
 export const PREVIEW_NAME_MAX = 40;
 export const SHARED_PREVIEW_NAME = "ci";
@@ -42,6 +42,21 @@ export function nextPreviewClaim(candidates, failedName) {
     return candidates[0] ?? null;
   }
   return candidates[index + 1] ?? null;
+}
+
+/** Open-PR slugs plus the preferred `pr-N` must never be deleted to free quota. */
+export function protectedPreviewNames(input) {
+  const names = new Set(
+    splitNameList(input.exclude)
+      .map((name) => slugPreviewName(name))
+      .filter((name) => name.length > 0)
+  );
+  const preferred = slugPreviewName(input.preferred);
+  if (preferred) {
+    names.add(preferred);
+  }
+  names.add(SHARED_PREVIEW_NAME);
+  return names;
 }
 
 /**
