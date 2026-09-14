@@ -25,8 +25,9 @@ import type {
 } from "@/components/primitives/SidebarNav";
 import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
 import { isLive, useOrg } from "@/harness/OrgContext";
+import { isRightRailVisible } from "@/harness/rail/flags";
+import type { RailTab } from "@/harness/rail/flags";
 import { RightRail } from "@/harness/rail/RightRail";
-import type { RailTab } from "@/harness/rail/RightRail";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import { monogram, roleLabel, truncate } from "@/lib/format";
 import type { Theme } from "@/lib/theme";
@@ -36,8 +37,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 /* ─────────────────────────────────────────────────────────
  * SHELL — the harness frame: SidebarNav on the canvas, a
  * rounded main pane with chat tabs, and a docked right rail
- * (Context · Runtime · Team). Below lg the sidebar becomes a
- * sheet; below xl the rail becomes a sheet.
+ * (Context · Runtime · Team, gated by RIGHT_RAIL_SECTION_ENABLED).
+ * Below lg the sidebar becomes a sheet; below xl the rail becomes a
+ * sheet.
  * ───────────────────────────────────────────────────────── */
 
 function useSidebarModel() {
@@ -351,6 +353,7 @@ export function Shell({
   const [railOpen, setRailOpen] = useState(false);
   const palette = useCommandPalette();
   const location = useLocation();
+  const showRail = rail && isRightRailVisible();
   useEffect(() => {
     setNavOpen(false);
     setRailOpen(false);
@@ -391,7 +394,7 @@ export function Shell({
                       ⌘K
                     </kbd>
                   </button>
-                  {rail && (
+                  {showRail && (
                     <button
                       type="button"
                       aria-label="パネルを開く"
@@ -407,7 +410,7 @@ export function Shell({
             {children}
           </section>
 
-          {rail && (
+          {showRail && (
             <aside
               className="border-line bg-page hidden w-[360px] shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
               style={{ animation: "fade-in 300ms ease both" }}
@@ -449,7 +452,7 @@ export function Shell({
       </DialogPrimitive.Root>
 
       {/* rail sheet (below xl) */}
-      {rail && (
+      {showRail && (
         <DialogPrimitive.Root open={railOpen} onOpenChange={setRailOpen}>
           <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay
