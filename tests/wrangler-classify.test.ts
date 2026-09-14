@@ -423,6 +423,29 @@ describe("deploy-stack auth SITE_URL", () => {
     expect(result.status).toBe(1);
   });
 
+  it("dry-runs OpenConnector admin token sync when present", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "",
+          DEPLOY_NAME: "preview",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          OPENCONNECTOR_ADMIN_TOKEN: "oc-admin-secret",
+          SITE_URL: "https://pr-42-tahcode-preview.gawara.workers.dev",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "OPENCONNECTOR_ADMIN_TOKEN"
+    );
+  });
+
   it("still allows workers.dev SITE_URL on staging", () => {
     const result = spawnSync(
       process.execPath,

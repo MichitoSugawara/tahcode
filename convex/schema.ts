@@ -65,8 +65,7 @@ export default defineSchema({
     lastVerifiedAt: v.optional(v.number()),
     createdBy: v.id("users"),
     updatedAt: v.number(),
-    /* Present on shared preview docs written by TAH-42 / PR #39. Optional so
-     * this branch can deploy without implementing OAuth. */
+    /* Written by start/complete Linear OAuth. Optional so older rows stay valid. */
     oauthRequestId: v.optional(v.string()),
     oauthAlias: v.optional(v.string()),
   })

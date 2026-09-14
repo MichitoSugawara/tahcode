@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const BANNED = /OpenConnector|OOMOL/;
+const BANNED = /OpenConnector|OOMOL|workers\.dev|gateway/i;
 
 function walk(dir: string): string[] {
   const entries = readdirSync(dir);
@@ -36,9 +36,11 @@ describe("user-facing copy", () => {
   it("opens connectors from the command palette on the dedicated route", () => {
     const palette = readFileSync("src/harness/CommandPalette.tsx", "utf-8");
     const settings = readFileSync("src/pages/SettingsPage.tsx", "utf-8");
+    const connectors = readFileSync("src/pages/ConnectorsPage.tsx", "utf-8");
     expect(palette).toContain("org.goConnectors");
     expect(palette).not.toContain('goSettings("connectors")');
     expect(settings).not.toContain("ConnectorsPane");
     expect(settings).not.toContain('id="connectors"');
+    expect(connectors).toContain("コネクタを検索");
   });
 });
