@@ -97,6 +97,13 @@ export const agentToolName = v.union(
   v.literal("get_connector_status")
 );
 
+export const linearAgentToolName = v.union(
+  v.literal("list_linear_issues"),
+  v.literal("search_linear_issues"),
+  v.literal("create_linear_issue"),
+  v.literal("update_linear_issue")
+);
+
 export const jobStatus = v.union(
   v.literal("queued"),
   v.literal("running"),
@@ -216,7 +223,7 @@ export const connectorConnectionSummary = v.object({
   userId: v.optional(v.id("users")),
 });
 
-/** Claim payload for the TAH-55 ops MCP plan (no secrets, no vendor MCP yet). */
+/** Claim payload for the TAH-55 ops MCP plan (no secrets). */
 export const jobConnectorSnapshot = v.object({
   connectedAccountId: v.string(),
   connectionId: v.id("connectorConnections"),

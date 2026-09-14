@@ -1,8 +1,8 @@
 import {
   AGENT_TOOLS,
-  isAgentToolName,
   parseAgentToolArgsJson,
 } from "../../shared/agentTools.ts";
+import type { CatalogToolDefinition } from "../../shared/agentTools.ts";
 
 export type AgentToolInvokeFn = (
   name: string,
@@ -27,7 +27,9 @@ export type JsonRpcResponse = {
 
 export async function handleMcpRequest(
   message: JsonRpcRequest,
-  invoke: AgentToolInvokeFn
+  invoke: AgentToolInvokeFn,
+  tools: readonly CatalogToolDefinition[] = AGENT_TOOLS,
+  serverName = "tahcode"
 ): Promise<JsonRpcResponse | null> {
   const method = message.method ?? "";
   const id = message.id ?? null;
@@ -42,7 +44,7 @@ export async function handleMcpRequest(
         result: {
           capabilities: { tools: {} },
           protocolVersion: "2024-11-05",
-          serverInfo: { name: "tahcode", version: "0.1.0" },
+          serverInfo: { name: serverName, version: "0.1.0" },
         },
       };
     }
@@ -54,7 +56,7 @@ export async function handleMcpRequest(
         id,
         jsonrpc: "2.0",
         result: {
-          tools: AGENT_TOOLS.map((tool) => ({
+          tools: tools.map((tool) => ({
             description: tool.description,
             inputSchema: tool.inputSchema,
             name: tool.name,
@@ -65,7 +67,7 @@ export async function handleMcpRequest(
     if (method === "tools/call") {
       const params = asRecord(message.params);
       const name = typeof params.name === "string" ? params.name : "";
-      if (!isAgentToolName(name)) {
+      if (!tools.some((tool) => tool.name === name)) {
         throw new Error("Unknown tool");
       }
       const rawArgs = params.arguments;

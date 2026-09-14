@@ -245,7 +245,8 @@ export function headlessArgs(
   model?: string,
   options?: readonly ProviderOptionSelection[],
   mcpConfigPath?: string,
-  liveModelSlugs?: readonly string[]
+  liveModelSlugs?: readonly string[],
+  injectedMcpServerNames?: readonly string[]
 ): string[] {
   const effort = planHeadlessEffort(kind, prompt, model, options);
   const cliModel =
@@ -259,7 +260,11 @@ export function headlessArgs(
         ? resolveClaudeCliModel(model, options)
         : model;
   const modelFlag = cliModel ? ["--model", cliModel] : [];
-  const toolFlags = agentToolsMcpFlags(kind, mcpConfigPath);
+  const toolFlags = agentToolsMcpFlags(
+    kind,
+    mcpConfigPath,
+    injectedMcpServerNames
+  );
   switch (kind) {
     case "codex": {
       const codexPrompt = rewriteImagegenPrompt(effort.prompt);
@@ -279,7 +284,7 @@ export function headlessArgs(
       // `--verbose` is required by the Claude CLI when combining
       // `-p/--print` with `--output-format stream-json`.
       // `toolFlags` include `--mcp-config` and `--allowedTools mcp__tahcode__*`
-      // so headless jobs can invoke tahcode MCP without a permission prompt.
+      // plus `mcp__tahcode-linear-<last8>__*` when TAH-54 injects Linear.
       return [
         "-p",
         ...modelFlag,
@@ -331,6 +336,7 @@ export async function runHeadless(
   extras?: {
     env?: NodeJS.ProcessEnv;
     liveModelSlugs?: readonly string[];
+    injectedMcpServerNames?: readonly string[];
     mcpConfigPath?: string;
   }
 ): Promise<{ exitCode: number; output: string }> {
@@ -340,7 +346,8 @@ export async function runHeadless(
     model,
     options,
     extras?.mcpConfigPath,
-    extras?.liveModelSlugs
+    extras?.liveModelSlugs,
+    extras?.injectedMcpServerNames
   );
   const child = spawn(binary, args, {
     cwd,

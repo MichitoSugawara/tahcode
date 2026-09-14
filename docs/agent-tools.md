@@ -16,6 +16,8 @@ tahcode 上で動いているエージェント（ジョブ中のハーネス CL
 | `TAHCODE_JOB_ID`     | 実行中ジョブ            |
 | `TAHCODE_LEASE_ID`   | ジョブのリース          |
 
+Linear 課題ツールは同じ CLI から `tahcode tool list_linear_issues` で呼び、Convex は `agentTools:invokeConnector` に届く（ops の `invoke` と同じ認証）。
+
 呼び出し:
 
 ```bash
@@ -45,5 +47,11 @@ Claude の headless CLI には、同じツールを stdio で渡すための一�
 | `get_runtime_status` | 1 台の online/offline・stale・検出 CLI。`tokenHash` は返さない |
 | `list_connectors` | 見えるコネクタ（tahcode の接続状態。マーケットプレイス MCP ではない） |
 | `get_connector_status` | 1 件（`connectionId`）または `provider` で一覧 |
+| `list_linear_issues` | ジョブでメンションされた tahcode Linear の課題一覧（未メンション / 未接続では呼ばない） |
+| `search_linear_issues` | 同上の全文検索 |
+| `create_linear_issue` | 課題作成（`teamId` + `title`） |
+| `update_linear_issue` | 課題更新（`issueId`） |
+
+Linear の 4 ツールは `@linear` / `@linear/<slug>` があるジョブだけでカタログと MCP に載る。Claude では注入サーバ `tahcode-linear-<last8>`、ほかのハーネスでは `tahcode tool`。トークンは Convex action 側に残す。
 
 他 Org の id を渡した場合は、その Org のメンバーであり、かつ既存の可視ルールを満たすときだけ通ります。メンバーでない Org や非公開プロジェクト／プライベートチャットは拒否します。

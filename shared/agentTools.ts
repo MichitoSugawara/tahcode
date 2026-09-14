@@ -1,3 +1,11 @@
+import {
+  LINEAR_AGENT_TOOLS,
+  isLinearAgentToolName,
+} from "./linearAgentTools.ts";
+import type {
+  LinearAgentToolDefinition,
+  LinearAgentToolName,
+} from "./linearAgentTools.ts";
 import { jobMcpCliFlags } from "./opsMcp.ts";
 
 /**
@@ -8,8 +16,8 @@ import { jobMcpCliFlags } from "./opsMcp.ts";
  * (names + descriptions only) and `tahcode tool` / an optional stdio host
  * call Convex `agentTools:invoke` with the runtime token + job lease. Skill
  * bodies are never inlined here. Connector tools read tahcode
- * `connectorConnections`. TAH-54 injects vendor Linear tools on the same
- * MCP plan (`shared/opsMcp.ts`).
+ * `connectorConnections`. TAH-54 injects Linear issue tools on the same
+ * MCP plan (`shared/opsMcp.ts`) when the prompt mentions `@linear`.
  */
 
 export const BRIDGE_CAPABILITY_AGENT_TOOLS = "agentTools";
@@ -29,8 +37,16 @@ export const AGENT_TOOL_NAMES = [
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
+export type InvocableToolName = AgentToolName | LinearAgentToolName;
+
+export type CatalogToolDefinition =
+  | AgentToolDefinition
+  | LinearAgentToolDefinition;
 
 export const AGENT_TOOL_ENV = {
+  CONNECTOR_CONNECTION_ID: "TAHCODE_CONNECTOR_CONNECTION_ID",
+  CONNECTOR_PROVIDER: "TAHCODE_CONNECTOR_PROVIDER",
+  INJECTED_CONNECTORS: "TAHCODE_INJECTED_CONNECTORS",
   JOB_ID: "TAHCODE_JOB_ID",
   LEASE_ID: "TAHCODE_LEASE_ID",
   RUNTIME_ID: "TAHCODE_RUNTIME_ID",
@@ -199,20 +215,75 @@ export function isAgentToolName(value: string): value is AgentToolName {
   return TOOL_BY_NAME.has(value as AgentToolName);
 }
 
+export function isInvocableToolName(value: string): value is InvocableToolName {
+  return isAgentToolName(value) || isLinearAgentToolName(value);
+}
+
+export function parseInjectedConnectorsEnv(
+  value: string | undefined
+): { connectionId: string; provider: string }[] {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const rows: { connectionId: string; provider: string }[] = [];
+  for (const part of trimmed.split(",")) {
+    const item = part.trim();
+    if (item.length < 1) {
+      continue;
+    }
+    const slash = item.indexOf(":");
+    if (slash === -1) {
+      continue;
+    }
+    const provider = item.slice(0, slash).trim();
+    const connectionId = item.slice(slash + 1).trim();
+    if (provider && connectionId) {
+      rows.push({ connectionId, provider });
+    }
+  }
+  return rows;
+}
+
+export function formatInjectedConnectorsEnv(
+  connections: readonly { connectionId: string; provider: string }[]
+): string {
+  return connections
+    .map((row) => `${row.provider}:${row.connectionId}`)
+    .join(",");
+}
+
+export function catalogTools(options?: {
+  includeLinear?: boolean;
+}): readonly CatalogToolDefinition[] {
+  if (options?.includeLinear) {
+    return [...AGENT_TOOLS, ...LINEAR_AGENT_TOOLS];
+  }
+  return AGENT_TOOLS;
+}
+
 export function agentToolDefinition(
   name: AgentToolName
 ): AgentToolDefinition | undefined {
   return TOOL_BY_NAME.get(name);
 }
 
-export function formatAgentToolCatalog(): string {
-  const lines = AGENT_TOOLS.map(
+export function formatAgentToolCatalog(options?: {
+  includeLinear?: boolean;
+}): string {
+  const lines = catalogTools(options).map(
     (tool) => `- ${tool.name}: ${tool.description}`
   );
-  return [
+  const header = [
     "tahcode tools (invoke with `tahcode tool <name> --args '{...}'` while this job runs; names and descriptions only — do not inline skill bodies):",
     ...lines,
-  ].join("\n");
+  ];
+  if (options?.includeLinear) {
+    header.push(
+      "Linear issue tools use the tahcode-owned `@linear` connector for this job, not Cursor marketplace MCP."
+    );
+  }
+  return header.join("\n");
 }
 
 export function parseAgentToolArgsJson(raw: string): Record<string, unknown> {
@@ -320,7 +391,8 @@ export function agentToolJobEnv(
 /** Claude `--mcp-config` + `--allowedTools`; other CLIs use `tahcode tool`. */
 export function agentToolsMcpFlags(
   kind: string,
-  mcpConfigPath: string | undefined
+  mcpConfigPath: string | undefined,
+  injectedMcpServerNames?: readonly string[]
 ): string[] {
-  return jobMcpCliFlags(kind, mcpConfigPath);
+  return jobMcpCliFlags(kind, mcpConfigPath, injectedMcpServerNames);
 }

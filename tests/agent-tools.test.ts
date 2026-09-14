@@ -9,6 +9,7 @@ import {
   parseAgentToolArgsJson,
   readAgentToolJobAuth,
 } from "../shared/agentTools.ts";
+import { LINEAR_AGENT_TOOL_NAMES } from "../shared/linearAgentTools.ts";
 
 describe("agent tool catalog", () => {
   it("lists the Phase 1 tools without skill bodies", () => {
@@ -48,6 +49,15 @@ describe("agent tool catalog", () => {
     expect(readAgentToolJobAuth({})).toBeNull();
   });
 
+  it("adds Linear issue tools to the CLI catalog when requested", () => {
+    const text = formatAgentToolCatalog({ includeLinear: true });
+    for (const name of LINEAR_AGENT_TOOL_NAMES) {
+      expect(text).toContain(name);
+    }
+    expect(text).toContain("not Cursor marketplace MCP");
+    expect(formatAgentToolCatalog()).not.toContain("list_linear_issues");
+  });
+
   it("adds Claude MCP flags only", () => {
     const claude = headlessArgs(
       "claudeAgent",
@@ -85,5 +95,15 @@ describe("agent tool catalog", () => {
       codexFlags: [],
       cursorHasMcp: false,
     });
+    expect(
+      agentToolsMcpFlags("claudeAgent", "/tmp/mcp.json", [
+        "tahcode-linear-k57abcde",
+      ])
+    ).toStrictEqual([
+      "--mcp-config",
+      "/tmp/mcp.json",
+      "--allowedTools",
+      "mcp__tahcode__*,mcp__tahcode-linear-k57abcde__*",
+    ]);
   });
 });

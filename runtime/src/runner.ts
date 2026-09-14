@@ -2,7 +2,11 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { BRIDGE_CAPABILITY_AGENT_TOOLS } from "../../shared/agentTools.ts";
+import {
+  AGENT_TOOL_ENV,
+  BRIDGE_CAPABILITY_AGENT_TOOLS,
+  formatInjectedConnectorsEnv,
+} from "../../shared/agentTools.ts";
 import type { StreamArtifact } from "../../shared/artifacts.ts";
 import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
@@ -10,6 +14,8 @@ import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
   formatJobMcpAttachNote,
   formatJobOpsPromptSuffix,
+  injectedConnectorConnections,
+  injectedMcpServerNames,
 } from "../../shared/opsMcp.ts";
 import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import {
@@ -444,7 +450,15 @@ async function executeJob(
   const opsSuffix = job.opsBundle
     ? `\n\n---\n${formatJobOpsPromptSuffix(job.opsBundle)}`
     : "";
-  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix()}${opsSuffix}`;
+  const injectedConnections = injectedConnectorConnections(
+    job.opsBundle?.connectors ?? [],
+    job.opsBundle?.mentionedConnectors ?? []
+  );
+  const injectedServers = injectedMcpServerNames(
+    job.opsBundle?.connectors ?? [],
+    job.opsBundle?.mentionedConnectors ?? []
+  );
+  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix(injectedConnections.length > 0)}${opsSuffix}`;
   const toolAuth = {
     jobId: job._id,
     leaseId: job.leaseId,
@@ -467,12 +481,17 @@ async function executeJob(
       cliEntry,
       connections: job.opsBundle?.connectors ?? [],
       dir: jobDir,
+      mentionedConnectors: job.opsBundle?.mentionedConnectors ?? [],
       nodePath: process.execPath,
     });
     jobEnv = {
       ...jobEnv,
       PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
     };
+    if (injectedConnections.length > 0) {
+      jobEnv[AGENT_TOOL_ENV.INJECTED_CONNECTORS] =
+        formatInjectedConnectorsEnv(injectedConnections);
+    }
     if (job.opsBundle) {
       await send("thinking", formatJobMcpAttachNote(job.opsBundle));
     }
@@ -606,6 +625,7 @@ async function executeJob(
       jobOptions,
       {
         env: jobEnv,
+        injectedMcpServerNames: injectedServers,
         liveModelSlugs: modelCache
           ?.get(wanted)
           ?.models.map((item) => item.slug),

@@ -1,11 +1,14 @@
+import { connectorMentionHandle } from "@shared/connectorMentions.ts";
+
 import { connectorAccountTitle } from "@/lib/connectorCard";
+
+export {
+  connectorMentionHandle,
+  connectorMentionSlug,
+} from "@shared/connectorMentions.ts";
 
 export const CONNECTOR_MENTION_HINT = "接続済み";
 export const CONNECTOR_MENTION_TRAILING = "コネクタ";
-
-const MENTION_SLUG_RE = /[^a-z0-9._-]+/g;
-const EDGE_SLUG_RE = /^[-.]+|[-.]+$/g;
-const MAX_MENTION_SLUG = 48;
 
 export type ConnectorMentionAccount = {
   _id: string;
@@ -21,45 +24,6 @@ export type ConnectorMentionSuggestItem = {
   search: string;
   trailing: string;
 };
-
-export function connectorMentionSlug(label: string): string {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(MENTION_SLUG_RE, "-")
-    .replace(EDGE_SLUG_RE, "")
-    .slice(0, MAX_MENTION_SLUG);
-}
-
-/**
- * Stable @ tokens for connected Linear accounts:
- * unnamed / first unlabeled → `@linear`
- * labeled → `@linear/<slug>`
- * collision or empty slug → `@linear/<connectionId>`
- */
-export function connectorMentionHandle(
-  provider: string,
-  input: {
-    connectionId: string;
-    displayLabel?: string;
-    preferBare: boolean;
-    taken: ReadonlySet<string>;
-  }
-): string {
-  const label = input.displayLabel?.trim();
-  if (!label) {
-    if (input.preferBare && !input.taken.has(provider)) {
-      return provider;
-    }
-    return `${provider}/${input.connectionId}`;
-  }
-  const slug = connectorMentionSlug(label);
-  const candidate = slug.length > 0 ? `${provider}/${slug}` : undefined;
-  if (candidate && !input.taken.has(candidate)) {
-    return candidate;
-  }
-  return `${provider}/${input.connectionId}`;
-}
 
 export function connectorMentionSuggestItems(
   rows: readonly ConnectorMentionAccount[],

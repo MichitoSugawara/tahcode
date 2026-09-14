@@ -4,17 +4,24 @@ import { stdin, stdout } from "node:process";
 
 import {
   AGENT_TOOLS,
+  AGENT_TOOL_ENV,
   agentToolJobEnv,
+  catalogTools,
   formatAgentToolCatalog,
-  isAgentToolName,
+  isInvocableToolName,
   parseAgentToolArgsJson,
+  parseInjectedConnectorsEnv,
   readAgentToolJobAuth,
 } from "../../shared/agentTools.ts";
 import type {
   AgentToolJobAuth,
-  AgentToolName,
+  InvocableToolName,
 } from "../../shared/agentTools.ts";
-import type { JobConnectorSnapshot } from "../../shared/opsMcp.ts";
+import { LINEAR_AGENT_TOOLS } from "../../shared/linearAgentTools.ts";
+import type {
+  JobConnectorSnapshot,
+  MentionedConnector,
+} from "../../shared/opsMcp.ts";
 import {
   JOB_MCP_CONFIG_FILENAME,
   buildJobMcpConfig,
@@ -36,7 +43,7 @@ export function jobAgentToolEnv(auth: AgentToolJobAuth): NodeJS.ProcessEnv {
 
 export async function invokeAgentTool(
   auth: AgentToolJobAuth,
-  name: AgentToolName,
+  name: InvocableToolName,
   args: Record<string, unknown>
 ): Promise<unknown> {
   const client = new RuntimeClient(auth.url);
@@ -56,12 +63,14 @@ export async function writeAgentToolsMcpConfig(input: {
   cliEntry: string;
   connections?: readonly JobConnectorSnapshot[];
   dir: string;
+  mentionedConnectors?: readonly MentionedConnector[];
   nodePath: string;
 }): Promise<string> {
   const configPath = path.join(input.dir, JOB_MCP_CONFIG_FILENAME);
   const env = agentToolJobEnv(input.auth);
   const config = buildJobMcpConfig({
     connections: input.connections ?? [],
+    mentionedConnectors: input.mentionedConnectors ?? [],
     tahcodeOps: {
       args: [input.cliEntry, "tool-mcp"],
       command: input.nodePath,
@@ -86,8 +95,16 @@ exec ${posixShellQuote(input.nodePath)} ${posixShellQuote(input.cliEntry)} "$@"
   return bin;
 }
 
-export function agentToolsPromptSuffix(): string {
-  return formatAgentToolCatalog();
+export function agentToolsPromptSuffix(includeLinear = false): string {
+  return formatAgentToolCatalog({ includeLinear });
+}
+
+function jobIncludesLinearTools(): boolean {
+  return (
+    parseInjectedConnectorsEnv(process.env[AGENT_TOOL_ENV.INJECTED_CONNECTORS])
+      .length > 0 ||
+    Boolean(process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim())
+  );
 }
 
 export async function runAgentToolCli(input: {
@@ -101,19 +118,28 @@ export async function runAgentToolCli(input: {
     );
     return 2;
   }
+  const includeLinear = jobIncludesLinearTools();
+  const tools = catalogTools({ includeLinear });
   if (!input.name) {
-    console.log(formatAgentToolCatalog());
+    console.log(formatAgentToolCatalog({ includeLinear }));
     console.log("");
     console.log('例: tahcode tool list_sessions --args \'{"orgId":"…"}\'');
     return 0;
   }
-  if (!isAgentToolName(input.name)) {
+  if (
+    !isInvocableToolName(input.name) ||
+    !tools.some((tool) => tool.name === input.name)
+  ) {
     console.error(
-      `不明なツール: ${input.name}（${AGENT_TOOLS.map((tool) => tool.name).join(", ")}）`
+      `不明なツール: ${input.name}（${tools.map((tool) => tool.name).join(", ")}）`
     );
     return 2;
   }
   const args = parseAgentToolArgsJson(input.argsJson ?? "{}");
+  const boundId = process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim();
+  if (boundId && args.connectionId === undefined) {
+    args.connectionId = boundId;
+  }
   const result = await invokeAgentTool(auth, input.name, args);
   console.log(JSON.stringify(result, null, 2));
   return 0;
@@ -124,12 +150,19 @@ export async function runAgentToolMcp(): Promise<void> {
   if (!auth) {
     throw new Error("Missing TAHCODE_JOB_* environment for tool-mcp");
   }
+  const boundId = process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim();
+  const tools = boundId ? LINEAR_AGENT_TOOLS : AGENT_TOOLS;
+  const serverName = boundId ? "tahcode-linear" : "tahcode";
   let buffer = "";
   const invoke = async (name: string, args: Record<string, unknown>) => {
-    if (!isAgentToolName(name)) {
+    if (!tools.some((tool) => tool.name === name)) {
       throw new Error("Unknown tool");
     }
-    return await invokeAgentTool(auth, name, args);
+    const next = { ...args };
+    if (boundId && next.connectionId === undefined) {
+      next.connectionId = boundId;
+    }
+    return await invokeAgentTool(auth, name as InvocableToolName, next);
   };
   stdin.setEncoding("utf-8");
   stdin.on("data", (chunk) => {
@@ -137,12 +170,14 @@ export async function runAgentToolMcp(): Promise<void> {
     const parsed = parseMcpBuffer(buffer);
     buffer = parsed.rest;
     for (const message of parsed.messages) {
-      void handleMcpRequest(message, invoke).then((response) => {
-        if (!response) {
-          return;
+      void handleMcpRequest(message, invoke, tools, serverName).then(
+        (response) => {
+          if (!response) {
+            return;
+          }
+          stdout.write(encodeMcpFrame(response));
         }
-        stdout.write(encodeMcpFrame(response));
-      });
+      );
     }
   });
   await new Promise<void>((resolve) => {

@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 
 import { convexSiteUrl } from "../../shared/convexUrls.ts";
+import { isLinearAgentToolName } from "../../shared/linearAgentTools.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import type {
@@ -42,7 +43,7 @@ export interface ClaimedJob {
   multicaTaskId?: string;
   /** t3code option selections (effort / variant) applied as CLI flags */
   options?: ProviderOptionSelection[];
-  /** TAH-55: tahcode-owned connectors + MCP attach plan (no vendor inject yet). */
+  /** TAH-55/54: tahcode ops + mentioned Linear MCP inject plan. */
   opsBundle?: JobOpsBundle;
   prompt: string;
   runtimeId: string;
@@ -159,6 +160,12 @@ export class RuntimeClient {
     runtimeId: string;
     token: string;
   }): Promise<{ name: string; resultJson: string }> {
+    if (isLinearAgentToolName(input.name)) {
+      return await this.client.action(
+        "agentTools:invokeConnector" as never,
+        input as never
+      );
+    }
     return await this.client.mutation(
       "agentTools:invoke" as never,
       input as never

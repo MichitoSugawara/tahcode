@@ -4,6 +4,7 @@ import {
   handleMcpRequest,
   parseMcpBuffer,
 } from "../runtime/src/agentToolsMcp.ts";
+import { LINEAR_AGENT_TOOLS } from "../shared/linearAgentTools.ts";
 
 describe("tahcode MCP host", () => {
   it("lists native tools and calls through the invoke callback", async () => {
@@ -38,6 +39,27 @@ describe("tahcode MCP host", () => {
       called?.result as { content: { text: string }[] } | undefined
     )?.content[0]?.text;
     expect(content).toContain("projects");
+  });
+
+  it("lists only Linear issue tools on an injected connector server", async () => {
+    const listed = await handleMcpRequest(
+      { id: 1, method: "tools/list" },
+      async () => {
+        throw new Error("unused");
+      },
+      LINEAR_AGENT_TOOLS,
+      "tahcode-linear"
+    );
+    expect(listed?.result).toMatchObject({
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: "list_linear_issues" }),
+        expect.objectContaining({ name: "search_linear_issues" }),
+      ]),
+    });
+    const names = (
+      listed?.result as { tools: { name: string }[] } | undefined
+    )?.tools.map((tool) => tool.name);
+    expect(names).not.toContain("list_orgs");
   });
 
   it("parses Content-Length frames and newline JSON", () => {
