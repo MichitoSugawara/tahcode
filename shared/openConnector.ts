@@ -94,6 +94,7 @@ function firstNonEmptyEnv(
       return value;
     }
   }
+  return undefined;
 }
 
 function trimTrailingSlash(value: string): string {

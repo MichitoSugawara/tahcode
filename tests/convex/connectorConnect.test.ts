@@ -445,6 +445,12 @@ describe("completeLinearConnect", () => {
         orgId: orgA,
         scope: "org",
       } as never)
+    ).rejects.toThrow(/unexpected field `connectedAccountId`/i);
+    await expect(
+      aliceCtx.action(api.connectorConnect.completeLinearConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
     ).resolves.toMatchObject({ status: "missing_request" });
   });
 

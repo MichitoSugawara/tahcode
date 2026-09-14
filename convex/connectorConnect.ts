@@ -19,6 +19,8 @@ import { action } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { connectorScope } from "./lib/validators";
 
+declare const process: { env: Record<string, string | undefined> };
+
 const LINEAR_PROVIDER = "linear";
 
 type StartLinearConnectResult = {
