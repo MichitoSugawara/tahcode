@@ -127,6 +127,18 @@ runs:
       run: |
         npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/sync-convex-auth-env.mjs
 
+    # Preview/staging only. Google OAuth is not registered on ephemeral
+    # preview hosts, so every preview must have a password user. The script
+    # fail-closes on production / --prod and never runs in the production job.
+    - name: Seed preview login
+      if: ${{ inputs.name == 'preview' || inputs.name == 'staging' }}
+      shell: bash
+      env:
+        DEPLOY_NAME: ${{ inputs.name }}
+        CONVEX_ENV_ARGS: ${{ steps.convex.outputs.preview_name != '' && format('--preview-name {0}', steps.convex.outputs.preview_name) || inputs.convex_env_extra }}
+      run: |
+        npx dotenvx run -f "${{ inputs.dotenv_file }}" -- node scripts/seed-preview-login.mjs
+
     - name: Show deploy URLs
       shell: bash
       env:
