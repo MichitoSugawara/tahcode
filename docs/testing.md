@@ -237,13 +237,13 @@ lefthook は format/lint のみ。テストは載せない。
 
 ### 失敗の読み方
 
-| 赤 | 意味 |
-| --- | --- |
-| Ultracite / typecheck | マージしない。テストより先に直す |
-| unit | 契約（メンション、ACL 述語、MIME）が壊れた |
-| convex-test | 権限またはジョブ状態機械が壊れた。最優先 |
-| desktop smoke | 殻。Web の authz とは切り分ける |
-| preview | インフラ。テスト戦略の外 |
+| 赤                    | 意味                                       |
+| --------------------- | ------------------------------------------ |
+| Ultracite / typecheck | マージしない。テストより先に直す           |
+| unit                  | 契約（メンション、ACL 述語、MIME）が壊れた |
+| convex-test           | 権限またはジョブ状態機械が壊れた。最優先   |
+| desktop smoke         | 殻。Web の authz とは切り分ける            |
+| preview               | インフラ。テスト戦略の外                   |
 
 ---
 
