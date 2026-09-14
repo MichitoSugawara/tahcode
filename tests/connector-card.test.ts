@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import type { ConnectorStatus } from "../shared/connectors.ts";
@@ -157,5 +159,16 @@ describe("connector card copy", () => {
         status: "needsAuth",
       })
     ).toBe("個人");
+  });
+});
+
+describe("connector card layout", () => {
+  it("puts CTA/status on the header row, not under the description", () => {
+    const source = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    expect(source).toContain("connector-card-header");
+    expect(source).toContain("connector-card-text");
+    expect(source).toContain("connector-card-actions");
+    expect(source).toContain("sand-connector-card__header");
+    expect(source).not.toMatch(/flex flex-col gap-2 px-3 py-2\.5/);
   });
 });
