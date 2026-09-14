@@ -52,7 +52,8 @@ export default defineSchema({
     .index("by_profile", ["profileId"]),
 
   /* OpenConnector mapping only — never persist OAuth tokens or client secrets.
-   * Tokens live in the OpenConnector worker; this table stores opaque ids. */
+   * Tokens live in the OpenConnector worker; this table stores opaque ids.
+   * Uniqueness is org + provider + connectedAccountId (multi-account). */
   connectorConnections: defineTable({
     orgId: v.id("orgs"),
     userId: v.optional(v.id("users")),
@@ -71,6 +72,11 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_and_provider", ["orgId", "provider"])
+    .index("by_org_provider_account", [
+      "orgId",
+      "provider",
+      "connectedAccountId",
+    ])
     .index("by_user_and_provider", ["userId", "provider"]),
 
   fileTickets: defineTable({

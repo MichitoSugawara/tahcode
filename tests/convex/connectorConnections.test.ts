@@ -87,6 +87,51 @@ describe("connectorConnections CRUD", () => {
     expect(listed[0]?.lastVerifiedAt).toStrictEqual(expect.any(Number));
   });
 
+  it("keeps two Linear accounts as separate rows keyed by connectedAccountId", async () => {
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const first = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_default-michitogawara",
+      displayLabel: "default",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    const second = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_pottos-linear",
+      displayLabel: "pottos",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    expect(second).not.toBe(first);
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "linear",
+    });
+    expect(listed).toHaveLength(2);
+    expect(listed.map((row) => row.connectedAccountId).sort()).toStrictEqual([
+      "ca_default-michitogawara",
+      "ca_pottos-linear",
+    ]);
+    const renamed = await aliceCtx.mutation(api.connectorConnections.upsert, {
+      connectedAccountId: "ca_pottos-linear",
+      displayLabel: "pottos workspace",
+      orgId: orgA,
+      provider: "linear",
+      scope: "org",
+    });
+    expect(renamed).toBe(second);
+    expect(
+      (
+        await aliceCtx.query(api.connectorConnections.listByOrg, {
+          orgId: orgA,
+          provider: "linear",
+        })
+      ).map((row) => row.displayLabel)
+    ).toStrictEqual(expect.arrayContaining(["default", "pottos workspace"]));
+  });
+
   it("disconnects softly and reuses the same row on reconnect", async () => {
     const t = fresh();
     const { aliceCtx, orgA } = await seedOrg(t);

@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 
 import {
+  MAX_CONNECTOR_CONNECTIONS,
   MAX_CONNECTOR_OAUTH_ALIAS,
   MAX_CONNECTOR_OAUTH_REQUEST_ID,
+  isPendingConnectorAccountId,
   normalizeConnectorProvider,
   normalizeOptionalConnectorText,
   pendingConnectorAccountId,
@@ -11,8 +13,12 @@ import type { ConnectorStatus } from "../shared/connectors.ts";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery } from "./_generated/server";
 import {
-  findConnectorConnection,
+  findConnectorConnectionByAccount,
+  findInFlightConnectorConnection,
+  findLatestConnectedConnector,
+  listOrgConnectorConnections,
   normalizeConnectorUpsertInput,
+  requireCanManageConnector,
   requireCanUpsertConnector,
 } from "./lib/connectors";
 import { connectorScope, connectorStatus } from "./lib/validators";
@@ -45,6 +51,7 @@ export const assertCanStartConnect = internalQuery({
 
 export const loadConnectContext = internalQuery({
   args: {
+    connectionId: v.optional(v.id("connectorConnections")),
     orgId: v.id("orgs"),
     provider: v.string(),
     scope: connectorScope,
@@ -56,12 +63,23 @@ export const loadConnectContext = internalQuery({
     if (!org) {
       throw new Error("Organization not found");
     }
-    const existing = await findConnectorConnection(ctx, {
+    const provider = normalizeConnectorProvider(args.provider);
+    const scopeUserId = args.scope === "user" ? args.userId : undefined;
+    const inflight = await findInFlightConnectorConnection(ctx, {
+      connectionId: args.connectionId,
       orgId: args.orgId,
-      provider: normalizeConnectorProvider(args.provider),
+      provider,
       scope: args.scope,
-      userId: args.scope === "user" ? args.userId : undefined,
+      userId: scopeUserId,
     });
+    const existing =
+      inflight ??
+      (await findLatestConnectedConnector(ctx, {
+        orgId: args.orgId,
+        provider,
+        scope: args.scope,
+        userId: scopeUserId,
+      }));
     return {
       connectedAccountId: existing?.connectedAccountId ?? null,
       connectionId: existing?._id ?? null,
@@ -76,6 +94,7 @@ export const loadConnectContext = internalQuery({
 
 export const markNeedsAuth = internalMutation({
   args: {
+    connectionId: v.optional(v.id("connectorConnections")),
     oauthRequestId: v.optional(v.string()),
     orgId: v.id("orgs"),
     provider: v.string(),
@@ -89,14 +108,20 @@ export const markNeedsAuth = internalMutation({
       MAX_CONNECTOR_OAUTH_REQUEST_ID,
       "OAuth request id"
     );
-    const existing = await findConnectorConnection(ctx, {
-      orgId: args.orgId,
-      provider,
-      scope: args.scope,
-      userId: args.scope === "user" ? args.userId : undefined,
-    });
     const now = Date.now();
-    if (existing) {
+    if (args.connectionId !== undefined) {
+      const existing = await ctx.db.get(
+        "connectorConnections",
+        args.connectionId
+      );
+      if (
+        !existing ||
+        existing.orgId !== args.orgId ||
+        existing.provider !== provider
+      ) {
+        throw new Error("Connection not found");
+      }
+      await requireCanManageConnector(ctx, existing, args.userId);
       const patch: {
         oauthRequestId?: string;
         status?: ConnectorStatus;
@@ -111,8 +136,16 @@ export const markNeedsAuth = internalMutation({
       await ctx.db.patch("connectorConnections", existing._id, patch);
       return existing._id;
     }
+    const existingCount = (await listOrgConnectorConnections(ctx, args.orgId))
+      .length;
+    if (existingCount >= MAX_CONNECTOR_CONNECTIONS) {
+      throw new Error("Connector connection limit reached");
+    }
     return await ctx.db.insert("connectorConnections", {
-      connectedAccountId: pendingConnectorAccountId(provider),
+      connectedAccountId: pendingConnectorAccountId(
+        provider,
+        oauthRequestId ?? `new-${now}`
+      ),
       createdBy: args.userId,
       oauthRequestId,
       orgId: args.orgId,
@@ -129,6 +162,7 @@ export const markNeedsAuth = internalMutation({
 export const applyConnectResult = internalMutation({
   args: {
     connectedAccountId: v.optional(v.string()),
+    connectionId: v.optional(v.id("connectorConnections")),
     displayLabel: v.optional(v.string()),
     lastVerifiedAt: v.optional(v.number()),
     oauthAlias: v.optional(v.string()),
@@ -140,7 +174,8 @@ export const applyConnectResult = internalMutation({
   },
   handler: async (ctx, args): Promise<Id<"connectorConnections">> => {
     const provider = normalizeConnectorProvider(args.provider);
-    const existing = await findConnectorConnection(ctx, {
+    const inflight = await findInFlightConnectorConnection(ctx, {
+      connectionId: args.connectionId,
       orgId: args.orgId,
       provider,
       scope: args.scope,
@@ -153,15 +188,15 @@ export const applyConnectResult = internalMutation({
       "OAuth alias"
     );
     if (args.connectedAccountId === undefined) {
-      if (!existing) {
+      if (!inflight) {
         throw new Error("Connection not found");
       }
-      await ctx.db.patch("connectorConnections", existing._id, {
-        oauthAlias: oauthAlias ?? existing.oauthAlias,
+      await ctx.db.patch("connectorConnections", inflight._id, {
+        oauthAlias: oauthAlias ?? inflight.oauthAlias,
         status: args.status,
         updatedAt: now,
       });
-      return existing._id;
+      return inflight._id;
     }
     const fields = normalizeConnectorUpsertInput({
       connectedAccountId: args.connectedAccountId,
@@ -169,19 +204,46 @@ export const applyConnectResult = internalMutation({
       provider,
       status: args.status,
     });
+    const byAccount = await findConnectorConnectionByAccount(ctx, {
+      connectedAccountId: fields.connectedAccountId,
+      orgId: args.orgId,
+      provider,
+    });
     const lastVerifiedAt =
       args.lastVerifiedAt ??
-      (fields.status === "connected" ? now : existing?.lastVerifiedAt);
-    if (existing) {
-      await ctx.db.patch("connectorConnections", existing._id, {
-        connectedAccountId: fields.connectedAccountId,
-        displayLabel: fields.displayLabel ?? existing.displayLabel,
+      (fields.status === "connected" ? now : byAccount?.lastVerifiedAt);
+    if (byAccount) {
+      await ctx.db.patch("connectorConnections", byAccount._id, {
+        displayLabel: fields.displayLabel ?? byAccount.displayLabel,
         lastVerifiedAt,
-        oauthAlias: oauthAlias ?? existing.oauthAlias,
+        oauthAlias: oauthAlias ?? byAccount.oauthAlias,
         status: fields.status,
         updatedAt: now,
       });
-      return existing._id;
+      if (
+        inflight &&
+        inflight._id !== byAccount._id &&
+        isPendingConnectorAccountId(inflight.connectedAccountId)
+      ) {
+        await ctx.db.delete("connectorConnections", inflight._id);
+      }
+      return byAccount._id;
+    }
+    if (inflight) {
+      await ctx.db.patch("connectorConnections", inflight._id, {
+        connectedAccountId: fields.connectedAccountId,
+        displayLabel: fields.displayLabel ?? inflight.displayLabel,
+        lastVerifiedAt,
+        oauthAlias: oauthAlias ?? inflight.oauthAlias,
+        status: fields.status,
+        updatedAt: now,
+      });
+      return inflight._id;
+    }
+    const existingCount = (await listOrgConnectorConnections(ctx, args.orgId))
+      .length;
+    if (existingCount >= MAX_CONNECTOR_CONNECTIONS) {
+      throw new Error("Connector connection limit reached");
     }
     return await ctx.db.insert("connectorConnections", {
       connectedAccountId: fields.connectedAccountId,

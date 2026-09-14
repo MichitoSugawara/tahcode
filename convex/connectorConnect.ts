@@ -46,6 +46,7 @@ async function requireConnectUser(ctx: ActionCtx): Promise<Id<"users">> {
 
 export const startLinearConnect = action({
   args: {
+    connectionId: v.optional(v.id("connectorConnections")),
     orgId: v.id("orgs"),
     scope: connectorScope,
   },
@@ -65,6 +66,7 @@ export const startLinearConnect = action({
       const connectionId: Id<"connectorConnections"> = await ctx.runMutation(
         internal.connectorConnectHelpers.markNeedsAuth,
         {
+          connectionId: args.connectionId,
           orgId: args.orgId,
           provider,
           scope: args.scope,
@@ -86,6 +88,7 @@ export const startLinearConnect = action({
     const connectionId: Id<"connectorConnections"> = await ctx.runMutation(
       internal.connectorConnectHelpers.markNeedsAuth,
       {
+        connectionId: args.connectionId,
         oauthRequestId: started.connectionRequestId,
         orgId: args.orgId,
         provider,
@@ -110,6 +113,7 @@ export const startLinearConnect = action({
 
 export const completeLinearConnect = action({
   args: {
+    connectionId: v.optional(v.id("connectorConnections")),
     orgId: v.id("orgs"),
     scope: connectorScope,
   },
@@ -119,6 +123,7 @@ export const completeLinearConnect = action({
     const context = await ctx.runQuery(
       internal.connectorConnectHelpers.loadConnectContext,
       {
+        connectionId: args.connectionId,
         orgId: args.orgId,
         provider,
         scope: args.scope,
@@ -148,6 +153,7 @@ export const completeLinearConnect = action({
       };
     }
     return await confirmAndStoreLinearConnect(ctx, {
+      connectionId: context.connectionId ?? undefined,
       orgId: args.orgId,
       provider,
       requestId: context.oauthRequestId,
@@ -170,6 +176,7 @@ export const completeLinearConnect = action({
 async function confirmAndStoreLinearConnect(
   ctx: ActionCtx,
   input: {
+    connectionId?: Id<"connectorConnections">;
     orgId: Id<"orgs">;
     provider: string;
     requestId: string;
@@ -194,6 +201,7 @@ async function confirmAndStoreLinearConnect(
     const connectionId = await ctx.runMutation(
       internal.connectorConnectHelpers.applyConnectResult,
       {
+        connectionId: input.connectionId,
         orgId: input.orgId,
         provider: input.provider,
         scope: input.scope,
@@ -216,6 +224,7 @@ async function confirmAndStoreLinearConnect(
       internal.connectorConnectHelpers.applyConnectResult,
       {
         connectedAccountId: confirmed.connectedAccountId,
+        connectionId: input.connectionId,
         orgId: input.orgId,
         provider: input.provider,
         scope: input.scope,
@@ -239,6 +248,7 @@ async function confirmAndStoreLinearConnect(
       internal.connectorConnectHelpers.applyConnectResult,
       {
         connectedAccountId: confirmed.connectedAccountId,
+        connectionId: input.connectionId,
         displayLabel,
         lastVerifiedAt: Date.now(),
         oauthAlias: connection.alias,
@@ -259,6 +269,7 @@ async function confirmAndStoreLinearConnect(
       internal.connectorConnectHelpers.applyConnectResult,
       {
         connectedAccountId: confirmed.connectedAccountId,
+        connectionId: input.connectionId,
         displayLabel: linearDisplayLabel(undefined, connection),
         oauthAlias: connection.alias,
         orgId: input.orgId,
