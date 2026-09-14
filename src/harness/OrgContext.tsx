@@ -1,4 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import { STALE_RUNTIME_MS, isLiveRuntime } from "@shared/runtimeHealth.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
   createContext,
@@ -124,17 +125,8 @@ export type DialogState =
   | null;
 
 /** A runtime is "live" when its heartbeat is fresh (server treats >90s as dead). */
-export const STALE_AFTER_MS = 90_000;
-export function isLive(
-  runtime: Pick<Runtime, "status" | "lastSeenAt">,
-  now = Date.now()
-): boolean {
-  return (
-    runtime.status === "online" &&
-    runtime.lastSeenAt !== undefined &&
-    now - runtime.lastSeenAt < STALE_AFTER_MS
-  );
-}
+export const STALE_AFTER_MS = STALE_RUNTIME_MS;
+export const isLive = isLiveRuntime;
 
 interface OrgContextValue {
   me: Me;

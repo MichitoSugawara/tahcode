@@ -1,3 +1,8 @@
+import {
+  NO_ONLINE_RUNTIME_BODY,
+  QUEUED_CLAIM_TIMEOUT_MS,
+} from "../../shared/runtimeHealth.ts";
+import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import {
@@ -148,7 +153,7 @@ export async function sendUserMessage(
   if (!runtime) {
     const assistantMessageId = await ctx.db.insert("messages", {
       authorType: "agent",
-      body: "オンラインのマシンランタイムがありません。Runtime タブでこのマシンを登録し、`npm i -g tahcode` → `tahcode link …` → `tahcode start` を実行してください。",
+      body: NO_ONLINE_RUNTIME_BODY,
       chatId: args.chatId,
       driverKind,
       mentions: [],
@@ -190,6 +195,11 @@ export async function sendUserMessage(
     triggerMessageId: messageId,
   });
   await ctx.db.patch("messages", assistantMessageId, { jobId });
+  await ctx.scheduler.runAfter(
+    QUEUED_CLAIM_TIMEOUT_MS,
+    internal.jobs.failIfUnclaimed,
+    { jobId }
+  );
   return {
     assistantMessageId,
     dispatched: true,
