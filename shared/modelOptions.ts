@@ -11,8 +11,9 @@
  * tahcode has no ACP/SDK provider layers — the same descriptors persist
  * with the chat's agent binding and become headless CLI flags in
  * `runtime/src/providers.ts` (`--config model_reasoning_effort`,
- * `claude --effort`, `opencode run --variant`). Cursor/Grok selections
- * persist for t3code parity but have no headless flag (ACP-only upstream).
+ * `--config service_tier`, `claude --effort` / `--settings` / `[1m]`,
+ * `opencode run --variant` / `--agent`). Cursor/Grok selections persist
+ * for t3code parity but have no headless flag (ACP-only upstream).
  */
 
 import {
@@ -193,6 +194,10 @@ type ClaudeProfile = {
   /** UI value → CLI `--effort` (null = prompt-only). */
   effortMap: Record<string, string | null>;
   thinkingOnly?: boolean;
+  /** t3code Claude `fastMode` boolean (Opus family). */
+  fastMode?: boolean;
+  /** t3code Claude `contextWindow` default when the model exposes 200k / 1M. */
+  contextWindowDefault?: "200k" | "1m";
 };
 
 const CLAUDE_FULL = [
@@ -229,6 +234,15 @@ function claudeProfile(model: string | undefined | null): ClaudeProfile {
       defaultEffort: "medium",
       effortIds: CLAUDE_FULL,
       effortMap: { ultracode: "xhigh", ultrathink: null },
+      contextWindowDefault: "1m",
+    };
+  }
+  if (/opus-4-8/.test(slug)) {
+    return {
+      defaultEffort: "high",
+      effortIds: CLAUDE_FULL,
+      effortMap: { ultracode: "xhigh", ultrathink: null },
+      fastMode: true,
     };
   }
   if (/opus-4-7/.test(slug)) {
@@ -236,16 +250,23 @@ function claudeProfile(model: string | undefined | null): ClaudeProfile {
       defaultEffort: "xhigh",
       effortIds: CLAUDE_NO_ULTRACODE,
       effortMap: { xhigh: "max", ultrathink: null },
+      fastMode: true,
     };
   }
   if (/opus-4-5/.test(slug)) {
-    return { defaultEffort: "high", effortIds: CLAUDE_OPUS_45, effortMap: {} };
+    return {
+      defaultEffort: "high",
+      effortIds: CLAUDE_OPUS_45,
+      effortMap: {},
+      fastMode: true,
+    };
   }
   if (/sonnet-4-6/.test(slug)) {
     return {
       defaultEffort: "high",
       effortIds: CLAUDE_NO_ULTRACODE,
       effortMap: { max: "high", ultrathink: null },
+      contextWindowDefault: "200k",
     };
   }
   if (/sonnet/.test(slug)) {
@@ -253,13 +274,16 @@ function claudeProfile(model: string | undefined | null): ClaudeProfile {
       defaultEffort: "high",
       effortIds: CLAUDE_NO_ULTRACODE,
       effortMap: { ultrathink: null },
+      contextWindowDefault: "200k",
     };
   }
-  // opus-5 / opus-4-8 / opus-4-6 / unknown Claude
+  // opus-5 / opus-4-6 / unknown Claude
   return {
     defaultEffort: "high",
     effortIds: CLAUDE_FULL,
     effortMap: { ultracode: "xhigh", ultrathink: null },
+    fastMode: true,
+    contextWindowDefault: "1m",
   };
 }
 
@@ -344,6 +368,34 @@ function cursorDefaultEffort(
   return ids[0] ?? CURSOR_DEFAULT_EFFORT;
 }
 
+function claudeExtraDescriptors(
+  profile: ClaudeProfile
+): ProviderOptionDescriptor[] {
+  const extras: ProviderOptionDescriptor[] = [];
+  if (profile.fastMode) {
+    extras.push({
+      id: "fastMode",
+      label: "Fast Mode",
+      type: "boolean",
+      currentValue: false,
+    });
+  }
+  if (profile.contextWindowDefault) {
+    extras.push(
+      selectDescriptor(
+        "contextWindow",
+        "Context Window",
+        labeledChoices(
+          ["200k", "1m"],
+          { "1m": "1M", "200k": "200k" },
+          profile.contextWindowDefault
+        )
+      )
+    );
+  }
+  return extras;
+}
+
 /**
  * Descriptors for the active provider + model. Empty = hide the control
  * (Antigravity bakes effort into the model slug).
@@ -366,10 +418,20 @@ export function optionDescriptorsFor(
           "Reasoning",
           labeledChoices(ids, CODEX_EFFORT_LABELS, resolvedDefault)
         ),
+        selectDescriptor(
+          "serviceTier",
+          "Service Tier",
+          labeledChoices(
+            ["standard", "fast"],
+            { fast: "Fast", standard: "Standard" },
+            "standard"
+          )
+        ),
       ];
     }
     case "claudeAgent": {
       const profile = claudeProfile(model);
+      const extras = claudeExtraDescriptors(profile);
       if (profile.thinkingOnly) {
         return [
           {
@@ -378,6 +440,7 @@ export function optionDescriptorsFor(
             type: "boolean",
             currentValue: false,
           },
+          ...extras,
         ];
       }
       return [
@@ -391,6 +454,7 @@ export function optionDescriptorsFor(
           ),
           { promptInjectedValues: ["ultrathink"] }
         ),
+        ...extras,
       ];
     }
     case "cursor": {
@@ -413,6 +477,15 @@ export function optionDescriptorsFor(
             STANDARD_EFFORT_IDS,
             CODEX_EFFORT_LABELS,
             opencodeDefaultVariant(model)
+          )
+        ),
+        selectDescriptor(
+          "agent",
+          "Agent",
+          labeledChoices(
+            ["build", "plan"],
+            { build: "Build", plan: "Plan" },
+            "build"
           )
         ),
       ];
@@ -608,6 +681,36 @@ function claudeCliEffort(
  * Turn persisted selections into headless argv + prompt, matching t3code's
  * dispatch as closely as each CLI allows.
  */
+function resolveCodexServiceTier(
+  selections: readonly ProviderOptionSelection[] | null | undefined
+): string | undefined {
+  const tier = optionSelectionValue(selections, "serviceTier");
+  if (typeof tier === "string") {
+    return tier;
+  }
+  if (optionSelectionValue(selections, "fastMode") === true) {
+    return "fast";
+  }
+  return undefined;
+}
+
+/** Append `[1m]` when the user picked Claude's 1M context window. */
+export function resolveClaudeCliModel(
+  model: string | undefined,
+  selections?: readonly ProviderOptionSelection[] | null
+): string | undefined {
+  if (!model) {
+    return undefined;
+  }
+  if (/\[[^\]]+\]$/.test(model)) {
+    return model;
+  }
+  if (optionSelectionValue(selections, "contextWindow") === "1m") {
+    return `${model}[1m]`;
+  }
+  return model;
+}
+
 export function planHeadlessEffort(
   kind: ProviderDriverKind,
   prompt: string,
@@ -616,68 +719,71 @@ export function planHeadlessEffort(
 ): HeadlessEffortPlan {
   const descriptors = optionDescriptorsFor(kind, model);
   const primary = primaryOptionDescriptor(descriptors);
-  if (!primary) {
-    return { flags: [], prompt, persistedOnly: false };
-  }
-
-  const explicit = optionSelectionValue(selections, primary.id);
 
   if (kind === "codex") {
-    if (typeof explicit !== "string") {
-      return { flags: [], prompt, persistedOnly: false };
+    const flags: string[] = [];
+    const effort = optionSelectionValue(selections, "reasoningEffort");
+    if (typeof effort === "string") {
+      flags.push("--config", `model_reasoning_effort=${effort}`);
     }
-    return {
-      flags: ["--config", `model_reasoning_effort=${explicit}`],
-      prompt,
-      persistedOnly: false,
-    };
+    const tier = resolveCodexServiceTier(selections);
+    if (tier) {
+      flags.push("--config", `service_tier=${tier}`);
+    }
+    return { flags, prompt, persistedOnly: false };
   }
 
   if (kind === "claudeAgent") {
-    if (primary.id === "thinking") {
-      if (typeof explicit !== "boolean") {
-        return { flags: [], prompt, persistedOnly: false };
+    const flags: string[] = [];
+    const settings: Record<string, boolean> = {};
+    let nextPrompt = prompt;
+    if (primary?.id === "thinking") {
+      const thinking = optionSelectionValue(selections, "thinking");
+      if (typeof thinking === "boolean") {
+        settings.alwaysThinkingEnabled = thinking;
       }
-      const settings = JSON.stringify({ alwaysThinkingEnabled: explicit });
-      return { flags: ["--settings", settings], prompt, persistedOnly: false };
+    } else {
+      const explicit = optionSelectionValue(selections, "effort");
+      if (typeof explicit === "string") {
+        const injected = resolvePromptInjectedEffort(descriptors, explicit);
+        if (injected === "ultrathink") {
+          nextPrompt = applyClaudePromptEffortPrefix(prompt, "ultrathink");
+        } else {
+          const cli = claudeCliEffort(model, explicit);
+          if (cli !== null && cli !== undefined) {
+            flags.push("--effort", cli);
+          }
+          if (explicit === "ultracode") {
+            settings.ultracode = true;
+          }
+        }
+      }
     }
-    if (typeof explicit !== "string") {
-      return { flags: [], prompt, persistedOnly: false };
+    if (optionSelectionValue(selections, "fastMode") === true) {
+      settings.fastMode = true;
     }
-    const injected = resolvePromptInjectedEffort(descriptors, explicit);
-    if (injected === "ultrathink") {
-      return {
-        flags: [],
-        prompt: applyClaudePromptEffortPrefix(prompt, "ultrathink"),
-        persistedOnly: false,
-      };
+    if (Object.keys(settings).length > 0) {
+      flags.push("--settings", JSON.stringify(settings));
     }
-    const cli = claudeCliEffort(model, explicit);
-    if (cli === null || cli === undefined) {
-      return { flags: [], prompt, persistedOnly: false };
-    }
-    if (explicit === "ultracode") {
-      return {
-        flags: [
-          "--effort",
-          cli,
-          "--settings",
-          JSON.stringify({ ultracode: true }),
-        ],
-        prompt,
-        persistedOnly: false,
-      };
-    }
-    return { flags: ["--effort", cli], prompt, persistedOnly: false };
+    return { flags, prompt: nextPrompt, persistedOnly: false };
   }
 
   if (kind === "opencode") {
-    if (typeof explicit !== "string") {
-      return { flags: [], prompt, persistedOnly: false };
+    const flags: string[] = [];
+    const variant = optionSelectionValue(selections, "variant");
+    if (typeof variant === "string") {
+      flags.push("--variant", variant);
     }
-    return { flags: ["--variant", explicit], prompt, persistedOnly: false };
+    const agent = optionSelectionValue(selections, "agent");
+    if (typeof agent === "string") {
+      flags.push("--agent", agent);
+    }
+    return { flags, prompt, persistedOnly: false };
   }
 
+  const explicit = primary
+    ? optionSelectionValue(selections, primary.id)
+    : undefined;
   // Cursor / Grok: t3code applies these over ACP. `agent -p` / `grok --prompt`
   // have no documented effort flag, so the pick is stored on the chat only.
   return { flags: [], prompt, persistedOnly: explicit !== undefined };
@@ -697,5 +803,23 @@ export function effortFooterFor(kind: ProviderDriverKind): string {
       return "選択はチャットに保存。grok --prompt の effort フラグは未確定（t3code は ACP）";
     case "antigravity":
       return "Antigravity はモデル slug に High / Medium / Low が含まれる";
+  }
+}
+
+export function optionFooterFor(
+  kind: ProviderDriverKind,
+  optionId: string
+): string {
+  switch (optionId) {
+    case "serviceTier":
+      return "codex exec --config service_tier=…（t3code Codex serviceTier）";
+    case "fastMode":
+      return "claude -p --settings {fastMode:true}（t3code Claude fastMode）";
+    case "contextWindow":
+      return "claude -p --model {slug}[1m]（1M 選択時。t3code contextWindow）";
+    case "agent":
+      return "opencode run --agent …（t3code OpenCode agent）";
+    default:
+      return effortFooterFor(kind);
   }
 }

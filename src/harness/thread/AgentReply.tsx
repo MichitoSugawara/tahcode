@@ -11,7 +11,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
-import { Monogram } from "@/components/atoms/EntityChip";
+import { ProviderMark } from "@/components/atoms/ProviderIcon";
 import LoadingState from "@/components/primitives/LoadingState";
 import ThinkingState from "@/components/primitives/ThinkingState";
 import type { ThinkingRow } from "@/components/primitives/ThinkingState";
@@ -22,7 +22,7 @@ import { useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
 import { registerRuntimeCtaLabel } from "@/lib/desktop";
 import { copyText, clockTime } from "@/lib/format";
-import { providerColor, providerLabel } from "@/lib/providers";
+import { providerLabel } from "@/lib/providers";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -316,12 +316,7 @@ export function AgentReply({
       style={{ animation: "fade-up 450ms cubic-bezier(0.23,1,0.32,1) both" }}
     >
       <header className="mb-2 flex items-center gap-2 text-[12px]">
-        <Monogram
-          color={providerColor(message.driverKind)}
-          className="size-[18px] text-[10px]"
-        >
-          {label.charAt(0)}
-        </Monogram>
+        <ProviderMark kind={message.driverKind} className="size-[18px]" />
         <span className="text-ink font-medium">{label}</span>
         {message.model && (
           <code
