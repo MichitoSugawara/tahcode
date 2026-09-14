@@ -5,6 +5,8 @@ import { v } from "convex/values";
 import {
   chatKind,
   chatVisibility,
+  connectorScope,
+  connectorStatus,
   grantTarget,
   installMethod,
   jobStatus,
@@ -48,6 +50,25 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_org_and_owner_kind", ["orgId", "ownerId", "kind"])
     .index("by_profile", ["profileId"]),
+
+  /* OpenConnector mapping only — never persist OAuth tokens or client secrets.
+   * Tokens live in the OpenConnector worker; this table stores opaque ids. */
+  connectorConnections: defineTable({
+    orgId: v.id("orgs"),
+    userId: v.optional(v.id("users")),
+    scope: connectorScope,
+    provider: v.string(),
+    providerConfigId: v.optional(v.string()),
+    connectedAccountId: v.string(),
+    status: connectorStatus,
+    displayLabel: v.optional(v.string()),
+    lastVerifiedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_and_provider", ["orgId", "provider"])
+    .index("by_user_and_provider", ["userId", "provider"]),
 
   fileTickets: defineTable({
     kind: v.union(v.literal("upload"), v.literal("download")),
