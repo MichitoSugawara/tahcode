@@ -31,6 +31,7 @@ import { exportJWK, importPKCS8 } from "jose";
 
 import {
   parseConvexEnvGetOutput,
+  productionOpenConnectorError,
   productionSiteUrlError,
   resolvePublicSiteUrl,
 } from "./wrangler-classify.mjs";
@@ -163,6 +164,24 @@ function getEnv(name) {
   );
 }
 
+/** Missing Convex vars exit non-zero; treat as empty instead of aborting. */
+function getEnvOptional(name) {
+  const result = spawnSync(
+    "npx",
+    ["convex", "env", "get", ...convexArgs, name],
+    {
+      encoding: "utf-8",
+      env: process.env,
+    }
+  );
+  if (result.status !== 0) {
+    return "";
+  }
+  return parseConvexEnvGetOutput(
+    `${result.stdout ?? ""}${result.stderr ?? ""}`
+  );
+}
+
 function assertEffectiveProductionSiteUrl() {
   if (!isProductionDeploy() || dryRun) {
     return;
@@ -199,9 +218,28 @@ function syncOptionalConnectorEnv() {
     console.log(
       "OPENCONNECTOR_* not in env file; leaving dashboard-configured connector secrets untouched."
     );
+    if (isProductionDeploy() && dryRun) {
+      warn(
+        "OPENCONNECTOR_ADMIN_TOKEN not in production env file; real deploy requires it on Convex."
+      );
+    }
     return;
   }
   console.log(`Synced ${synced.join(" / ")}.`);
+}
+
+function assertProductionOpenConnectorConfigured() {
+  if (!isProductionDeploy() || dryRun) {
+    return;
+  }
+  const token =
+    getEnvOptional("OPENCONNECTOR_ADMIN_TOKEN") ||
+    getEnvOptional("OOMOL_CONNECT_ADMIN_TOKEN");
+  const error = productionOpenConnectorError(token);
+  if (error) {
+    fail(error);
+  }
+  console.log("Verified production OPENCONNECTOR_ADMIN_TOKEN is set.");
 }
 
 const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/$/, "");
@@ -223,6 +261,7 @@ if (!rawPrivateKey.trim()) {
   );
   setEnv("SITE_URL", siteUrl);
   syncOptionalConnectorEnv();
+  assertProductionOpenConnectorConfigured();
   assertEffectiveProductionSiteUrl();
   console.log("Synced SITE_URL only.");
   process.exit(0);
@@ -311,3 +350,4 @@ if (googleId && googleSecret) {
 }
 
 syncOptionalConnectorEnv();
+assertProductionOpenConnectorConfigured();

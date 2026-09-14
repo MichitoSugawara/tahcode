@@ -135,6 +135,30 @@ export function connectorAccountCountLabel(count: number): string | undefined {
   return `${count}アカウント`;
 }
 
+export function connectedConnectorCount(
+  connections: readonly { status: ConnectorStatus }[]
+): number {
+  return connections.filter((row) => row.status === "connected").length;
+}
+
+/**
+ * Grok Bot / Codex / common SaaS: "+ Add another account" only after the
+ * first account is already connected. An empty connector never uses that
+ * framing — the primary CTA is Authorize (marketplace Add starts OAuth).
+ */
+export function shouldShowAddAnotherAccount(
+  connections: readonly { status: ConnectorStatus }[]
+): boolean {
+  return connectedConnectorCount(connections) >= 1;
+}
+
+/** Marketplace row with zero mappings starts OAuth; existing rows open detail. */
+export function shouldStartOauthFromMarketplace(
+  connections: readonly { status: ConnectorStatus }[]
+): boolean {
+  return connections.length === 0;
+}
+
 export function marketplaceConnectorPhase(
   statuses: readonly ConnectorStatus[]
 ): "add" | "connected" | "needsAuth" {
@@ -201,6 +225,22 @@ export const CONNECTOR_CARD_COPY = {
   team: "Team",
   waiting: (name: string) => `${name} の認証を待っています…`,
 } as const;
+
+const CONNECTOR_INFRASTRUCTURE_RE = /openconnector|oomol|workers\.dev|gateway/i;
+
+/** Keep connector toasts on service names — never infrastructure hosts. */
+export function redactConnectorInfrastructure(
+  message?: string
+): string | undefined {
+  const trimmed = message?.trim();
+  if (!trimmed) {
+    return;
+  }
+  if (CONNECTOR_INFRASTRUCTURE_RE.test(trimmed)) {
+    return CONNECTOR_CARD_COPY.notConfigured;
+  }
+  return trimmed;
+}
 
 export function connectorStatusLabel(status: ConnectorStatus): string {
   switch (status) {

@@ -17,7 +17,10 @@ import {
   filterConnectorCatalog,
   marketplaceConnectorPhase,
   providerIconSource,
+  redactConnectorInfrastructure,
   resolveConnectorCardPhase,
+  shouldShowAddAnotherAccount,
+  shouldStartOauthFromMarketplace,
 } from "../src/lib/connectorCard.ts";
 
 describe(resolveConnectorCardPhase, () => {
@@ -115,6 +118,31 @@ describe(connectorAccountTitle, () => {
   });
 });
 
+describe("first Linear connect CTAs", () => {
+  it("starts OAuth at zero rows and shows add-another only after a connected account", () => {
+    expect({
+      emptyStartsOauth: shouldStartOauthFromMarketplace([]),
+      needsAuthOpensDetail: shouldStartOauthFromMarketplace([
+        { status: "needsAuth" },
+      ]),
+      emptyHidesAddAnother: shouldShowAddAnotherAccount([]),
+      needsAuthHidesAddAnother: shouldShowAddAnotherAccount([
+        { status: "needsAuth" },
+      ]),
+      connectedShowsAddAnother: shouldShowAddAnotherAccount([
+        { status: "needsAuth" },
+        { status: "connected" },
+      ]),
+    }).toStrictEqual({
+      emptyStartsOauth: true,
+      needsAuthOpensDetail: false,
+      emptyHidesAddAnother: false,
+      needsAuthHidesAddAnother: false,
+      connectedShowsAddAnother: true,
+    });
+  });
+});
+
 describe(providerIconSource, () => {
   it("prefers iconUrl, then homepage favicon.im — never a custom SVG", () => {
     expect({
@@ -195,6 +223,18 @@ describe("connector card copy", () => {
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
 
+  it("redacts infrastructure names from connector toasts", () => {
+    expect({
+      keep: redactConnectorInfrastructure("ok"),
+      infra: redactConnectorInfrastructure(
+        "OpenConnector request failed (401)"
+      ),
+    }).toStrictEqual({
+      keep: "ok",
+      infra: CONNECTOR_CARD_COPY.notConfigured,
+    });
+  });
+
   it("labels Convex statuses for the card badge", () => {
     const statuses: ConnectorStatus[] = [
       "connected",
@@ -249,7 +289,9 @@ describe("connector marketplace layout", () => {
       centered: pane.includes("flex items-center gap-3"),
       complete: pane.includes("completeLinearConnect"),
       accounts: pane.includes("connector-detail-accounts"),
-      addAnother: pane.includes("addAnotherAccount"),
+      addAnother: pane.includes("shouldShowAddAnotherAccount"),
+      firstOauth: pane.includes("shouldStartOauthFromMarketplace"),
+      redact: pane.includes("redactConnectorInfrastructure"),
       rename: pane.includes("connectorConnections.rename"),
       remove: pane.includes("connectorConnections.remove"),
       pencil: pane.includes("Pencil"),
@@ -264,6 +306,8 @@ describe("connector marketplace layout", () => {
       accounts: true,
       actions: true,
       addAnother: true,
+      firstOauth: true,
+      redact: true,
       assign: true,
       pencil: true,
       remove: true,

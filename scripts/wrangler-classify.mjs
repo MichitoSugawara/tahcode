@@ -218,6 +218,24 @@ export function productionSiteUrlError(
 }
 
 /**
+ * Production Linear OAuth / invokeConnector need the admin token on Convex.
+ * Preview syncs it from .env.preview; production deploys that omit it leave
+ * Convex unconfigured and first-connect cannot start.
+ */
+export function productionOpenConnectorError(adminToken) {
+  const token = typeof adminToken === "string" ? adminToken.trim() : "";
+  if (token) {
+    return null;
+  }
+  return (
+    "production Convex is missing OPENCONNECTOR_ADMIN_TOKEN; " +
+    "Linear OAuth and connector tools cannot run. " +
+    "Add OPENCONNECTOR_ADMIN_TOKEN to .env.production " +
+    "(preview already syncs this from .env.preview)."
+  );
+}
+
+/**
  * Last http(s) line from `npx convex env get SITE_URL` (CLI may print banners).
  */
 export function parseConvexEnvGetOutput(output) {

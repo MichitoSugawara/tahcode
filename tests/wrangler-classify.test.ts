@@ -18,6 +18,7 @@ import {
   parseCloudflareUrl,
   parseConvexEnvGetOutput,
   previewSkipReason,
+  productionOpenConnectorError,
   productionSiteUrlError,
   readEnvPresence,
   resolvePublicSiteUrl,
@@ -342,6 +343,13 @@ describe("URL and env helpers", () => {
     ).toMatch(/workers\.dev/);
   });
 
+  it("requires an OpenConnector admin token on production Convex", () => {
+    expect(productionOpenConnectorError("oc-admin")).toBeNull();
+    expect(productionOpenConnectorError("")).toMatch(
+      /OPENCONNECTOR_ADMIN_TOKEN/
+    );
+  });
+
   it("reads the URL from convex env get output even with banners", () => {
     expect(parseConvexEnvGetOutput("✔ Connected\nhttps://tahcode.com/\n")).toBe(
       "https://tahcode.com"
@@ -443,6 +451,28 @@ describe("deploy-stack auth SITE_URL", () => {
     expect(result.status).toBe(0);
     expect(`${result.stdout}${result.stderr}`).toContain(
       "OPENCONNECTOR_ADMIN_TOKEN"
+    );
+  });
+
+  it("warns on production dry-run when OpenConnector admin token is missing", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/sync-convex-auth-env.mjs"],
+      {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CONVEX_ENV_ARGS: "--prod",
+          DEPLOY_NAME: "production",
+          DRY_RUN: "1",
+          JWT_PRIVATE_KEY: "",
+          SITE_URL: "https://tahcode.com",
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(
+      /OPENCONNECTOR_ADMIN_TOKEN not in production env file/
     );
   });
 

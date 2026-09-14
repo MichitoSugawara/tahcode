@@ -11,6 +11,7 @@ import {
   isOpenConnectorConfigured,
   linearDisplayLabel,
   readOpenConnectorEnv,
+  resolveLinearReturnSiteUrl,
   startLinearConnectionRequest,
 } from "../shared/openConnector.ts";
 import { internal } from "./_generated/api";
@@ -25,7 +26,7 @@ const LINEAR_PROVIDER = "linear";
 
 type StartLinearConnectResult = {
   authorizeUrl: string | null;
-  connectionId: Id<"connectorConnections">;
+  connectionId: Id<"connectorConnections"> | null;
   ready: boolean;
   reason: "oauth_not_configured" | "started";
 };
@@ -48,6 +49,7 @@ export const startLinearConnect = action({
   args: {
     connectionId: v.optional(v.id("connectorConnections")),
     orgId: v.id("orgs"),
+    returnOrigin: v.optional(v.string()),
     scope: connectorScope,
   },
   handler: async (ctx, args): Promise<StartLinearConnectResult> => {
@@ -61,21 +63,16 @@ export const startLinearConnect = action({
       }
     );
     const provider = normalizeConnectorProvider(LINEAR_PROVIDER);
-    const config = readOpenConnectorEnv(process.env);
+    const envConfig = readOpenConnectorEnv(process.env);
+    const siteUrl = resolveLinearReturnSiteUrl({
+      envSiteUrl: envConfig.siteUrl,
+      requestedOrigin: args.returnOrigin,
+    });
+    const config = siteUrl ? { ...envConfig, siteUrl } : envConfig;
     if (!isOpenConnectorConfigured(config)) {
-      const connectionId: Id<"connectorConnections"> = await ctx.runMutation(
-        internal.connectorConnectHelpers.markNeedsAuth,
-        {
-          connectionId: args.connectionId,
-          orgId: args.orgId,
-          provider,
-          scope: args.scope,
-          userId,
-        }
-      );
       return {
         authorizeUrl: null,
-        connectionId,
+        connectionId: null,
         ready: false,
         reason: "oauth_not_configured",
       };
@@ -113,7 +110,7 @@ export const startLinearConnect = action({
   },
   returns: v.object({
     authorizeUrl: v.union(v.string(), v.null()),
-    connectionId: v.id("connectorConnections"),
+    connectionId: v.union(v.id("connectorConnections"), v.null()),
     ready: v.boolean(),
     reason: v.union(v.literal("oauth_not_configured"), v.literal("started")),
   }),
