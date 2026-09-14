@@ -13,6 +13,7 @@ import { DialogHost } from "@/harness/dialogs/DialogHost";
 import { OrgProvider } from "@/harness/OrgContext";
 import type { Me, OrgSummary } from "@/harness/OrgContext";
 import { Shell } from "@/harness/Shell";
+import { isOrgFullWidthPath } from "@/lib/orgPaths";
 import type { Theme } from "@/lib/theme";
 
 import { api } from "../../convex/_generated/api";
@@ -69,14 +70,14 @@ export default function OrgLayout({
     return <Navigate to={`/o/${orgs[0]!.slug}`} replace />;
   }
 
-  const settings = location.pathname.startsWith(`/o/${org.slug}/settings`);
+  const fullWidth = isOrgFullWidthPath(location.pathname, org.slug);
 
   return (
     <OrgProvider key={String(org._id)} me={me} orgs={orgs} org={org}>
       <Shell
         theme={theme}
         onToggleTheme={onToggleTheme}
-        rail={!settings}
+        rail={!fullWidth}
         railDefaultTab={chatId ? "Context" : "Runtime"}
       >
         <Outlet />

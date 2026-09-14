@@ -8,6 +8,7 @@ import {
   Menu,
   MessageSquare,
   PanelRight,
+  Plug,
   Plus,
   Search,
   SquarePen,
@@ -37,6 +38,7 @@ import {
   roleLabel,
   truncate,
 } from "@/lib/format";
+import { orgConnectorsPath } from "@/lib/orgPaths";
 import type { Theme } from "@/lib/theme";
 
 import type { Id } from "../../convex/_generated/dataModel";
@@ -59,6 +61,9 @@ function useSidebarModel() {
   const onSettings = location.pathname.startsWith(
     `/o/${org.org.slug}/settings`
   );
+  const onConnectors =
+    location.pathname === orgConnectorsPath(org.org.slug) ||
+    location.pathname.startsWith(`${orgConnectorsPath(org.org.slug)}/`);
 
   const liveCount = (org.runtimes ?? []).filter((runtime) =>
     isLive(runtime, org.now)
@@ -87,6 +92,13 @@ function useSidebarModel() {
       key: "invite",
       label: "メンバーを招待",
       onClick: () => org.openDialog({ kind: "invite" }),
+    },
+    {
+      active: onConnectors,
+      icon: <Plug size={17} />,
+      key: "connectors",
+      label: "コネクタ",
+      onClick: org.goConnectors,
     },
     {
       active: onSettings,
@@ -209,6 +221,7 @@ function Sidebar({
       }}
       onNewWorkspace={() => org.openDialog({ kind: "createOrg" })}
       onWorkspaceSettings={wrap(org.goSettings)}
+      onConnectors={wrap(org.goConnectors)}
       onInvite={
         org.isAdmin ? () => org.openDialog({ kind: "invite" }) : undefined
       }
@@ -354,7 +367,7 @@ export function Shell({
   theme: Theme;
   onToggleTheme: () => void;
   children: ReactNode;
-  /** show the docked right rail (chat + home); settings runs full-width */
+  /** show the docked right rail (chat + home); settings and connectors run full-width */
   rail: boolean;
   railDefaultTab?: RailTab;
 }) {

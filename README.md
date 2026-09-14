@@ -75,7 +75,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 1. **Auth** — `/login`（ログイン / 新規登録の切替）。メール＋パスワード、または **Google で続ける**（OAuth 設定時のみ有効）。`?next=` で招待リンクへ戻る（Google 経由でも維持）。入力検証と失敗メッセージは日本語（空欄・形式不正・8 文字未満・確認不一致・パスワード相違・登録済みメール・ネットワーク断・セッション未確立）。サインアウトはワークスペースメニュー
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
-3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・招待・テーマ・サインアウト）、`/o/:slug/settings`
+3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・コネクタ・招待・テーマ・サインアウト）、`/o/:slug/settings`。コネクタは専用面 `/o/:slug/connectors`（Org 設定の一節ではない）
 4. **プロジェクト作成** — Multica 型ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ）。作成すると「General」チャットが開く
 5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル + 推論レベル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
@@ -255,11 +255,11 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 
 PR preview では Google OAuth が使えない（ephemeral な workers.dev / alias を Google Cloud に登録していない）。レビュー用に、preview と staging のデプロイ末尾が次のパスワードユーザーを **create or reset** する:
 
-| 項目       | 値                                                       |
-| ---------- | -------------------------------------------------------- |
-| Email      | `test@test.com`                                          |
-| Password   | `test1234`                                               |
-| ログイン後 | `/o/preview/settings#connectors`（Owner の Preview org） |
+| 項目       | 値                                              |
+| ---------- | ----------------------------------------------- |
+| Email      | `test@test.com`                                 |
+| Password   | `test1234`                                      |
+| ログイン後 | `/o/preview/connectors`（Owner の Preview org） |
 
 CI の PR コメントにも同じ資格情報を書く。`SITE_URL` が `https://tahcode.com` のデプロイ、および `convex run --prod` ではシードは拒否される。
 

@@ -7,6 +7,7 @@ import {
   PanelLeft,
   Plus,
   Search,
+  Plug,
   Settings,
   Sun,
   UserPlus,
@@ -81,6 +82,7 @@ interface SidebarNavProps {
   onSwitchWorkspace?: (id: string) => void;
   onNewWorkspace?: () => void;
   onWorkspaceSettings?: () => void;
+  onConnectors?: () => void;
   onInvite?: () => void;
   onSignOut?: () => void;
   extraMenuItems?: {
@@ -219,6 +221,7 @@ function UserMenu({
   position,
   onClose,
   onSettings,
+  onConnectors,
   onSignOut,
   theme,
   onToggleTheme,
@@ -226,6 +229,7 @@ function UserMenu({
   position: { bottom: number; left: number };
   onClose: () => void;
   onSettings?: () => void;
+  onConnectors?: () => void;
   onSignOut?: () => void;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
@@ -246,6 +250,14 @@ function UserMenu({
       key: "settings",
       label: "設定",
       onClick: onSettings,
+    });
+  }
+  if (onConnectors) {
+    items.push({
+      icon: <Plug size={16} />,
+      key: "connectors",
+      label: "コネクタ",
+      onClick: onConnectors,
     });
   }
   if (onToggleTheme) {
@@ -318,6 +330,7 @@ function WorkspaceMenu({
   onSwitchWorkspace,
   onNewWorkspace,
   onWorkspaceSettings,
+  onConnectors,
   onInvite,
   onSignOut,
   extraMenuItems,
@@ -330,6 +343,7 @@ function WorkspaceMenu({
   | "onSwitchWorkspace"
   | "onNewWorkspace"
   | "onWorkspaceSettings"
+  | "onConnectors"
   | "onInvite"
   | "onSignOut"
   | "extraMenuItems"
@@ -353,6 +367,11 @@ function WorkspaceMenu({
       icon: <Settings size={16} />,
       label: "Org 設定",
       onClick: onWorkspaceSettings,
+    },
+    onConnectors && {
+      icon: <Plug size={16} />,
+      label: "コネクタ",
+      onClick: onConnectors,
     },
     onInvite && {
       icon: <UserPlus size={16} />,
@@ -484,6 +503,7 @@ export default function SidebarNav({
   onSwitchWorkspace,
   onNewWorkspace,
   onWorkspaceSettings,
+  onConnectors,
   onInvite,
   onSignOut,
   extraMenuItems,
@@ -664,6 +684,7 @@ export default function SidebarNav({
               onSwitchWorkspace={onSwitchWorkspace}
               onNewWorkspace={onNewWorkspace}
               onWorkspaceSettings={onWorkspaceSettings}
+              onConnectors={onConnectors}
               onInvite={onInvite}
               onSignOut={onSignOut}
               extraMenuItems={extraMenuItems}
@@ -937,6 +958,7 @@ export default function SidebarNav({
                 position={userPosition}
                 onClose={() => setUserOpen(false)}
                 onSettings={onWorkspaceSettings}
+                onConnectors={onConnectors}
                 onSignOut={onSignOut}
                 theme={theme}
                 onToggleTheme={onToggleTheme}

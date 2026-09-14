@@ -155,6 +155,32 @@ describe("connectorConnections CRUD", () => {
     );
   });
 
+  it("accepts optional oauthAlias / oauthRequestId written by the OAuth branch", async () => {
+    const t = fresh();
+    const { alice, orgA } = await seedOrg(t);
+    const connectionId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("connectorConnections", {
+          connectedAccountId: "ca_pending-linear",
+          createdBy: alice,
+          orgId: orgA,
+          oauthAlias: "linear:org:preview",
+          oauthRequestId: "req_preview",
+          provider: "linear",
+          scope: "org",
+          status: "needsAuth",
+          updatedAt: 1,
+        })
+    );
+    const row = await t.run(
+      async (ctx) => await ctx.db.get("connectorConnections", connectionId)
+    );
+    expect(row).toMatchObject({
+      oauthAlias: "linear:org:preview",
+      oauthRequestId: "req_preview",
+    });
+  });
+
   it("lets a member upsert and disconnect their own user-scoped row", async () => {
     const t = fresh();
     const { member, memberCtx, orgA } = await seedOrg(t);

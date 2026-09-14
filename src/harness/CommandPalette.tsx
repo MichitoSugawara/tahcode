@@ -148,18 +148,17 @@ export function CommandPalette({
       {
         icon: <Settings size={14} />,
         key: "settings",
-        keywords:
-          "settings 設定 members runtimes skills スキル プロファイル connectors コネクタ",
+        keywords: "settings 設定 members runtimes skills スキル プロファイル",
         label: "Org 設定",
         onSelect: run(org.goSettings),
       },
       {
-        hint: "#connectors",
+        hint: "/connectors",
         icon: <Plug size={14} />,
         key: "connectors",
         keywords: "connectors linear コネクタ 連携 oauth",
         label: "コネクタ",
-        onSelect: run(() => org.goSettings("connectors")),
+        onSelect: run(org.goConnectors),
       },
       {
         hint: "#skills",
