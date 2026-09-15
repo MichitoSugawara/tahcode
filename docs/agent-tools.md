@@ -16,7 +16,7 @@ tahcode 上で動いているエージェント（ジョブ中のハーネス CL
 | `TAHCODE_JOB_ID`     | 実行中ジョブ            |
 | `TAHCODE_LEASE_ID`   | ジョブのリース          |
 
-Linear 課題ツールは同じ CLI から `tahcode tool list_linear_issues` で呼び、Convex は `agentTools:invokeConnector` に届く（ops の `invoke` と同じ認証）。
+コネクタ Action ツールは同じ CLI から `tahcode tool list_linear_issues` などで呼び、Convex は `agentTools:invokeConnector` に届く（ops の `invoke` と同じ認証）。定義の正本は [connector Action catalog（TAH-65）](connector-action-tools.md)。
 
 呼び出し:
 
@@ -58,9 +58,10 @@ Cursor の `agent -p` には `--mcp-config` が無いので、ツールはシェ
 | `search_linear_issues` | 同上の全文検索 |
 | `create_linear_issue` | 課題作成（`teamId` + `title`） |
 | `update_linear_issue` | 課題更新（`issueId`） |
+| `list_linear_teams` | 同上のチーム一覧（`create_linear_issue` の `teamId` 用。カタログ行のみで追加） |
 
 会話中のカードは `/o/:slug/connectors` と同じ `connectorConnections` を見る。UI からの明示トリガーは `/connect`（同じ `messages.suggestConnector`）。キーワード検出はしない。
 
-Linear の 4 ツールは `@linear` / `@linear/<slug>` があるジョブだけでカタログと MCP に載る。Claude では注入サーバ `tahcode-linear-<last8>`、ほかのハーネスでは `tahcode tool`。トークンは Convex action 側に残す。
+Linear ツールは `@linear` / `@linear/<slug>` があるジョブだけでカタログと MCP に載る。Claude では注入サーバ `tahcode-linear-<last8>`、ほかのハーネスでは `tahcode tool`。どちらも同じ catalog materialize。トークンは Convex action 側に残す。
 
 他 Org の id を渡した場合は、その Org のメンバーであり、かつ既存の可視ルールを満たすときだけ通ります。メンバーでない Org や非公開プロジェクト／プライベートチャットは拒否します。

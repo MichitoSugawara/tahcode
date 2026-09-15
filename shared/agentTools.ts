@@ -1,12 +1,12 @@
 import { STALE_CLI_TOOL_PROMPT_HINT } from "./cliVersion.ts";
 import {
-  LINEAR_AGENT_TOOLS,
-  isLinearAgentToolName,
-} from "./linearAgentTools.ts";
+  isConnectorActionToolName,
+  materializeConnectorTools,
+} from "./connectorActionCatalog.ts";
 import type {
-  LinearAgentToolDefinition,
-  LinearAgentToolName,
-} from "./linearAgentTools.ts";
+  ConnectorActionToolName,
+  ConnectorToolDefinition,
+} from "./connectorActionCatalog.ts";
 import { jobMcpCliFlags } from "./opsMcp.ts";
 
 /**
@@ -17,8 +17,9 @@ import { jobMcpCliFlags } from "./opsMcp.ts";
  * (names + descriptions only) and `tahcode tool` / an optional stdio host
  * call Convex `agentTools:invoke` with the runtime token + job lease. Skill
  * bodies are never inlined here. Connector tools read tahcode
- * `connectorConnections`. TAH-54 injects Linear issue tools on the same
- * MCP plan (`shared/opsMcp.ts`) when the prompt mentions `@linear`.
+ * `connectorConnections`. TAH-65 materializes catalogued connector Actions
+ * onto the same MCP plan (`shared/opsMcp.ts`) when the prompt mentions a
+ * connected account (`@linear` today).
  */
 
 export const BRIDGE_CAPABILITY_AGENT_TOOLS = "agentTools";
@@ -39,11 +40,11 @@ export const AGENT_TOOL_NAMES = [
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
-export type InvocableToolName = AgentToolName | LinearAgentToolName;
+export type InvocableToolName = AgentToolName | ConnectorActionToolName;
 
 export type CatalogToolDefinition =
   | AgentToolDefinition
-  | LinearAgentToolDefinition;
+  | ConnectorToolDefinition;
 
 export const AGENT_TOOL_ENV = {
   CONNECTOR_CONNECTION_ID: "TAHCODE_CONNECTOR_CONNECTION_ID",
@@ -232,7 +233,7 @@ export function isAgentToolName(value: string): value is AgentToolName {
 }
 
 export function isInvocableToolName(value: string): value is InvocableToolName {
-  return isAgentToolName(value) || isLinearAgentToolName(value);
+  return isAgentToolName(value) || isConnectorActionToolName(value);
 }
 
 export function parseInjectedConnectorsEnv(
@@ -269,13 +270,26 @@ export function formatInjectedConnectorsEnv(
     .join(",");
 }
 
+export function catalogConnectorProviders(options?: {
+  includeLinear?: boolean;
+  providers?: readonly string[];
+}): string[] {
+  const providers = new Set(options?.providers ?? []);
+  if (options?.includeLinear) {
+    providers.add("linear");
+  }
+  return [...providers];
+}
+
 export function catalogTools(options?: {
   includeLinear?: boolean;
+  providers?: readonly string[];
 }): readonly CatalogToolDefinition[] {
-  if (options?.includeLinear) {
-    return [...AGENT_TOOLS, ...LINEAR_AGENT_TOOLS];
+  const providers = catalogConnectorProviders(options);
+  if (providers.length < 1) {
+    return AGENT_TOOLS;
   }
-  return AGENT_TOOLS;
+  return [...AGENT_TOOLS, ...materializeConnectorTools(providers)];
 }
 
 export function agentToolDefinition(
@@ -286,6 +300,7 @@ export function agentToolDefinition(
 
 export function formatAgentToolCatalog(options?: {
   includeLinear?: boolean;
+  providers?: readonly string[];
 }): string {
   const lines = catalogTools(options).map(
     (tool) => `- ${tool.name}: ${tool.description}`
@@ -294,9 +309,12 @@ export function formatAgentToolCatalog(options?: {
     "tahcode tools (invoke with `tahcode tool <name> --args '{...}'` while this job runs; names and descriptions only — do not inline skill bodies):",
     ...lines,
   ];
-  if (options?.includeLinear) {
+  const providers = catalogConnectorProviders(options);
+  if (providers.length > 0) {
     header.push(
-      "Linear issue tools use the tahcode-owned `@linear` connector for this job, not Cursor marketplace MCP."
+      providers.includes("linear") && providers.length === 1
+        ? "Linear issue tools use the tahcode-owned `@linear` connector for this job, not Cursor marketplace MCP."
+        : "Connector tools use the tahcode-owned mentioned connectors for this job, not Cursor marketplace MCP."
     );
   }
   header.push(STALE_CLI_TOOL_PROMPT_HINT);

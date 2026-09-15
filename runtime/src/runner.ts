@@ -469,7 +469,10 @@ async function executeJob(
     job.opsBundle?.connectors ?? [],
     job.opsBundle?.mentionedConnectors ?? []
   );
-  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix(injectedConnections.length > 0)}${opsSuffix}`;
+  const injectedProviders = [
+    ...new Set(injectedConnections.map((row) => row.provider)),
+  ];
+  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix(false, injectedProviders)}${opsSuffix}`;
   const toolAuth = {
     jobId: job._id,
     leaseId: job.leaseId,

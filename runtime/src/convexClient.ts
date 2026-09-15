@@ -1,7 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 
+import { isConnectorActionToolName } from "../../shared/connectorActionCatalog.ts";
 import { convexSiteUrl } from "../../shared/convexUrls.ts";
-import { isLinearAgentToolName } from "../../shared/linearAgentTools.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import type {
@@ -158,7 +158,7 @@ export class RuntimeClient {
     runtimeId: string;
     token: string;
   }): Promise<{ name: string; resultJson: string }> {
-    if (isLinearAgentToolName(input.name)) {
+    if (isConnectorActionToolName(input.name)) {
       return await this.client.action(
         "agentTools:invokeConnector" as never,
         input as never

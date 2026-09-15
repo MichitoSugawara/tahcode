@@ -1,3 +1,7 @@
+import {
+  hasConnectorActions,
+  materializeConnectorTools,
+} from "./connectorActionCatalog.ts";
 import { selectInjectedConnections } from "./connectorMentions.ts";
 import type { ConnectorScope, ConnectorStatus } from "./connectors.ts";
 import { parseMentions } from "./mentions.ts";
@@ -10,8 +14,9 @@ import { parseMentions } from "./mentions.ts";
  * has no equivalent flag today — tools stay on `tahcode tool` + the prompt
  * catalog (do not fall back to Cursor marketplace MCP).
  *
- * TAH-54 rides `resolveConnectorMcpServer`: inject Linear tools from
- * tahcode `connectorConnections` when the prompt mentions `@linear`.
+ * TAH-65 rides `resolveConnectorMcpServer`: inject catalogued connector
+ * Actions from tahcode `connectorConnections` when the prompt mentions
+ * that provider (`@linear` today).
  */
 
 export const JOB_MCP_CONFIG_FILENAME = "tahcode-mcp.json";
@@ -167,10 +172,10 @@ export function connectorMcpServerName(
 }
 
 /**
- * Linear (and later other connector) MCP host. Only `linear` + `connected`
- * returns a spec. Mention filtering happens in `buildJobMcpConfig` /
- * `planJobMcpServers` so disconnected or unmentioned accounts stay off
- * the Claude `--mcp-config` file.
+ * Connector MCP host. A spec is returned when the provider has catalogued
+ * Actions and the mapping is `connected`. Mention filtering happens in
+ * `buildJobMcpConfig` / `planJobMcpServers` so disconnected or unmentioned
+ * accounts stay off the Claude `--mcp-config` file.
  *
  * The command is rewritten to the job's `tahcode tool-mcp` host so tokens
  * never go in the prompt — Convex `agentTools:invokeConnector` holds them.
@@ -178,7 +183,10 @@ export function connectorMcpServerName(
 export function resolveConnectorMcpServer(
   connection: JobConnectorSnapshot
 ): JobMcpServerSpec | null {
-  if (connection.provider !== "linear" || connection.status !== "connected") {
+  if (
+    connection.status !== "connected" ||
+    !hasConnectorActions(connection.provider)
+  ) {
     return null;
   }
   return {
@@ -343,9 +351,24 @@ export function formatJobOpsPromptSuffix(bundle: JobOpsBundle): string {
   const injected = bundle.mcp.servers.filter(
     (server) => server.kind === "connector" && server.inject
   );
-  if (injected.length > 0) {
+  const injectedProviders = [
+    ...new Set(
+      injected
+        .map((server) => server.provider)
+        .filter((provider): provider is string => Boolean(provider))
+    ),
+  ];
+  const connectorTools = materializeConnectorTools(injectedProviders);
+  if (connectorTools.length > 0) {
+    const names = connectorTools
+      .map((tool) => `\`tahcode tool ${tool.name}\``)
+      .join(" / ");
+    const label =
+      injectedProviders.length === 1 && injectedProviders[0] === "linear"
+        ? "Linear issue tools for mentioned `@linear` accounts"
+        : "Connector tools for mentioned accounts";
     lines.push(
-      "Linear issue tools for mentioned `@linear` accounts: `tahcode tool list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue` (same Convex invoke as ops tools; Claude also has them on the injected MCP server). Not Cursor marketplace MCP."
+      `${label}: ${names} (same Convex invoke as ops tools; Claude also has them on the injected MCP server). Not Cursor marketplace MCP.`
     );
   } else {
     lines.push(

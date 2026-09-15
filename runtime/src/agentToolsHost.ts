@@ -19,7 +19,7 @@ import type {
   InvocableToolName,
 } from "../../shared/agentTools.ts";
 import { classifyToolSubcommandOutput } from "../../shared/cliVersion.ts";
-import { LINEAR_AGENT_TOOLS } from "../../shared/linearAgentTools.ts";
+import { materializeConnectorTools } from "../../shared/connectorActionCatalog.ts";
 import type {
   JobConnectorSnapshot,
   MentionedConnector,
@@ -97,8 +97,11 @@ exec ${posixShellQuote(input.nodePath)} ${posixShellQuote(input.cliEntry)} "$@"
   return bin;
 }
 
-export function agentToolsPromptSuffix(includeLinear = false): string {
-  return formatAgentToolCatalog({ includeLinear });
+export function agentToolsPromptSuffix(
+  includeLinear = false,
+  providers?: readonly string[]
+): string {
+  return formatAgentToolCatalog({ includeLinear, providers });
 }
 
 export function probeToolSubcommand(command: readonly string[]): {
@@ -122,12 +125,18 @@ export function probeToolSubcommand(command: readonly string[]): {
   return { output, status: classifyToolSubcommandOutput(output) };
 }
 
-function jobIncludesLinearTools(): boolean {
-  return (
-    parseInjectedConnectorsEnv(process.env[AGENT_TOOL_ENV.INJECTED_CONNECTORS])
-      .length > 0 ||
-    Boolean(process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim())
-  );
+function jobConnectorProviders(): string[] {
+  const injected = parseInjectedConnectorsEnv(
+    process.env[AGENT_TOOL_ENV.INJECTED_CONNECTORS]
+  ).map((row) => row.provider);
+  const bound = process.env[AGENT_TOOL_ENV.CONNECTOR_PROVIDER]?.trim();
+  const providers = new Set(injected);
+  if (bound) {
+    providers.add(bound);
+  } else if (process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim()) {
+    providers.add("linear");
+  }
+  return [...providers];
 }
 
 export async function runAgentToolCli(input: {
@@ -141,10 +150,10 @@ export async function runAgentToolCli(input: {
     );
     return 2;
   }
-  const includeLinear = jobIncludesLinearTools();
-  const tools = catalogTools({ includeLinear });
+  const providers = jobConnectorProviders();
+  const tools = catalogTools({ providers });
   if (!input.name) {
-    console.log(formatAgentToolCatalog({ includeLinear }));
+    console.log(formatAgentToolCatalog({ providers }));
     console.log("");
     console.log('例: tahcode tool list_sessions --args \'{"orgId":"…"}\'');
     return 0;
@@ -174,8 +183,12 @@ export async function runAgentToolMcp(): Promise<void> {
     throw new Error("Missing TAHCODE_JOB_* environment for tool-mcp");
   }
   const boundId = process.env[AGENT_TOOL_ENV.CONNECTOR_CONNECTION_ID]?.trim();
-  const tools = boundId ? LINEAR_AGENT_TOOLS : AGENT_TOOLS;
-  const serverName = boundId ? "tahcode-linear" : "tahcode";
+  const boundProvider =
+    process.env[AGENT_TOOL_ENV.CONNECTOR_PROVIDER]?.trim() || "linear";
+  const tools = boundId
+    ? materializeConnectorTools(boundProvider)
+    : AGENT_TOOLS;
+  const serverName = boundId ? `tahcode-${boundProvider}` : "tahcode";
   let buffer = "";
   const invoke = async (name: string, args: Record<string, unknown>) => {
     if (!tools.some((tool) => tool.name === name)) {
