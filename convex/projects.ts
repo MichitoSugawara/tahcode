@@ -10,13 +10,30 @@ import {
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { slugify } from "./lib/ids";
+import type { ProjectFolderRow } from "./lib/projectFolders";
+import {
+  assertRuntimeInOrg,
+  foldersByProject,
+  listFoldersForOrg,
+  listFoldersForProject,
+  upsertProjectRuntimeFolder,
+} from "./lib/projectFolders";
 import { requireOrgProfile } from "./lib/skills";
-import { projectSummary, userSummary, visibility } from "./lib/validators";
+import {
+  projectRuntimeFolder,
+  projectSummary,
+  userSummary,
+  visibility,
+} from "./lib/validators";
 
-export function summarizeProject(project: Doc<"projects">) {
+export function summarizeProject(
+  project: Doc<"projects">,
+  folders: ProjectFolderRow[] = []
+) {
   return {
     _id: project._id,
     cwd: project.cwd,
+    folders,
     name: project.name,
     orgId: project.orgId,
     profileId: project.profileId,
@@ -29,6 +46,7 @@ export function summarizeProject(project: Doc<"projects">) {
 export const create = authedMutation({
   args: {
     cwd: v.optional(v.string()),
+    folders: v.optional(v.array(projectRuntimeFolder)),
     name: v.string(),
     orgId: v.id("orgs"),
     repoUrl: v.optional(v.string()),
@@ -43,12 +61,20 @@ export const create = authedMutation({
     if (name.length < 1) {
       throw new Error("Project name is required");
     }
+    const folders = args.folders ?? [];
+    if (folders.length > 50) {
+      throw new Error("Too many machine folders");
+    }
+    for (const folder of folders) {
+      await assertRuntimeInOrg(ctx, folder.runtimeId, args.orgId);
+    }
+    const firstMapped = folders[0]?.cwd.trim();
     const projectId = await ctx.db.insert("projects", {
       orgId: args.orgId,
       name,
       slug: `${slugify(name)}-${Math.floor(1000 + Math.random() * 9000)}`,
       visibility: args.visibility,
-      cwd: args.cwd,
+      cwd: args.cwd ?? (firstMapped || undefined),
       repoUrl: args.repoUrl,
       createdBy: ctx.user._id,
     });
@@ -56,6 +82,15 @@ export const create = authedMutation({
       projectId,
       userId: ctx.user._id,
     });
+    for (const folder of folders) {
+      await upsertProjectRuntimeFolder(ctx, {
+        cwd: folder.cwd,
+        mappedBy: ctx.user._id,
+        orgId: args.orgId,
+        projectId,
+        runtimeId: folder.runtimeId,
+      });
+    }
     return projectId;
   },
   returns: v.id("projects"),
@@ -88,7 +123,11 @@ export const list = authedQuery({
         visible.push(project);
       }
     }
-    return visible.map(summarizeProject);
+    const folderRows = await listFoldersForOrg(ctx, args.orgId);
+    const grouped = foldersByProject(folderRows);
+    return visible.map((project) =>
+      summarizeProject(project, grouped.get(String(project._id)) ?? [])
+    );
   },
   returns: v.array(projectSummary),
 });
@@ -109,7 +148,10 @@ export const get = authedQuery({
     } catch {
       return null;
     }
-    return summarizeProject(project);
+    return summarizeProject(
+      project,
+      await listFoldersForProject(ctx, args.projectId)
+    );
   },
   returns: v.union(projectSummary, v.null()),
 });
@@ -209,4 +251,36 @@ export const setProfile = authedMutation({
     return null;
   },
   returns: v.null(),
+});
+
+export const setRuntimeFolder = authedMutation({
+  args: {
+    cwd: v.string(),
+    projectId: v.id("projects"),
+    runtimeId: v.id("runtimes"),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    await assertRuntimeInOrg(ctx, args.runtimeId, project.orgId);
+    const cwd = await upsertProjectRuntimeFolder(ctx, {
+      cwd: args.cwd,
+      mappedBy: ctx.user._id,
+      orgId: project.orgId,
+      projectId: args.projectId,
+      runtimeId: args.runtimeId,
+    });
+    if (!project.cwd) {
+      await ctx.db.patch("projects", args.projectId, { cwd });
+    }
+    return { cwd };
+  },
+  returns: v.object({ cwd: v.string() }),
 });

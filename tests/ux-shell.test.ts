@@ -194,6 +194,58 @@ describe("shell source contracts", () => {
     expect(invite).toContain("normalizeOptionalEmail");
   });
 
+  it("mounts the composer context bar instead of a runtime picker", () => {
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
+    expect(composer).toContain("data-composer-shell");
+    expect(composer).toContain("embedded");
+    expect(composer).not.toContain('id: "runtime"');
+    expect(bar).toContain("data-composer-context-bar");
+    expect(bar).toContain("rounded-t-[22px]");
+  });
+
+  it("exposes project, machine, and branch on the context bar", () => {
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
+    expect(bar).toContain("プロジェクトを選択");
+    expect(bar).toContain("マシンを選択");
+    expect(bar).toContain("ブランチを選択");
+    expect(bar).toContain("evaluateComposerBranchApply");
+    expect(bar).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
+  it("does not treat a branch pick as checked out", () => {
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    expect(bar).not.toContain("onChange={org.setComposerBranch}");
+    expect(bar).toContain("data-composer-branch-error");
+    expect(composer).toContain("disabled: catalogLocked");
+    expect(composer).toContain("COMPOSER_CATALOG_OFFLINE_MESSAGE");
+    expect(composer).not.toContain("別のモデルも指名できます");
+  });
+
+  it("keeps offline catalog copy even when /new hides decorative hints", () => {
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const catalog = composer.indexOf("} else if (catalogLocked) {");
+    const hide = composer.indexOf("} else if (hideHint) {");
+    expect(catalog).toBeGreaterThan(-1);
+    expect(hide).toBeGreaterThan(catalog);
+  });
+
+  it("drops the composer helper footnote near EmptyHero", () => {
+    const chat = readFileSync("src/pages/ChatPage.tsx", "utf-8");
+    expect(chat).not.toContain("別のモデルも指名できます");
+    expect(chat).not.toContain("メンションは不要です");
+    expect(chat).not.toContain("modelMentionExample");
+  });
+
+  it("lets create-project map a folder per machine", () => {
+    const create = readFileSync(
+      "src/harness/dialogs/CreateProjectDialog.tsx",
+      "utf-8"
+    );
+    expect(create).toContain("マシン別フォルダ");
+  });
+
   it("builds chat and home paths used by copy-link", () => {
     expect(orgHomePath("acme")).toBe("/o/acme");
     expect(orgChatPath("acme", "chat1")).toBe("/o/acme/c/chat1");

@@ -5,6 +5,7 @@ import { CreateOrgDialog } from "./CreateOrgDialog";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { GrantAccessDialog } from "./GrantAccessDialog";
 import { InviteDialog } from "./InviteDialog";
+import { MapProjectFolderDialog } from "./MapProjectFolderDialog";
 import { RegisterRuntimeDialog } from "./RegisterRuntimeDialog";
 import { RuntimeProvidersDialog } from "./RuntimeProvidersDialog";
 
@@ -51,6 +52,14 @@ export function DialogHost({
         />
       )}
       <InviteDialog open={dialog?.kind === "invite"} onOpenChange={close} />
+      {dialog?.kind === "mapProjectFolder" && (
+        <MapProjectFolderDialog
+          open
+          onOpenChange={close}
+          projectId={dialog.projectId}
+          runtimeId={dialog.runtimeId}
+        />
+      )}
     </>
   );
 }

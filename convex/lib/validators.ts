@@ -188,9 +188,15 @@ export const jobSkillPayload = v.object({
   slug: v.string(),
 });
 
+export const projectRuntimeFolder = v.object({
+  cwd: v.string(),
+  runtimeId: v.id("runtimes"),
+});
+
 export const projectSummary = v.object({
   _id: v.id("projects"),
   cwd: v.optional(v.string()),
+  folders: v.array(projectRuntimeFolder),
   name: v.string(),
   orgId: v.id("orgs"),
   profileId: v.optional(v.id("skillProfiles")),

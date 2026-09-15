@@ -29,7 +29,7 @@ import type { SuggestMenuPlacement } from "@/lib/suggestMenu";
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
  * A composer with real controls: attach, @ mentions, / commands,
- * pill pickers (provider · model · effort · runtime), and send.
+ * pill pickers (provider · model · effort), and send.
  * Type @, /, or $ to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
  * Enter sends (IME-safe), Shift+Enter breaks a line.
  *
@@ -71,6 +71,9 @@ export interface PromptPicker {
   onChange: (key: string) => void;
   emptyHint?: string;
   footer?: ReactNode;
+  /** Lock this picker without disabling the whole composer (e.g. no online runtime). */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface PromptAttachment {
@@ -98,6 +101,7 @@ const GLIDE =
 export default function PromptBar({
   placeholder = "メッセージを入力…",
   tall = false,
+  embedded = false,
   disabled = false,
   busy = false,
   mentions,
@@ -120,6 +124,8 @@ export default function PromptBar({
   placeholder?: string;
   /** hero sizing: a multi-line input with controls on their own row */
   tall?: boolean;
+  /** Sit flush under a context bar inside a shared card (no own border/radius). */
+  embedded?: boolean;
   disabled?: boolean;
   /** a send is in flight — keeps the button quiet without clearing the draft */
   busy?: boolean;
@@ -273,7 +279,8 @@ export default function PromptBar({
     };
   }, [menu, rows.length, wide]);
 
-  const picker = pickers.find((item) => item.id === openPicker) ?? null;
+  const picker =
+    pickers.find((item) => item.id === openPicker && !item.disabled) ?? null;
   const pickerIndex = picker
     ? picker.items.findIndex((item) => item.key === picker.value)
     : -1;
@@ -605,10 +612,14 @@ export default function PromptBar({
 
         {/* ── composer ───────────────────────────────────── */}
         <div
-          className={`border-line bg-surface shadow-card focus-within:border-line-strong relative isolate flex flex-col overflow-hidden border transition-[border-color,border-radius,opacity] duration-150 ${
-            tall
-              ? "gap-2.5 rounded-[22px] p-3.5"
-              : "gap-1.5 rounded-[14px] p-1.5"
+          className={`relative isolate flex flex-col ${
+            embedded
+              ? `bg-surface ${tall ? "gap-2.5 rounded-b-[22px] p-3.5" : "gap-1.5 rounded-b-[14px] p-1.5"}`
+              : `border-line bg-surface shadow-card focus-within:border-line-strong overflow-hidden border transition-[border-color,border-radius,opacity] duration-150 ${
+                  tall
+                    ? "gap-2.5 rounded-[22px] p-3.5"
+                    : "gap-1.5 rounded-[14px] p-1.5"
+                }`
           } ${disabled ? "opacity-70" : ""}`}
         >
           <span
@@ -744,7 +755,7 @@ export default function PromptBar({
               />
             </div>
 
-            {/* pickers — provider · runtime */}
+            {/* pickers — provider · model · options */}
             <div
               ref={pickersRef}
               className={`flex max-w-full items-center gap-0.5 overflow-x-auto ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
@@ -759,8 +770,12 @@ export default function PromptBar({
                   data-prompt-trigger={`picker-${item.id}`}
                   aria-expanded={openPicker === item.id}
                   aria-label={item.ariaLabel}
-                  disabled={disabled}
+                  title={item.disabled ? item.disabledReason : undefined}
+                  disabled={disabled || Boolean(item.disabled)}
                   onClick={() => {
+                    if (item.disabled) {
+                      return;
+                    }
                     setPlusOpen(false);
                     setOpenPicker((current) =>
                       current === item.id ? null : item.id

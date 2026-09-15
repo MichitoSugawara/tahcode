@@ -1,4 +1,8 @@
 import {
+  COMPOSER_CATALOG_OFFLINE_MESSAGE,
+  composerSendBlockedReason,
+} from "@shared/composerContext.ts";
+import {
   applyImagegenDraft,
   imagegenInsert,
   wiredHarnessFeatures,
@@ -7,7 +11,6 @@ import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
 import { shouldShowNoRuntimeChrome } from "@shared/runtimeHealth.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
-  AtSign,
   Bot,
   Brain,
   Cpu,
@@ -33,6 +36,14 @@ import type {
   PromptMenuItem,
   PromptPicker,
 } from "@/components/primitives/PromptBar";
+import {
+  ComposerBranchNotice,
+  ComposerContextBar,
+  ComposerFolderNotice,
+  effectiveComposerProject,
+  effectiveComposerRuntime,
+  useComposerBranchApply,
+} from "@/harness/ComposerContextBar";
 import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
@@ -48,7 +59,6 @@ import {
   monogram,
 } from "@/lib/format";
 import {
-  MENTION_BOUNDARY,
   MENTION_HANDLE,
   activeAgentToken,
   expandResolvedMentions,
@@ -67,7 +77,6 @@ import {
   isProviderKind,
   modelCatalogFor,
   modelDisplayName,
-  modelMentionExample,
   optionAriaLabel,
   optionDescriptorsFor,
   optionFooterFor,
@@ -83,9 +92,6 @@ import type {
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-
-/* the draft ends in an @token still being typed — hold the auto-mention hint */
-const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
 function ConnectorMentionIcon({
   displayName,
@@ -175,7 +181,7 @@ function optionPickers(
 
 /* ─────────────────────────────────────────────────────────
  * COMPOSER — PromptBar wired to the org: @ agents + members,
- * / commands, provider + model + runtime pickers, R2
+ * / commands, provider + model pickers, context bar, R2
  * attachments, and the Phase 1 rule that project chats
  * auto-mention the chat's agent (`@cursor/muse-spark-1.3`) so a
  * plain message still reaches it.
@@ -355,6 +361,7 @@ export function useSendMessage(chat: Chat | null) {
       body = expandResolvedMentions(body);
       const result = await sendMessage({
         body,
+        branch: org.composerBranch,
         chatId,
         driverKind: agent.driverKind,
         model: agent.model ?? undefined,
@@ -430,6 +437,7 @@ export function Composer({
   }) => void;
 }) {
   const org = useOrg();
+  const branchApply = useComposerBranchApply(chat);
   const suggestConnector = useMutation(api.messages.suggestConnector);
   const { send: sendWithRules, busy } = useSendMessage(chat);
   const { agent, setAgent } = useChatAgent(chat);
@@ -445,13 +453,8 @@ export function Composer({
 
   const disabled = !chat && !ensureChat;
   const isProject = chat?.kind === "project";
-  const typingMention = TYPING_MENTION.test(draft);
-  const needsMention =
-    isProject &&
-    draft.trim().length > 0 &&
-    !hasAgentMention(draft) &&
-    !typingMention;
   const mention = agentMention(agent.driverKind, agent.model);
+  const catalogLocked = shouldShowNoRuntimeChrome(org.runtimes, org.now);
   const provider = PROVIDERS[agent.driverKind];
 
   const liveRuntimes = useMemo(
@@ -715,6 +718,8 @@ export function Composer({
   const pickers: PromptPicker[] = [
     {
       ariaLabel: "プロバイダを選択",
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
       footer:
         "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start のブリッジ）",
       id: "provider",
@@ -740,6 +745,8 @@ export function Composer({
     },
     {
       ariaLabel: "モデルを選択",
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
       footer: supportsModelPick(agent.driverKind)
         ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · ${catalog.source === "live" ? "live: " : ""}${catalog.note}`
         : `${provider.label} は headless CLI がなく、モデルは選べません`,
@@ -764,46 +771,44 @@ export function Composer({
       onChange: (key) => setAgent(agent.driverKind, key || null),
       value: pickerModelSlug(agent.driverKind, agent.model),
     },
-    ...optionPickers(agent, catalog.models, setAgent),
-    {
-      ariaLabel: "ランタイムを選択",
-      emptyHint: "ランタイムがありません",
-      footer:
-        (org.runtimes ?? []).length === 0
-          ? isDesktopShell()
-            ? `「/runtime」で${registerRuntimeCtaLabel()}`
-            : "「/runtime」でこのマシンを登録（npm i -g tahcode）"
-          : "default deny — 許可のないマシンは選べません",
-      icon: <Cpu size={12} />,
-      id: "runtime",
-      items: [
-        {
-          key: "auto",
-          name: "自動選択",
-          tag: usable.length > 0 ? `${usable.length} 台` : "オフライン",
-        },
-        ...(org.runtimes ?? []).map((runtime) => ({
-          key: String(runtime._id),
-          name: runtime.name,
-          tag: runtime.canUse
-            ? isLive(runtime, org.now)
-              ? "オンライン"
-              : "オフライン"
-            : "許可なし",
-          disabled: !runtime.canUse,
-        })),
-      ],
-      label: org.runtimeId
-        ? (org.runtimes?.find((runtime) => runtime._id === org.runtimeId)
-            ?.name ?? "指定中")
-        : "自動",
-      onChange: (key) =>
-        org.setRuntimeId(key === "auto" ? null : (key as Id<"runtimes">)),
-      value: org.runtimeId ? String(org.runtimeId) : "auto",
-    },
+    ...optionPickers(agent, catalog.models, setAgent).map((picker) => ({
+      ...picker,
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
+    })),
   ];
 
   const send = async (text: string) => {
+    const workspace = effectiveComposerProject(
+      chat,
+      org.projects,
+      org.composerProjectId
+    );
+    const machine = effectiveComposerRuntime(
+      org.runtimes,
+      org.runtimeId,
+      org.now
+    );
+    const blocked = composerSendBlockedReason({
+      folders: (workspace?.folders ?? []).map((folder) => ({
+        cwd: folder.cwd,
+        runtimeId: String(folder.runtimeId),
+      })),
+      isProjectChat: chat?.kind === "project",
+      projectCwd: workspace?.cwd,
+      runtimeId: machine ? String(machine._id) : org.runtimeId,
+    });
+    if (blocked) {
+      toast.error(blocked);
+      if (workspace && machine) {
+        org.openDialog({
+          kind: "mapProjectFolder",
+          projectId: workspace._id,
+          runtimeId: machine._id,
+        });
+      }
+      return false;
+    }
     if (busy) {
       return false;
     }
@@ -824,32 +829,23 @@ export function Composer({
   };
 
   let hint: ReactNode = null;
-  if (hideHint) {
-    hint = null;
-  } else if (disabled) {
+  if (disabled) {
     hint = "チャットを開くと送信できます";
-  } else if (needsMention) {
-    hint = (
-      <span className="inline-flex flex-wrap items-center gap-1">
-        <AtSign size={11} /> メンションがないので送信時に{" "}
-        <code className="text-ink-2 font-mono">{mention}</code>{" "}
-        を自動付与します（Phase 1 のルール）
-      </span>
-    );
+  } else if (catalogLocked) {
+    hint = COMPOSER_CATALOG_OFFLINE_MESSAGE;
   } else if (activeJob) {
     hint = activeJob.canCancel
       ? "生成中 — 中断でこのジョブを止められます"
       : "生成中です";
-  } else if (isProject) {
-    hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
-  } else {
-    hint = `DM ではエージェントが常に応答します（${mention}） · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
+  } else if (hideHint) {
+    /* TAH-68: drop decorative footnotes on /new. Keep offline / job copy. */
+    hint = null;
   }
 
   return (
     <>
       {shouldShowNoRuntimeChrome(org.runtimes, org.now) && (
-        <div className="mb-2">
+        <div className="mb-3">
           <NoRuntimeChrome
             registered={(org.runtimes ?? []).length > 0}
             onRegister={() => org.openDialog({ kind: "registerRuntime" })}
@@ -857,45 +853,67 @@ export function Composer({
           />
         </div>
       )}
-      <PromptBar
-        tall={tall}
-        disabled={disabled}
-        busy={busy}
-        jobRunning={!!activeJob}
-        canStop={!!activeJob?.canCancel && !stopping}
-        onStop={activeJob ? () => cancel(activeJob._id) : undefined}
-        placeholder={
-          placeholder ??
-          (isProject
-            ? `${mention} にタスクを頼む、または相談を書く…`
-            : "何でも聞いてください…")
-        }
-        mentions={mentions}
-        commands={commands}
-        harnessCommands={harnessCommands}
-        plusItems={plusItems}
-        pickers={pickers}
-        attachments={pending.map((file) => ({
-          name: `${file.name} · ${formatBytes(file.size)}`,
-          size: file.size,
-        }))}
-        onRemoveAttachment={(index) =>
-          setPending((current) => current.filter((_, i) => i !== index))
-        }
-        onSend={send}
-        onDraftChange={setDraft}
-        onSuggestMenuOpenChange={onSuggestMenuOpenChange}
-        hint={hint}
-        autoFocus={autoFocus}
-        menuFooter={{
-          at: modelToken
-            ? cursorSuggestKind === "effort"
-              ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
-              : `${PROVIDERS[modelToken.providerKind].label} のモデル · 推論はセレクトで選択 · @${modelToken.handle} だけなら CLI の既定モデル`
-            : "エージェントかメンバーを選択 · @provider/ でモデル候補",
-          dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
-        }}
-      />
+      <div className="flex flex-col gap-2">
+        <div
+          data-composer-shell
+          className={`border-line bg-surface shadow-card focus-within:border-line-strong border transition-[border-color] duration-150 ${
+            tall ? "rounded-[22px]" : "rounded-[14px]"
+          }`}
+        >
+          <ComposerContextBar
+            applyBranch={branchApply.applyBranch}
+            chat={chat}
+            tall={tall}
+          />
+          <PromptBar
+            tall={tall}
+            embedded
+            disabled={disabled}
+            busy={busy}
+            jobRunning={!!activeJob}
+            canStop={!!activeJob?.canCancel && !stopping}
+            onStop={activeJob ? () => cancel(activeJob._id) : undefined}
+            placeholder={
+              placeholder ??
+              (isProject
+                ? `${mention} にタスクを頼む、または相談を書く…`
+                : "何でも聞いてください…")
+            }
+            mentions={mentions}
+            commands={commands}
+            harnessCommands={harnessCommands}
+            plusItems={plusItems}
+            pickers={pickers}
+            attachments={pending.map((file) => ({
+              name: `${file.name} · ${formatBytes(file.size)}`,
+              size: file.size,
+            }))}
+            onRemoveAttachment={(index) =>
+              setPending((current) => current.filter((_, i) => i !== index))
+            }
+            onSend={send}
+            onDraftChange={setDraft}
+            onSuggestMenuOpenChange={onSuggestMenuOpenChange}
+            hint={hint}
+            autoFocus={autoFocus}
+            menuFooter={{
+              at: modelToken
+                ? cursorSuggestKind === "effort"
+                  ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
+                  : `${PROVIDERS[modelToken.providerKind].label} のモデル · 推論はセレクトで選択 · @${modelToken.handle} だけなら CLI の既定モデル`
+                : "エージェントかメンバーを選択 · @provider/ でモデル候補",
+              dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
+            }}
+          />
+        </div>
+        <ComposerBranchNotice
+          applyBranch={branchApply.applyBranch}
+          chat={chat}
+          error={branchApply.error}
+          onDismiss={() => branchApply.setError(null)}
+        />
+        <ComposerFolderNotice chat={chat} />
+      </div>
       <input
         ref={fileRef}
         type="file"

@@ -7,6 +7,7 @@ export interface AgentContext {
     id: string;
     name: string;
     slug: string;
+    branch?: string;
     cwd?: string;
     repoUrl?: string;
   } | null;
@@ -16,7 +17,9 @@ export interface AgentContext {
 }
 
 export function buildAgentContext(input: {
+  branch?: string;
   chat: Doc<"chats">;
+  cwd?: string;
   project: Doc<"projects"> | null;
   mentions: ParsedMention[];
   history: Doc<"messages">[];
@@ -40,7 +43,8 @@ export function buildAgentContext(input: {
           id: String(input.project._id),
           name: input.project.name,
           slug: input.project.slug,
-          cwd: input.project.cwd,
+          branch: input.branch,
+          cwd: input.cwd ?? input.project.cwd,
           repoUrl: input.project.repoUrl,
         }
       : null,
