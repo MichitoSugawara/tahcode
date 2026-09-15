@@ -149,6 +149,89 @@ describe("project runtime folders", () => {
     expect(context.project?.branch).toBe("feature/foo");
   });
 
+  it("creates a project with neither repo nor folders", async () => {
+    const t = fresh();
+    const { aliceCtx, orgId } = await seedOrg(t);
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      name: "Bare",
+      orgId,
+      visibility: "org",
+    });
+    const project = await aliceCtx.query(api.projects.get, { projectId });
+    expect(project?.repoUrl).toBeUndefined();
+    expect(project?.folders).toStrictEqual([]);
+    expect(project?.cwd).toBeUndefined();
+  });
+
+  it("clears a machine folder and drops the leftover cwd when none remain", async () => {
+    const t = fresh();
+    const { aliceCtx, orgId, runtimeId } = await seedOrg(t);
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      folders: [{ cwd: "/Users/alice/code/web", runtimeId }],
+      name: "Web",
+      orgId,
+      visibility: "org",
+    });
+    const cleared = await aliceCtx.mutation(api.projects.clearRuntimeFolder, {
+      projectId,
+      runtimeId,
+    });
+    expect(cleared.removed).toBeTruthy();
+    const project = await aliceCtx.query(api.projects.get, { projectId });
+    expect(project?.folders).toStrictEqual([]);
+    expect(project?.cwd).toBeUndefined();
+  });
+
+  it("replaces the full per-machine folder map", async () => {
+    const t = fresh();
+    const { alice, aliceCtx, orgId, runtimeId } = await seedOrg(t);
+    const other = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("runtimes", {
+          lastSeenAt: Date.now(),
+          name: "remote",
+          orgId,
+          ownerUserId: alice,
+          slug: "remote",
+          status: "online",
+          tokenHash: await sha256Hex("th_folder_replace"),
+        })
+    );
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      folders: [{ cwd: "/only/local", runtimeId }],
+      name: "Web",
+      orgId,
+      visibility: "org",
+    });
+    await aliceCtx.mutation(api.projects.setRuntimeFolders, {
+      folders: [{ cwd: "/remote/web", runtimeId: other }],
+      projectId,
+    });
+    const project = await aliceCtx.query(api.projects.get, { projectId });
+    expect(project?.folders).toStrictEqual([
+      { cwd: "/remote/web", runtimeId: other },
+    ]);
+    expect(project?.cwd).toBe("/remote/web");
+  });
+
+  it("clears every machine folder when the saved map is empty", async () => {
+    const t = fresh();
+    const { aliceCtx, orgId, runtimeId } = await seedOrg(t);
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      folders: [{ cwd: "/keep/me", runtimeId }],
+      name: "Web",
+      orgId,
+      visibility: "org",
+    });
+    await aliceCtx.mutation(api.projects.setRuntimeFolders, {
+      folders: [],
+      projectId,
+    });
+    const project = await aliceCtx.query(api.projects.get, { projectId });
+    expect(project?.folders).toStrictEqual([]);
+    expect(project?.cwd).toBeUndefined();
+  });
+
   it("refuses to dispatch when the picked machine has no mapping", async () => {
     const t = fresh();
     const { alice, aliceCtx, orgId, runtimeId } = await seedOrg(t);

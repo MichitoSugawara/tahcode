@@ -2,6 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 
 import { isConnectorActionToolName } from "../../shared/connectorActionCatalog.ts";
 import { convexSiteUrl } from "../../shared/convexUrls.ts";
+import type { FsBrowseResult } from "../../shared/filesystemBrowse.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import type {
@@ -28,6 +29,11 @@ export type ClaimedCommand = {
   _id: string;
   driverKind: ProviderDriverKind;
   kind: MaintenanceKind;
+};
+
+export type ClaimedFsBrowse = {
+  _id: string;
+  path: string;
 };
 
 export interface ClaimedJob {
@@ -123,6 +129,26 @@ export class RuntimeClient {
       "runtimeCommands:complete" as never,
       input as never
     );
+  }
+
+  async claimNextFsBrowse(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedFsBrowse | null> {
+    return await this.client.mutation(
+      "runtimeFs:claimNext" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async completeFsBrowse(input: {
+    error?: string;
+    requestId: string;
+    result?: FsBrowseResult;
+    runtimeId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation("runtimeFs:complete" as never, input as never);
   }
 
   async claimNext(

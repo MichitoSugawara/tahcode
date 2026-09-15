@@ -1,12 +1,17 @@
 import {
   DESKTOP_BRIDGE_KEY,
   DESKTOP_RELEASES_URL,
+  supportsDesktopFolderBrowse,
+  supportsDesktopFolderPicker,
   supportsDesktopUpdater,
 } from "@tahcode/core/desktop";
 import type {
+  DesktopBrowseFolderResult,
   DesktopCliStatus,
+  DesktopPickFolderResult,
   TahcodeDesktopBridge,
 } from "@tahcode/core/desktop";
+import { useEffect, useState } from "react";
 
 /* ─────────────────────────────────────────────────────────
  * Bridge to the desktop shell (apps/desktop, Electron).
@@ -63,6 +68,14 @@ export function registerRuntimeHint(): string {
   return isDesktopShell() ? "ワンクリック" : "npm i -g tahcode";
 }
 
+export function useDesktopHostname(): string | null {
+  const [hostname, setHostname] = useState<string | null>(null);
+  useEffect(() => {
+    void desktopHostnameOrNull().then(setHostname);
+  }, []);
+  return hostname;
+}
+
 export async function desktopHostnameOrNull(): Promise<string | null> {
   const bridge = getDesktopBridge();
   if (!bridge) {
@@ -92,4 +105,45 @@ export function hasDesktopUpdater(): boolean {
   return supportsDesktopUpdater(getDesktopBridge());
 }
 
-export { DESKTOP_RELEASES_URL, supportsDesktopUpdater };
+export function hasDesktopFolderPicker(): boolean {
+  return supportsDesktopFolderPicker(getDesktopBridge());
+}
+
+export function hasDesktopFolderBrowse(): boolean {
+  return supportsDesktopFolderBrowse(getDesktopBridge());
+}
+
+export async function pickDesktopFolder(
+  defaultPath?: string
+): Promise<DesktopPickFolderResult | null> {
+  const pick = getDesktopBridge()?.pickFolder;
+  if (!pick) {
+    return null;
+  }
+  try {
+    return await pick(defaultPath ? { defaultPath } : undefined);
+  } catch {
+    return { canceled: true };
+  }
+}
+
+export async function browseDesktopFolder(
+  path?: string
+): Promise<DesktopBrowseFolderResult | null> {
+  const browse = getDesktopBridge()?.browseFolder;
+  if (!browse) {
+    return null;
+  }
+  try {
+    return await browse(path ? { path } : undefined);
+  } catch {
+    return { error: "フォルダを読めませんでした", ok: false };
+  }
+}
+
+export {
+  DESKTOP_RELEASES_URL,
+  supportsDesktopFolderBrowse,
+  supportsDesktopFolderPicker,
+  supportsDesktopUpdater,
+};

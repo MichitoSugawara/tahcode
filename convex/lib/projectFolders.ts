@@ -49,6 +49,26 @@ export function foldersByProject(
   return grouped;
 }
 
+export async function deleteProjectRuntimeFolder(
+  ctx: MutationCtx,
+  input: {
+    projectId: Id<"projects">;
+    runtimeId: Id<"runtimes">;
+  }
+): Promise<boolean> {
+  const existing = await ctx.db
+    .query("projectRuntimeFolders")
+    .withIndex("by_project_and_runtime", (q) =>
+      q.eq("projectId", input.projectId).eq("runtimeId", input.runtimeId)
+    )
+    .unique();
+  if (!existing) {
+    return false;
+  }
+  await ctx.db.delete("projectRuntimeFolders", existing._id);
+  return true;
+}
+
 export async function upsertProjectRuntimeFolder(
   ctx: MutationCtx,
   input: {

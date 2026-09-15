@@ -197,6 +197,27 @@ export const projectRuntimeFolder = v.object({
   runtimeId: v.id("runtimes"),
 });
 
+export const fsBrowseEntry = v.object({
+  kind: v.literal("dir"),
+  name: v.string(),
+  path: v.string(),
+});
+
+export const fsBrowseResult = v.object({
+  entries: v.array(fsBrowseEntry),
+  gitRemoteUrl: v.optional(v.string()),
+  homePath: v.string(),
+  parentPath: v.union(v.string(), v.null()),
+  path: v.string(),
+});
+
+export const fsBrowseStatus = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed")
+);
+
 export const projectSummary = v.object({
   _id: v.id("projects"),
   cwd: v.optional(v.string()),

@@ -286,6 +286,46 @@ describe("shell source contracts", () => {
       "utf-8"
     );
     expect(create).toContain("マシン別フォルダ");
+    expect(create).toContain("GitHub リポジトリ");
+    expect(create).not.toContain("リソース（任意）");
+    expect(create).toContain("FolderBrowser");
+    expect(create).toContain("initialPath");
+  });
+
+  it("uses desktop listing only when the shell can browse folders", () => {
+    const browser = readFileSync(
+      "src/harness/dialogs/FolderBrowser.tsx",
+      "utf-8"
+    );
+    expect(browser).toContain("hasDesktopFolderBrowse");
+    expect(browser).toContain("api.runtimeFs.request");
+    expect(browser).toContain("このフォルダを使う");
+  });
+
+  it("splits repo and per-machine folders in project settings from TAH-77", () => {
+    const settings = readFileSync(
+      "src/harness/dialogs/ProjectSettingsDialog.tsx",
+      "utf-8"
+    );
+    const fields = readFileSync(
+      "src/harness/dialogs/ProjectResourceFields.tsx",
+      "utf-8"
+    );
+    expect(settings).toContain("GithubRepoField");
+    expect(settings).toContain("MachineFolderFields");
+    expect(settings).toContain("setRuntimeFolders");
+    expect(fields).toContain("data-project-repo-section");
+    expect(fields).toContain("フォルダを選ぶ");
+  });
+
+  it("lets each machine row clear an optional folder", () => {
+    const fields = readFileSync(
+      "src/harness/dialogs/ProjectResourceFields.tsx",
+      "utf-8"
+    );
+    expect(fields).toContain("data-project-machine-folders");
+    expect(fields).toContain("クリア");
+    expect(fields).toContain("未設定");
   });
 
   it("opens rename and delete from the shared context-menu dialogs", () => {

@@ -1,6 +1,12 @@
-import { DESKTOP_IPC } from "@tahcode/core/desktop";
+import {
+  DESKTOP_IPC,
+  parseBrowseFolderRequest,
+  parsePickFolderRequest,
+} from "@tahcode/core/desktop";
 import type {
+  DesktopBrowseFolderResult,
   DesktopCliStatus,
+  DesktopPickFolderResult,
   DesktopUpdateState,
   RegisterLocalRuntimeResult,
   RegisterProgressStep,
@@ -10,6 +16,7 @@ import type { IpcMainInvokeEvent } from "electron";
 
 import { isAppOrigin } from "./config";
 import type { ShellConfig } from "./config";
+import { browseFolderAt, pickFolderFromEvent } from "./folder";
 import {
   desktopHostname,
   getCliStatus,
@@ -27,7 +34,8 @@ const UNAVAILABLE_CLI: DesktopCliStatus = {
 /**
  * Allow-listed IPC for the web app. The renderer cannot run an arbitrary
  * command — only hostname, CLI status, the fixed register sequence
- * (plus progress events), and desktop update invoke/events.
+ * (plus progress events), desktop folder pick/browse, and
+ * desktop update invoke/events.
  */
 export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
   ipcMain.handle(DESKTOP_IPC.getHostname, (event) => {
@@ -60,6 +68,26 @@ export function installLocalRuntimeIpc(getConfig: () => ShellConfig): void {
       return await registerLocalRuntime(request, (step) => {
         sendRegisterProgress(event, step);
       });
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.pickFolder,
+    async (event, request: unknown): Promise<DesktopPickFolderResult> => {
+      if (!isTrustedSender(event, getConfig())) {
+        return { canceled: true };
+      }
+      return await pickFolderFromEvent(event, parsePickFolderRequest(request));
+    }
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.browseFolder,
+    (event, request: unknown): DesktopBrowseFolderResult => {
+      if (!isTrustedSender(event, getConfig())) {
+        return { error: "unavailable", ok: false };
+      }
+      return browseFolderAt(parseBrowseFolderRequest(request).path);
     }
   );
 }

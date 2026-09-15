@@ -9,6 +9,12 @@
  * ───────────────────────────────────────────────────────── */
 
 import type {
+  DesktopBrowseFolderRequest,
+  DesktopBrowseFolderResult,
+  DesktopPickFolderRequest,
+  DesktopPickFolderResult,
+} from "./folder";
+import type {
   DesktopCliStatus,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
@@ -47,6 +53,16 @@ export interface TahcodeDesktopBridge {
     request: RegisterLocalRuntimeRequest,
     onProgress?: (step: RegisterProgressStep) => void
   ) => Promise<RegisterLocalRuntimeResult>;
+  /**
+   * Optional: older shells shipped before TAH-67 do not expose these.
+   * The web app must feature-detect (`supportsDesktopFolderPicker`).
+   */
+  browseFolder?: (
+    request?: DesktopBrowseFolderRequest
+  ) => Promise<DesktopBrowseFolderResult>;
+  pickFolder?: (
+    request?: DesktopPickFolderRequest
+  ) => Promise<DesktopPickFolderResult>;
   /**
    * Optional: older shells shipped before TAH-22 do not expose these.
    * The web app must feature-detect (`supportsDesktopUpdater`).
@@ -162,6 +178,22 @@ export function resolveRedirectTo(redirectTo: string, siteUrl: string): string {
   );
 }
 
+export {
+  isAllowedFolderPath,
+  isDesktopBrowseFolderResult,
+  isDesktopPickFolderResult,
+  parseBrowseFolderRequest,
+  parsePickFolderRequest,
+  supportsDesktopFolderBrowse,
+  supportsDesktopFolderPicker,
+} from "./folder";
+export type {
+  DesktopBrowseFolderOk,
+  DesktopBrowseFolderRequest,
+  DesktopBrowseFolderResult,
+  DesktopPickFolderRequest,
+  DesktopPickFolderResult,
+} from "./folder";
 export {
   DESKTOP_IPC,
   LINK_NO_RESTART_FLAG,

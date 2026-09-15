@@ -9,6 +9,10 @@ import {
 } from "../../shared/agentTools.ts";
 import type { StreamArtifact } from "../../shared/artifacts.ts";
 import { staleAgentToolsHostLogLine } from "../../shared/cliVersion.ts";
+import {
+  BRIDGE_CAPABILITY_FILESYSTEM_BROWSE,
+  FS_BROWSE_POLL_MS,
+} from "../../shared/filesystemBrowse.ts";
 import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
@@ -36,8 +40,13 @@ import {
   writeAgentToolsMcpConfig,
 } from "./agentToolsHost.ts";
 import { composeFinalText, materializeJobArtifacts } from "./artifacts.ts";
-import type { ClaimedCommand, ProviderReport } from "./convexClient.ts";
+import type {
+  ClaimedCommand,
+  ClaimedFsBrowse,
+  ProviderReport,
+} from "./convexClient.ts";
 import { RuntimeClient } from "./convexClient.ts";
+import { browseRuntimeFolder } from "./filesystemBrowse.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
 import type { ProviderProbe } from "./providers.ts";
@@ -65,6 +74,7 @@ export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_LIVE_MODELS,
   BRIDGE_CAPABILITY_AGENT_TOOLS,
   BRIDGE_CAPABILITY_JOB_CANCEL,
+  BRIDGE_CAPABILITY_FILESYSTEM_BROWSE,
 ];
 
 /**
@@ -150,6 +160,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
   const models = new ModelCache(options.modelsRefreshMs ?? 30 * 60_000);
   let probes: ProviderProbe[] = [];
   let lastHeartbeat = 0;
+  let lastWorkPoll = 0;
 
   console.log(`[runtime] polling ${options.convexUrl} as ${options.runtimeId}`);
   const cliEntry = process.argv[1];
@@ -201,29 +212,41 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         }
       }
 
-      const job = await client.claimNext(options.runtimeId, options.token);
-      if (job) {
-        console.log(
-          `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""}${job.options?.length ? ` +${job.options.length} opt` : ""})`
-        );
-        await executeJob(client, options, job, probes, heartbeatMs, models);
-        continue;
-      }
-
-      const command = await client.claimNextCommand(
+      const browse = await client.claimNextFsBrowse(
         options.runtimeId,
         options.token
       );
-      if (command) {
-        console.log(
-          `[runtime] claimed ${command.kind} for ${command.driverKind}`
-        );
-        await executeCommand(client, options, command, probes, models);
-        await heartbeat();
+      if (browse) {
+        await executeFsBrowse(client, options, browse);
         continue;
       }
 
-      await sleep(pollMs);
+      if (Date.now() - lastWorkPoll >= pollMs) {
+        lastWorkPoll = Date.now();
+        const job = await client.claimNext(options.runtimeId, options.token);
+        if (job) {
+          console.log(
+            `[runtime] claimed job ${job._id} (${job.driverKind}${job.model ? `/${job.model}` : ""}${job.options?.length ? ` +${job.options.length} opt` : ""})`
+          );
+          await executeJob(client, options, job, probes, heartbeatMs, models);
+          continue;
+        }
+
+        const command = await client.claimNextCommand(
+          options.runtimeId,
+          options.token
+        );
+        if (command) {
+          console.log(
+            `[runtime] claimed ${command.kind} for ${command.driverKind}`
+          );
+          await executeCommand(client, options, command, probes, models);
+          await heartbeat();
+          continue;
+        }
+      }
+
+      await sleep(Math.min(pollMs, FS_BROWSE_POLL_MS));
     } catch (error) {
       console.error(
         "[runtime] loop error",
@@ -231,6 +254,28 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       );
       await sleep(pollMs);
     }
+  }
+}
+
+async function executeFsBrowse(
+  client: RuntimeClient,
+  options: RunnerOptions,
+  request: ClaimedFsBrowse
+): Promise<void> {
+  const auth = {
+    requestId: request._id,
+    runtimeId: options.runtimeId,
+    token: options.token,
+  };
+  try {
+    const result = await browseRuntimeFolder(request.path);
+    await client.completeFsBrowse({ ...auth, result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await client.completeFsBrowse({
+      ...auth,
+      error: message.slice(0, 2000),
+    });
   }
 }
 
