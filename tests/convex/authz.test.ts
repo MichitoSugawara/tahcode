@@ -187,6 +187,18 @@ describe("authz denials", () => {
     expect(fileId).toBeTruthy();
   });
 
+  it("rejects a malformed invite email", async () => {
+    const t = fresh();
+    const { aliceCtx, orgId } = await seedOrgChat(t);
+    await expect(
+      aliceCtx.mutation(api.orgs.createInvite, {
+        email: "not-an-email",
+        orgId,
+        role: "member",
+      })
+    ).rejects.toThrow(/メールアドレスの形式/);
+  });
+
   it("requires a verified email to accept an email invite", async () => {
     const t = fresh();
     const { aliceCtx, orgId } = await seedOrgChat(t);

@@ -217,6 +217,8 @@ describe("connector card copy", () => {
       CONNECTOR_CARD_COPY.disconnectDetail,
       CONNECTOR_CARD_COPY.addAnotherAccount,
       CONNECTOR_CARD_COPY.notConfigured,
+      CONNECTOR_CARD_COPY.removeAccount("pottos"),
+      CONNECTOR_CARD_COPY.removeDetail,
       CONNECTOR_CARD_COPY.searchLabel,
     ].join(" ");
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
@@ -317,6 +319,21 @@ describe("connector marketplace layout", () => {
       homemade: false,
       paddedCard: false,
       stackedCta: false,
+    });
+  });
+
+  it("uses a red trash control for one-row account delete", () => {
+    const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    expect({
+      confirmRemove: pane.includes("CONNECTOR_CARD_COPY.remove"),
+      label: CONNECTOR_CARD_COPY.removeAccount("pottos"),
+      redTrash: pane.includes("text-red") && pane.includes("Trash2"),
+      removeAccount: pane.includes("CONNECTOR_CARD_COPY.removeAccount"),
+    }).toStrictEqual({
+      confirmRemove: true,
+      label: "pottos を削除",
+      redTrash: true,
+      removeAccount: true,
     });
   });
 });

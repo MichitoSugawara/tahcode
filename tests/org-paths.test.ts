@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   isLegacyConnectorsHash,
   isOrgFullWidthPath,
+  orgChatPath,
   orgConnectorsPath,
+  orgHomePath,
   orgSettingsPath,
 } from "../src/lib/orgPaths.ts";
 
@@ -17,6 +19,11 @@ describe("org paths", () => {
       "/o/preview/settings#desktop"
     );
     expect(orgConnectorsPath("preview")).toBe("/o/preview/connectors");
+  });
+
+  it("builds home and chat URLs", () => {
+    expect(orgHomePath("preview")).toBe("/o/preview");
+    expect(orgChatPath("preview", "chat1")).toBe("/o/preview/c/chat1");
   });
 
   it("treats settings and connectors as full-width Shell pages", () => {

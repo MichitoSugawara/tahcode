@@ -6,8 +6,18 @@ import { Button } from "@/components/atoms/Button";
 import { useOrg } from "@/harness/OrgContext";
 import { CopyButton } from "@/harness/ui/CopyButton";
 import { Dialog, SectionLabel, Well } from "@/harness/ui/Dialog";
-import { ChoiceList, InlineError } from "@/harness/ui/Field";
+import {
+  ChoiceList,
+  FieldError,
+  InlineError,
+  Input,
+  Label,
+} from "@/harness/ui/Field";
 import { Notice } from "@/harness/ui/Notice";
+import {
+  normalizeOptionalEmail,
+  optionalInviteEmailError,
+} from "@/lib/inviteEmail";
 
 import { api } from "../../../convex/_generated/api";
 
@@ -27,15 +37,18 @@ export function InviteDialog({
   const { org, isAdmin } = useOrg();
   const createInvite = useMutation(api.orgs.createInvite);
   const [role, setRole] = useState<"member" | "admin">("member");
+  const [email, setEmail] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const emailError = optionalInviteEmailError(email);
 
   useEffect(() => {
     if (open) {
       setToken(null);
       setError(null);
       setRole("member");
+      setEmail("");
     }
   }, [open]);
 
@@ -46,7 +59,7 @@ export function InviteDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`${org.name} に招待`}
-      description="招待リンクを共有してください。リンクを開いてサインインすると、選んだロールで参加します。有効期限は 7 日です。"
+      description="メールとロールを同じ画面で指定します。メールは任意で、空欄ならリンクを知っている人が参加できます。指定するとそのアドレスだけが参加できます。有効期限は 7 日です。"
       width={480}
       footer={
         token ? (
@@ -93,12 +106,16 @@ export function InviteDialog({
                 type="button"
                 variant="accent"
                 size="sm"
-                disabled={!isAdmin || busy}
+                disabled={!isAdmin || busy || !!emailError}
                 onClick={async () => {
                   setBusy(true);
                   setError(null);
                   try {
-                    const result = await createInvite({ orgId: org._id, role });
+                    const result = await createInvite({
+                      email: normalizeOptionalEmail(email),
+                      orgId: org._id,
+                      role,
+                    });
                     setToken(result.token);
                   } catch (error) {
                     setError(
@@ -128,7 +145,11 @@ export function InviteDialog({
           >
             <div>
               <SectionLabel>
-                招待リンク（{role === "admin" ? "Admin" : "Member"}）
+                招待リンク（{role === "admin" ? "Admin" : "Member"}
+                {normalizeOptionalEmail(email)
+                  ? ` · ${normalizeOptionalEmail(email)}`
+                  : ""}
+                ）
               </SectionLabel>
               <Well className="flex items-center gap-2 px-3 py-2">
                 <Link2 size={14} className="text-ink-3 shrink-0" />
@@ -153,6 +174,24 @@ export function InviteDialog({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
+            <div>
+              <Label htmlFor="invite-email" hint="任意">
+                メールアドレス
+              </Label>
+              <Input
+                id="invite-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                invalid={!!emailError}
+                aria-describedby={emailError ? "invite-email-error" : undefined}
+                placeholder="name@example.com"
+                onChange={(event) => setEmail(event.target.value)}
+              />
+              {emailError && (
+                <FieldError id="invite-email-error">{emailError}</FieldError>
+              )}
+            </div>
             <SectionLabel className="mb-0">参加時のロール</SectionLabel>
             <ChoiceList
               value={role}

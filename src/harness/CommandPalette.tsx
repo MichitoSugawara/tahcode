@@ -141,7 +141,7 @@ export function CommandPalette({
               icon: <ShieldCheck size={14} />,
               key: "grants",
               label: "ランタイムの利用許可を管理",
-              onSelect: run(() => org.goSettings()),
+              onSelect: run(() => org.goSettings("runtimes")),
             },
           ]
         : []),
