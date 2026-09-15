@@ -18,12 +18,14 @@ npm run desktop:dev
 # .app（未署名、apps/desktop/release/mac-arm64/tahcode.app）— Google ログインの deep link 検証はこちらで
 npm run desktop:pack
 
-# 配布物: apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg / .zip
+# 配布物: apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg / .zip（未署名）
 npm run desktop:build
+# Developer ID + 公証（CSC_* / APPLE_* が必要。下記「署名と公証」）
+# npm run desktop:build:signed
 open apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg
 ```
 
-ワークスペース指定で直接叩く場合: `npm run <script> -w @tahcode/desktop`（`dev` / `build` / `pack` / `dist:mac`（arm64）/ `dist:mac:universal`（arm64 + x64）/ `dist:mac:intel` / `smoke`）。
+ワークスペース指定で直接叩く場合: `npm run <script> -w @tahcode/desktop`（`dev` / `build` / `pack` / `dist:mac`（未署名 arm64）/ `dist:mac:signed`（Developer ID + 公証）/ `dist:mac:universal`（arm64 + x64）/ `dist:mac:intel` / `smoke`）。ルートからは `npm run desktop:build`（未署名）と `npm run desktop:build:signed`。
 
 未署名の .app なので、初回は Finder で **右クリック → 開く**（または `xattr -dr com.apple.quarantine <path>.app`）。自分の Mac でビルドした .app には quarantine 属性が付かないため、そのまま開ける。Apple Silicon 向けには electron-builder が ad-hoc 署名を自動で施す。
 
@@ -69,7 +71,10 @@ apps/desktop/                       # @tahcode/desktop（Multica の apps/deskto
 ├── src/preload/index.ts            # contextBridge → window.tahcodeDesktop（TahcodeDesktopBridge 型を実装）
 ├── electron-builder.yml            # appId, protocols(tahcode), mac dmg/zip, entitlements, GitHub publish
 ├── build/                          # icon.png（scripts/make-icon.mjs が生成）, entitlements.mac.plist
-└── scripts/smoke.mjs               # 起動 → 描画 → PNG 保存 → 終了（CI / VM 用）
+└── scripts/
+    ├── smoke.mjs                   # 起動 → 描画 → PNG 保存 → 終了（CI / VM 用）
+    ├── desktop-signing.mjs         # Developer ID / 公証 env の検出と electron-builder 上書き
+    └── run-electron-builder.mjs    # 未署名は identity=null、署名時は dmg.sign + notarize
 out/                                # electron-vite の出力（main/index.js, preload/index.js。CJS）
 
 packages/core/src/desktop/index.ts  # @tahcode/core/desktop — Web / Convex / Desktop が共有する契約:
@@ -155,7 +160,7 @@ production / staging の Convex に `callbacks.redirect` が入っていない�
 `.github/workflows/desktop.yml`:
 
 - `linux-check`（PR / push で `apps/desktop/**` / `packages/core/**` / lockfile が変わったとき）: ルートの `npm ci`（共通 setup action）→ `packages/core` と shell の typecheck → `npm test` → `electron-vite build` → **xvfb 上で 3 回起動** （production 読み込み / `tahcode://` 疑似コールバック / オフラインフォールバック）→ スクリーンショットを artifact に → `electron-builder --linux dir --projectDir apps/desktop` で packaging 設定を検証。
-- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で **未署名** の arm64 `.dmg` / `.zip` を artifact に。`desktop-v*` タグは `apps/desktop` の version と一致必須で、GitHub Releases にも同じ成果物 + `latest-mac.yml` を publish する。
+- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で arm64 `.dmg` / `.zip` を artifact に。GitHub secrets `CSC_LINK` / `CSC_KEY_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` が **5 つ揃っている**ときだけ Developer ID 署名 + 公証 + `TAHCODE_DESKTOP_SIGNED=1`。欠けていれば従来どおり未署名で成功する（CI は落とさない）。`desktop-v*` タグは `apps/desktop` の version と一致必須で、GitHub Releases にも同じ成果物 + `latest-mac.yml` を publish する。
 
 ローカルの同等コマンド: `npm run desktop:smoke -- /tmp/shell.png`（`DISPLAY` がなければ `xvfb-run` を自動使用）。
 
@@ -168,17 +173,126 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 - **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。新しいシェル + 古い Web（未デプロイ）のときはメニュー確認がネイティブダイアログにフォールバックする。
 - **自動アップデート**: `~/Library/Application Support/tahcode/settings.json` の `autoUpdateEnabled`。**既定オフ**（未署名のため安全側）。オンなら起動約 20 秒後と 4 時間ごとに確認し、更新があればトースト / ダイアログ。適用はユーザー確認のまま。
 - **未署名の制約**: Gatekeeper 下ではアプリ内差し替え（electron-updater の `quitAndInstall`）が信頼できない。ダウンロードした `.dmg` を開き、tahcode を Applications にコピーする。初回は **右クリック → 開く**（または `xattr -dr com.apple.quarantine`）。
+- **署名済み配布**（`TAHCODE_DESKTOP_SIGNED=1` を electron-vite がバンドルに焼き込む）: `canInstallInApp` が立ち、UI は「再起動して適用」になる。未署名ビルドのダウンロード → `.dmg` を開く経路はそのまま。
 - **開発ビルド**（`npm run desktop:dev`）: 確認とダウンロードはできるが、実行中の Electron には適用しない。
 - **Windows / Linux 配布**は対象外。手動で Releases を開く導線だけ出す。
 - 新しいシェルを出すとき: `apps/desktop/package.json` の version を上げ、`desktop-v<その version>` タグを push する。
 
-## フォローアップ: 署名と公証（Developer ID）
+## 署名と公証（Developer ID）
 
-1. Apple Developer Program の **Developer ID Application** 証明書をビルドマシンのキーチェーンに入れる（CI なら `CSC_LINK` / `CSC_KEY_PASSWORD` に .p12）。
-2. `electron-builder.yml` の `mac.identity: null` を削除し、`mac.notarize: true` を追加。
-3. 環境変数 `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` を設定して `npm run dist:mac`。electron-builder が署名 → 公証 → staple まで行う。
-4. `hardenedRuntime: true` と `build/entitlements.mac.plist`（JIT / unsigned-executable-memory / network.client）は既に公証要件に合わせてある。
-5. 署名と公証が揃ったら `TAHCODE_DESKTOP_SIGNED=1` を配布ビルドに渡し、アプリ内差し替え（`quitAndInstall` / electron-updater）を有効化する。未署名の間は GitHub Releases の `.dmg` をダウンロードして手動で置き換える。
+Gatekeeper を通す配布と、アプリ内差し替え（`quitAndInstall`）は **Developer ID Application 署名 + Apple 公証（notarize）+ staple** が揃ってから有効になる。electron-builder 26 は `@electron/notarize` を内蔵しており、`mac.notarize` は Apple の資格情報が環境にあるときだけ実際に公証する（[Code signing](https://www.electron.build/code-signing)、[mac.notarize](https://www.electron.build/mac)）。
+
+**Apple Developer Program に入っていれば、Developer ID Application 証明書がまだ無くてもコードはそのままでよい。** GitHub secrets が揃うまで `mac-dmg` は未署名の `.dmg` を出し、ジョブは成功する。証明書は下の Mac 手順で作る。
+
+証明書・CSR・.p12・Apple ID パスワードは **リポジトリに入れない**。GitHub Actions の repository secrets か、手元の環境変数だけに置く。
+
+選ぶ証明書は **Developer ID Application** だけ。次は使わない。
+
+| 種類 | 使う？ | 理由 |
+| --- | --- | --- |
+| **Developer ID Application** | 使う | Mac App Store 外の `.app` / `.dmg` / `.zip` の署名 |
+| Developer ID Installer | 使わない | `.pkg` 用。このシェルは dmg/zip |
+| Apple Development / Apple Distribution | 使わない | 開発用 / Mac App Store 用 |
+
+Developer ID を新規発行できるのはチームの **Account Holder**（[Apple の説明](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)）。Admin だけではポータルから作れないことがある。
+
+### Mac チェックリスト 1 — Developer ID Application を作る
+
+秘密鍵は **CSR を作ったその Mac のキーチェーンに残る**。別のマシンで `.cer` だけ入れると秘密鍵が無く、`.p12` を書けない。
+
+#### キーチェーンアクセスで CSR を作る
+
+1. `/Applications/Utilities/Keychain Access.app`（キーチェーンアクセス）を開く。
+2. メニュー **Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority…**（証明書アシスタント → 認証局に証明書を要求）。
+3. User Email Address に Apple ID のメール、Common Name に分かりやすい名前（例: `tahcode Developer ID`）。**CA Email Address は空**。
+4. **Saved to disk**（ディスクに保存）を選び、Continue。`CertificateSigningRequest.certSigningRequest` を保存する。
+
+#### developer.apple.com で証明書を発行する
+
+1. [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list) を開く。
+2. 左の **Certificates** → 左上の **+**。
+3. Software の **Developer ID** を選び Continue。種類は **Developer ID Application**（Installer ではない）。Continue。
+4. **Choose File** でさっきの `.certSigningRequest` を上げ、Continue → **Download**。`Downloads` に `.cer` が落ちる。
+5. `.cer` をダブルクリックしてログインキーチェーンに入れる。
+
+#### 秘密鍵が付いているか確認する
+
+キーチェーンアクセス左の **My Certificates**（自分の証明書）に `Developer ID Application: <名前> (<Team ID>)` があること。行を開くと **private key（秘密鍵）** が入れ子になっていること。無い場合は、CSR を作った Mac ではないか、別のキーチェーンを見ている。
+
+ターミナルでも確認できる。
+
+```bash
+security find-identity -v -p codesigning
+# 例: 1) … "Developer ID Application: Your Name (ABCD123456)"
+```
+
+#### Xcode から作る（任意）
+
+Xcode が入っているなら **Xcode → Settings → Accounts** → Apple ID → チーム → **Manage Certificates…** → **+** → **Developer ID Application** でも同じ証明書を作れる。できたあとの確認と `.p12` 書き出しは上と同じ。
+
+### Mac チェックリスト 2 — .p12 を書き出す
+
+1. キーチェーンアクセス → **My Certificates** → `Developer ID Application: …` を選ぶ（秘密鍵が付いている行）。
+2. 右クリック → **Export "Developer ID Application: …"**（書き出す）。
+3. ファイル形式は **Personal Information Exchange (.p12)**。場所はリポジトリの外（例: `~/certs/tahcode-DeveloperID.p12`）。
+4. 書き出しパスワードを付ける。これが後の `CSC_KEY_PASSWORD`。ログインパスワードとは別でよい。
+5. 「Include all certificates in the certification path」はオフのままでよい（CI の secret が短くなる）。
+6. `.p12` を git に入れない。紛失したら同じ CSR からは戻せないので、暗号化して別保管する。
+
+GitHub に載せるときは base64 にする（値はコミットしない）。
+
+```bash
+base64 -i ~/certs/tahcode-DeveloperID.p12 | pbcopy
+```
+
+### Mac チェックリスト 3 — アプリ用パスワード
+
+公証（`notarytool`）は Apple ID のログインパスワードを使えない。[appleid.apple.com](https://appleid.apple.com/) → **Sign-In and Security** → **App-Specific Passwords**（アプリ用パスワード）→ Generate。ラベル例: `tahcode-notarize`。表示される `xxxx-xxxx-xxxx-xxxx` が `APPLE_APP_SPECIFIC_PASSWORD`。
+
+### Mac チェックリスト 4 — Team ID
+
+[developer.apple.com/account](https://developer.apple.com/account) の **Membership details** にある 10 文字が `APPLE_TEAM_ID`。証明書名の括弧内と同じ。
+
+### GitHub secrets（5 つ。揃うまで CI は未署名）
+
+リポジトリ **Settings → Secrets and variables → Actions → New repository secret**。名前は次の通り（大文字）。1 つでも欠けると `mac-dmg` は未署名のまま成功する。
+
+| Secret 名 | 入れる値 |
+| --- | --- |
+| `CSC_LINK` | `.p12` の base64（上の `pbcopy`）または手元検証用の `file:///Users/…/tahcode-DeveloperID.p12` |
+| `CSC_KEY_PASSWORD` | `.p12` を書き出したときのパスワード |
+| `APPLE_ID` | Apple ID のメール |
+| `APPLE_APP_SPECIFIC_PASSWORD` | アプリ用パスワード（ログインパスワードではない） |
+| `APPLE_TEAM_ID` | 10 文字の Team ID |
+
+### 手元の署名ビルドとタグ
+
+5 変数が揃ったら:
+
+```bash
+export CSC_LINK="file://${HOME}/certs/tahcode-DeveloperID.p12"   # または base64
+export CSC_KEY_PASSWORD="…"
+export APPLE_ID="you@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="ABCD123456"
+npm run desktop:build:signed
+```
+
+`dist:mac:signed` は 5 変数が無いと失敗する。証明書前の確認は従来どおり `npm run desktop:build` / `dist:mac`（`mac.identity=null`）。
+
+`apps/desktop/package.json` の version を上げ、`desktop-v<その version>` を push すると `mac-dmg` が secrets を見て署名 + 公証し、Releases に `.dmg` / `.zip` / `latest-mac.yml` を載せる。`workflow_dispatch` も同じ分岐（artifact のみ、Release はタグ時）。
+
+### 検証（署名済み .app を Applications に入れたあと）
+
+```bash
+codesign -dv --verbose=4 /Applications/tahcode.app
+xcrun stapler validate /Applications/tahcode.app
+spctl --assess --type execute -v /Applications/tahcode.app
+```
+
+公証済みなら `spctl` は `source=Notarized Developer ID`。Finder でダブルクリックして開き、**右クリック → 開くは不要**なこと。次の `desktop-v*` のあと、署名ビルドでは「アップデートを確認」→ **再起動して適用**。未署名ビルドでは「ディスクイメージを開く」。
+
+`hardenedRuntime: true` と `build/entitlements.mac.plist`（JIT / unsigned-executable-memory / disable-library-validation / network.client）は公証要件に合わせて既にある。`TAHCODE_DESKTOP_SIGNED=1` は `electron-vite` の `define` で main に埋め込まれる（CI の環境変数をユーザの Mac に持ち越せないため）。
 
 ## その他の既知事項
 

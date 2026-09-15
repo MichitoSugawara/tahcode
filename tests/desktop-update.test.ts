@@ -164,6 +164,15 @@ describe("desktop update helpers", () => {
     expect(DEFAULT_AUTO_UPDATE_ENABLED).toBeFalsy();
   });
 
+  it("enables in-app replace only when the packaged build is signed", () => {
+    expect(
+      desktopCanInstallInApp({ packaged: true, signed: true })
+    ).toBeTruthy();
+    expect(
+      desktopCanInstallInApp({ packaged: false, signed: true })
+    ).toBeFalsy();
+  });
+
   it("feature-detects the updater on older shells", () => {
     expect(supportsDesktopUpdater(null)).toBeFalsy();
     expect(
@@ -284,6 +293,43 @@ describe("update service", () => {
     expect(readFileSync(downloaded.downloadedPath ?? "")).toStrictEqual(
       Buffer.from(payload)
     );
+    const applied = await service.apply();
+    expect(applied.phase).toBe("ready");
+    expect(opened.some((item) => item.endsWith(".dmg"))).toBeTruthy();
+  });
+
+  it("keeps the download-dmg apply path when signed (canInstallInApp is on)", async () => {
+    const downloads = mkdtempSync(join(tmpdir(), "tahcode-update-signed-"));
+    const opened: string[] = [];
+    const payload = new Uint8Array([9, 8, 7, 6]);
+    const service = createUpdateService(
+      serviceDeps({
+        downloadsDir: () => downloads,
+        fetch: async (input) => {
+          const url = String(input);
+          if (url.includes("api.github.com")) {
+            return new Response(JSON.stringify([release]), {
+              headers: { "content-type": "application/json" },
+              status: 200,
+            });
+          }
+          return new Response(payload, {
+            headers: { "content-length": String(payload.byteLength) },
+            status: 200,
+          });
+        },
+        isSigned: () => true,
+        openPath: async (filePath) => {
+          opened.push(filePath);
+          return "";
+        },
+      })
+    );
+    expect(service.getState().canInstallInApp).toBeTruthy();
+    await service.check("user");
+    const downloaded = await service.download();
+    expect(downloaded.phase).toBe("ready");
+    expect(downloaded.message).toContain("再起動");
     const applied = await service.apply();
     expect(applied.phase).toBe("ready");
     expect(opened.some((item) => item.endsWith(".dmg"))).toBeTruthy();

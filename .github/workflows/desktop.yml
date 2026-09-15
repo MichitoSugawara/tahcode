@@ -28,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       build_mac:
-        description: Build the unsigned macOS (Apple Silicon) .dmg and upload it as an artifact
+        description: Build the macOS (Apple Silicon) .dmg. Signed+notarized when all five Developer ID secrets are set; otherwise unsigned (job stays green)
         type: boolean
         default: true
 
@@ -79,10 +79,10 @@ jobs:
           if-no-files-found: error
 
   mac-dmg:
-    name: Build unsigned macOS .dmg (Apple Silicon)
+    name: Build macOS .dmg (Apple Silicon)
     if: github.event_name == 'workflow_dispatch' && inputs.build_mac || startsWith(github.ref, 'refs/tags/desktop-v')
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:
@@ -102,26 +102,65 @@ jobs:
             exit 1
           fi
 
-      # Unsigned: electron-builder.yml sets `mac.identity: null`. To sign and
-      # notarize, add Developer ID certificate + Apple ID secrets and drop that
-      # line (see apps/desktop/README.md). Tags also publish GitHub Releases
-      # (latest-mac.yml + .dmg/.zip) so the in-app checker can find them.
-      - name: Build .dmg / .zip
+      # Required repository secrets for signed+notarized builds (all five).
+      # Partial set → unsigned fallback; the job must not fail.
+      #   CSC_LINK                     base64 or file:// of Developer ID Application .p12
+      #   CSC_KEY_PASSWORD             password for that .p12
+      #   APPLE_ID                     Apple ID email used for notarytool
+      #   APPLE_APP_SPECIFIC_PASSWORD  app-specific password (not the Apple ID password)
+      #   APPLE_TEAM_ID                10-character Team ID
+      # Full Mac checklist (CSR → Developer ID Application → .p12 →
+      # app-specific password → these five secrets):
+      # apps/desktop/README.md 「署名と公証」
+      # https://www.electron.build/code-signing / https://www.electron.build/mac
+      - name: Detect Developer ID + notarization secrets
+        id: signing
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node apps/desktop/scripts/desktop-signing.mjs --detect-ci
+
+      - name: Build signed + notarized .dmg / .zip
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          TAHCODE_DESKTOP_SIGNED: "1"
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          npm run build -w @tahcode/desktop
           if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
-            npm run build -w @tahcode/desktop
-            npx electron-builder --mac --arm64 dmg zip --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
+            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
           else
-            npm run dist:mac -w @tahcode/desktop
+            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish never
           fi
+
+      - name: Build unsigned .dmg / .zip
+        if: steps.signing.outputs.signed != 'true'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
+            npm run build -w @tahcode/desktop
+            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
+          else
+            npm run dist:mac -w @tahcode/desktop
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tahcode-desktop-mac-arm64
+          name: tahcode-desktop-mac-arm64-${{ steps.signing.outputs.signed == 'true' && 'signed' || 'unsigned' }}
           path: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest-mac.yml
           if-no-files-found: error

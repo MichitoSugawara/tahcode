@@ -56,3 +56,9 @@ packages/cli/dist/
 # Desktop shell (Electron) build output
 apps/desktop/out/
 apps/desktop/release/
+
+# Apple Developer ID / notarization materials (never commit)
+*.p12
+*.pfx
+*.p8
+*.cer
