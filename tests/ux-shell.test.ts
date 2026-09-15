@@ -190,6 +190,29 @@ describe("shell source contracts", () => {
     expect(invite).toContain("normalizeOptionalEmail");
   });
 
+  it("mounts the composer context bar instead of a runtime picker", () => {
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    expect(composer).toContain("ComposerContextBar");
+    expect(composer).not.toContain('id: "runtime"');
+  });
+
+  it("exposes project, machine, and branch on the context bar", () => {
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
+    expect(bar).toContain("プロジェクトを選択");
+    expect(bar).toContain("マシンを選択");
+    expect(bar).toContain("ブランチを選択");
+    expect(bar).toContain("フォルダを指定");
+    expect(bar).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
+  it("lets create-project map a folder per machine", () => {
+    const create = readFileSync(
+      "src/harness/dialogs/CreateProjectDialog.tsx",
+      "utf-8"
+    );
+    expect(create).toContain("マシン別フォルダ");
+  });
+
   it("builds chat and home paths used by copy-link", () => {
     expect(orgHomePath("acme")).toBe("/o/acme");
     expect(orgChatPath("acme", "chat1")).toBe("/o/acme/c/chat1");

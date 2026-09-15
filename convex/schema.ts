@@ -231,6 +231,20 @@ export default defineSchema({
     .index("by_org_and_slug", ["orgId", "slug"])
     .index("by_profile", ["profileId"]),
 
+  /* Optional per-machine working directory for a project (TAH-71).
+   * `projects.cwd` stays as the legacy fallback when a machine has no row. */
+  projectRuntimeFolders: defineTable({
+    orgId: v.id("orgs"),
+    projectId: v.id("projects"),
+    runtimeId: v.id("runtimes"),
+    cwd: v.string(),
+    mappedBy: v.id("users"),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_project", ["projectId"])
+    .index("by_project_and_runtime", ["projectId", "runtimeId"])
+    .index("by_runtime", ["runtimeId"]),
+
   librarySkills: defineTable({
     orgId: v.id("orgs"),
     slug: v.string(),

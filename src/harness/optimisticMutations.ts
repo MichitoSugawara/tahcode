@@ -109,6 +109,7 @@ export interface CreateProjectArgs {
   visibility: "org" | "private";
   repoUrl?: string;
   cwd?: string;
+  folders?: { cwd: string; runtimeId: Id<"runtimes"> }[];
 }
 
 /** Create a project together with its first chat. The project and the chat placeholder
@@ -124,7 +125,8 @@ export function useCreateProjectWithChat() {
       const optimistic = mutate.withOptimisticUpdate((store, input) => {
         appendProject(store, {
           _id: projectPlaceholder,
-          cwd: input.cwd,
+          cwd: input.cwd ?? input.folders?.[0]?.cwd,
+          folders: input.folders ?? [],
           name: input.name.trim().slice(0, 80),
           orgId: input.orgId,
           profileId: undefined,

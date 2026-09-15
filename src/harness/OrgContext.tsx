@@ -1,4 +1,9 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import {
+  DEFAULT_COMPOSER_BRANCH,
+  composerBranchStorageKey,
+  composerProjectStorageKey,
+} from "@shared/composerContext.ts";
 import { STALE_RUNTIME_MS, isLiveRuntime } from "@shared/runtimeHealth.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -54,6 +59,11 @@ export interface OrgSummary {
   slug: string;
   role: OrgRole;
 }
+export interface ProjectFolder {
+  cwd: string;
+  runtimeId: Id<"runtimes">;
+}
+
 export interface Project {
   _id: Id<"projects">;
   orgId: Id<"orgs">;
@@ -61,6 +71,7 @@ export interface Project {
   slug: string;
   visibility: "org" | "private";
   cwd?: string;
+  folders: ProjectFolder[];
   repoUrl?: string;
   profileId?: Id<"skillProfiles">;
 }
@@ -131,6 +142,11 @@ export type DialogState =
       focus?: ProviderDriverKind;
     }
   | { kind: "invite" }
+  | {
+      kind: "mapProjectFolder";
+      projectId: Id<"projects">;
+      runtimeId: Id<"runtimes">;
+    }
   | null;
 
 /** A runtime is "live" when its heartbeat is fresh (server treats >90s as dead). */
@@ -161,6 +177,10 @@ interface OrgContextValue {
   ) => void;
   runtimeId: Id<"runtimes"> | null;
   setRuntimeId: (id: Id<"runtimes"> | null) => void;
+  composerProjectId: Id<"projects"> | null;
+  setComposerProjectId: (id: Id<"projects"> | null) => void;
+  composerBranch: string;
+  setComposerBranch: (branch: string) => void;
   tabs: Id<"chats">[];
   openTab: (id: Id<"chats">) => void;
   closeTab: (id: Id<"chats">) => void;
@@ -285,6 +305,15 @@ export function OrgProvider({
     null
   );
   const runtimeId = (storedRuntime as Id<"runtimes"> | null) ?? null;
+  const [storedComposerProject, setStoredComposerProject] = useStoredState<
+    string | null
+  >(composerProjectStorageKey(orgId), null);
+  const composerProjectId =
+    (storedComposerProject as Id<"projects"> | null) ?? null;
+  const [storedBranch, setStoredBranch] = useStoredState<string>(
+    composerBranchStorageKey(orgId, composerProjectId),
+    DEFAULT_COMPOSER_BRANCH
+  );
 
   const [tabs, setTabs] = useStoredState<Id<"chats">[]>(`th:${orgId}:tabs`, []);
   const openTab = useCallback(
@@ -399,7 +428,12 @@ export function OrgProvider({
       role: org.role,
       runtimeId,
       runtimes,
+      composerProjectId,
+      composerBranch: storedBranch,
       setAgent,
+      setComposerBranch: (branch) => setStoredBranch(branch),
+      setComposerProjectId: (id) =>
+        setStoredComposerProject(id ? String(id) : null),
       setRuntimeId: (id) => setStoredRuntime(id ? String(id) : null),
       signOut: () => {
         void signOut().then(() => navigate("/login"));
@@ -427,6 +461,8 @@ export function OrgProvider({
       options,
       setAgent,
       runtimeId,
+      composerProjectId,
+      storedBranch,
       tabs,
       openTab,
       closeTab,
@@ -437,6 +473,8 @@ export function OrgProvider({
       navigate,
       signOut,
       setStoredRuntime,
+      setStoredBranch,
+      setStoredComposerProject,
     ]
   );
 

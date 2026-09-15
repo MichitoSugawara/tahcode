@@ -1,3 +1,4 @@
+import { normalizeComposerBranch } from "../../shared/composerContext.ts";
 import {
   NO_ONLINE_RUNTIME_BODY,
   QUEUED_CLAIM_TIMEOUT_MS,
@@ -21,6 +22,12 @@ import {
 } from "./mentions";
 import type { ProviderOptionSelection } from "./modelOptions";
 import { sanitizeOptionSelections } from "./modelOptions";
+import {
+  MISSING_PROJECT_FOLDER_MESSAGE,
+  listFoldersForProject,
+  missingFolderForRuntime,
+  resolvedProjectCwd,
+} from "./projectFolders";
 import type { ProviderDriverKind } from "./providers";
 import {
   cursorEffortFromOptions,
@@ -42,6 +49,7 @@ export type SendMessageResult = {
 
 export type SendUserMessageArgs = {
   body: string;
+  branch?: string;
   chatId: Id<"chats">;
   dispatch?: boolean;
   driverKind?: ProviderDriverKind;
@@ -104,6 +112,22 @@ export async function sendUserMessage(
     throw new Error("Message is too long");
   }
   const mentions = parseMentions(body);
+  if (dispatch && chat.projectId && runtime) {
+    const projectForFolder = await ctx.db.get("projects", chat.projectId);
+    const folders = projectForFolder
+      ? await listFoldersForProject(ctx, projectForFolder._id)
+      : [];
+    if (
+      missingFolderForRuntime({
+        folders,
+        hasProject: projectForFolder !== null,
+        projectCwd: projectForFolder?.cwd,
+        runtimeId: runtime.doc._id,
+      })
+    ) {
+      throw new Error(MISSING_PROJECT_FOLDER_MESSAGE);
+    }
+  }
   const messageId = await ctx.db.insert("messages", {
     authorId: user._id,
     authorType: "user",
@@ -124,9 +148,17 @@ export async function sendUserMessage(
   const project = chat.projectId
     ? await ctx.db.get("projects", chat.projectId)
     : null;
+  const folders = project ? await listFoldersForProject(ctx, project._id) : [];
+  const resolvedCwd = resolvedProjectCwd({
+    folders,
+    projectCwd: project?.cwd,
+    runtimeId: runtime?.doc._id ?? args.runtimeId,
+  });
   const jobSkills = await loadJobSkills(ctx, chat);
   const context = buildAgentContext({
+    branch: args.branch ? normalizeComposerBranch(args.branch) : undefined,
     chat,
+    cwd: resolvedCwd,
     history: [...history].reverse(),
     mentions,
     project,
