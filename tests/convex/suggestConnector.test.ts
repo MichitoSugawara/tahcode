@@ -88,10 +88,15 @@ describe("messages.suggestConnector", () => {
     await expect(
       asUser(t, bob).mutation(api.messages.suggestConnector, { chatId })
     ).rejects.toThrow(/not a member of this organization/i);
+    const github = await aliceCtx.mutation(api.messages.suggestConnector, {
+      chatId,
+      provider: "github",
+    });
+    expect(github).toMatchObject({ provider: "github", scope: "org" });
     await expect(
       aliceCtx.mutation(api.messages.suggestConnector, {
         chatId,
-        provider: "github",
+        provider: "slack",
       })
     ).rejects.toThrow(/unknown connector/i);
   });

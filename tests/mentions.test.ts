@@ -90,6 +90,19 @@ describe(parseMentions, () => {
     });
   });
 
+  it("classifies @github and @github/work as connectors", () => {
+    expect(classifyMention("github")).toMatchObject({
+      connectorProvider: "github",
+      handle: "github",
+      kind: "connector",
+    });
+    expect(classifyMention("github/work")).toMatchObject({
+      connectorProvider: "github",
+      handle: "github/work",
+      kind: "connector",
+    });
+  });
+
   it("does not treat prototype property names as providers", () => {
     expect(providerKindFromHandle("__proto__")).toBeUndefined();
     expect(providerKindFromHandle("constructor")).toBeUndefined();

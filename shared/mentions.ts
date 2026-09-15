@@ -27,7 +27,7 @@ export interface ParsedMention {
   providerKind?: ProviderDriverKind;
   /** `@provider/model` — the model slug after the first slash, alias-resolved. */
   model?: string;
-  /** `@linear` / `@linear/pottos` — catalog provider, not a harness CLI. */
+  /** `@linear` / `@github` — catalog provider, not a harness CLI. */
   connectorProvider?: string;
 }
 

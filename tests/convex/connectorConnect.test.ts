@@ -670,3 +670,157 @@ describe("completeLinearConnect", () => {
     ).rejects.toThrow(/admin access required/i);
   });
 });
+
+describe("startGithubConnect / completeGithubConnect", () => {
+  afterEach(restoreConnectorEnv);
+
+  it("does not insert a ghost GitHub row when OAuth is not configured", async () => {
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const result = await aliceCtx.action(
+      api.connectorConnect.startGithubConnect,
+      {
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    expect(result).toMatchObject({
+      authorizeUrl: null,
+      connectionId: null,
+      ready: false,
+      reason: "oauth_not_configured",
+    });
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "github",
+    });
+    expect(listed).toHaveLength(0);
+  });
+
+  it("starts GitHub OAuth and completes from get_current_user login", async () => {
+    configureOpenConnector();
+    const calls: { body?: string; url: string }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+      const href = String(url);
+      calls.push({ body: init?.body, url: href });
+      if (href.endsWith("/v1/connections/github/connect")) {
+        return jsonResponse({
+          authorizationUrl:
+            "https://github.com/login/oauth/authorize?client_id=x",
+          connectionRequestId: "req-gh-start-1",
+          expiresAt: "2026-09-15T07:10:00.000Z",
+          stateHandle: "state-gh-1",
+          status: "initiated",
+        });
+      }
+      if (href.endsWith("/v1/connection-requests/req-gh-start-1")) {
+        return jsonResponse({
+          appId: "cccccccc-3333-4f8e-9134-c1db5c9cf7f8",
+          connectionRequestId: "req-gh-start-1",
+          errorCode: null,
+          errorMessage: null,
+          service: "github",
+          status: "connected",
+        });
+      }
+      if (href.includes("/v1/connections/by-id/")) {
+        return jsonResponse({
+          alias: "ignored-alias",
+          id: "cccccccc-3333-4f8e-9134-c1db5c9cf7f8",
+          service: "github",
+          status: "active",
+        });
+      }
+      if (href.endsWith("/v1/actions/github.get_current_user")) {
+        return jsonResponse({
+          email: "octocat@github.com",
+          id: 1,
+          login: "octocat",
+          name: "The Octocat",
+        });
+      }
+      throw new Error(`unexpected fetch ${href}`);
+    });
+    const t = fresh();
+    const { aliceCtx, orgA } = await seedOrg(t);
+    const org = await aliceCtx.query(api.orgs.get, { orgId: orgA });
+    const started = await aliceCtx.action(
+      api.connectorConnect.startGithubConnect,
+      {
+        orgId: orgA,
+        returnOrigin: "https://tahcode.com",
+        scope: "org",
+      }
+    );
+    if (!started.connectionId) {
+      throw new Error("expected github connection id");
+    }
+    const completed = await aliceCtx.action(
+      api.connectorConnect.completeGithubConnect,
+      {
+        connectionId: started.connectionId,
+        orgId: orgA,
+        scope: "org",
+      }
+    );
+    const listed = await aliceCtx.query(api.connectorConnections.listByOrg, {
+      orgId: orgA,
+      provider: "github",
+    });
+    const stored = await t.run(async (ctx) => {
+      const row = await ctx.db.get(
+        "connectorConnections",
+        started.connectionId
+      );
+      if (!row) {
+        throw new Error("expected connection row");
+      }
+      return row;
+    });
+    expect({
+      completed,
+      hasAccessToken: Object.hasOwn(stored, "accessToken"),
+      listed,
+      noBrowserId: calls[0]?.body?.includes("connectedAccountId"),
+      returnUri: calls[0]?.body,
+      started,
+      url: calls[0]?.url,
+    }).toMatchObject({
+      completed: {
+        connectionId: started.connectionId,
+        displayLabel: "The Octocat",
+        status: "connected",
+      },
+      hasAccessToken: false,
+      listed: [
+        {
+          connectedAccountId: "cccccccc-3333-4f8e-9134-c1db5c9cf7f8",
+          displayLabel: "The Octocat",
+          provider: "github",
+          status: "connected",
+        },
+      ],
+      noBrowserId: false,
+      started: {
+        authorizeUrl: "https://github.com/login/oauth/authorize?client_id=x",
+        ready: true,
+        reason: "started",
+      },
+      url: "https://oc.test/v1/connections/github/connect",
+    });
+    expect(calls[0]?.body).toContain(
+      `https://tahcode.com/o/${org?.slug}/connectors?connector=github&scope=org&connectionId=${started.connectionId}`
+    );
+  });
+
+  it("blocks members from org-scope GitHub start", async () => {
+    const t = fresh();
+    const { memberCtx, orgA } = await seedOrg(t);
+    await expect(
+      memberCtx.action(api.connectorConnect.startGithubConnect, {
+        orgId: orgA,
+        scope: "org",
+      })
+    ).rejects.toThrow(/admin access required/i);
+  });
+});

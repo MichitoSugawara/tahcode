@@ -114,21 +114,35 @@ describe("job MCP attachment", () => {
     );
   });
 
-  it("resolves a tahcode-hosted Linear spec only when connected", () => {
-    const spec = resolveConnectorMcpServer(linear);
-    expect(spec).toMatchObject({
-      args: ["tool-mcp"],
-      command: CONNECTOR_MCP_HOST_COMMAND,
-      env: {
-        TAHCODE_CONNECTOR_CONNECTION_ID: linear.connectionId,
-        TAHCODE_CONNECTOR_PROVIDER: "linear",
+  it("resolves a tahcode-hosted spec only when connected and catalogued", () => {
+    const github = { ...linear, provider: "github" };
+    expect({
+      disconnected: resolveConnectorMcpServer(disconnected),
+      github: resolveConnectorMcpServer(github),
+      linear: resolveConnectorMcpServer(linear),
+      slack: resolveConnectorMcpServer({ ...linear, provider: "slack" }),
+    }).toMatchObject({
+      disconnected: null,
+      github: {
+        args: ["tool-mcp"],
+        command: CONNECTOR_MCP_HOST_COMMAND,
+        env: {
+          TAHCODE_CONNECTOR_CONNECTION_ID: linear.connectionId,
+          TAHCODE_CONNECTOR_PROVIDER: "github",
+        },
+        name: connectorMcpServerName(github),
       },
-      name: connectorMcpServerName(linear),
+      linear: {
+        args: ["tool-mcp"],
+        command: CONNECTOR_MCP_HOST_COMMAND,
+        env: {
+          TAHCODE_CONNECTOR_CONNECTION_ID: linear.connectionId,
+          TAHCODE_CONNECTOR_PROVIDER: "linear",
+        },
+        name: connectorMcpServerName(linear),
+      },
+      slack: null,
     });
-    expect(resolveConnectorMcpServer(disconnected)).toBeNull();
-    expect(
-      resolveConnectorMcpServer({ ...linear, provider: "github" })
-    ).toBeNull();
   });
 
   it("merges Linear into tahcode-mcp.json only for mentioned connected accounts", () => {

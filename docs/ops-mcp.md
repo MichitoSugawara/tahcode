@@ -18,7 +18,7 @@
 ジョブ claim（`jobs:claimNext`）が `opsBundle` を返します。中身は:
 
 - `connectors` — ジョブ Org で acting user が見える `connectorConnections`（シークレットなし）
-- `mentionedConnectors` — プロンプトの `@linear` / `@linear/<slug>`
+- `mentionedConnectors` — プロンプトの `@linear` / `@github`（または `@<provider>/<slug>`）
 - `mcp.attachment` — `mcp-config` / `cli` / `unsupported`
 - `mcp.servers` — `tahcode` ops は常に `inject: true`。Linear は **メンション ∩ `connected`** のときだけ `inject: true`
 
@@ -35,7 +35,7 @@
 
 ## TAH-54 の載せ方
 
-`@linear` で tahcode コネクタの Linear ツールを渡すときは、**この基盤の上に載せる**。Linear 専用の起動フラグや Cursor マーケットプレイス MCP は足さない。
+`@linear` / `@github` で tahcode コネクタのツールを渡すときは、**この基盤の上に載せる**。サービス専用の起動フラグや Cursor マーケットプレイス MCP は足さない。
 
 1. `resolveConnectorMcpServer` は `provider === "linear"` かつ `status === "connected"` のときだけ MCP サーバ仕様を返す（ホストは `tahcode tool-mcp`）。
 2. 実際にファイルへ入れる対象は `mentionedConnectors ∩ connectors`（connected のみ）。`buildJobMcpConfig` が tahcode ops と同じ `mcpServers` にマージする。
@@ -53,7 +53,7 @@
 
 `@linear/<slug>` は displayLabel の slug、または `connectionId` そのもの。切断済み・未メンションは注入しない。
 
-Linear ツールは `shared/connectorActionCatalog.ts` から materialize する（[TAH-65](connector-action-tools.md)）。Phase 1 の Linear 面: `list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue` / `list_linear_teams`。実体はコネクタ Action（`linear.list_linear_issues` など）だが、エージェントから見える名前と説明は Linear だけ。新しい Linear Action はカタログ行を足す（サービス専用ツールファイルは増やさない）。
+コネクタツールは `shared/connectorActionCatalog.ts` から materialize する（[TAH-65](connector-action-tools.md)）。Linear 面: `list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue` / `list_linear_teams`。GitHub 面（TAH-79）: `list_github_repos` / `list_github_issues` / `search_github_issues` / `create_github_issue` / `update_github_issue`。実体はコネクタ Action だが、エージェントから見える名前にベンダーホストは出さない。新しい Action はカタログ行を足す（サービス専用ツールファイルは増やさない）。
 
 ## Preview での確認
 

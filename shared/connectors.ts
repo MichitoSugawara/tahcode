@@ -12,8 +12,8 @@ export const CONNECTOR_STATUSES = [
 ] as const;
 export type ConnectorStatus = (typeof CONNECTOR_STATUSES)[number];
 
-/** First provider is Linear; the field stays a free string so the catalog can grow. */
-export const CONNECTOR_PROVIDERS = ["linear"] as const;
+/** Catalog providers. The field stays a free string so the catalog can grow. */
+export const CONNECTOR_PROVIDERS = ["linear", "github"] as const;
 export type ConnectorProvider = (typeof CONNECTOR_PROVIDERS)[number];
 
 export const MAX_CONNECTOR_CONNECTIONS = 200;
@@ -24,7 +24,18 @@ export const MAX_CONNECTOR_DISPLAY_LABEL = 120;
 export const MAX_CONNECTOR_OAUTH_REQUEST_ID = 64;
 export const MAX_CONNECTOR_OAUTH_ALIAS = 128;
 export const LINEAR_CONNECT_QUERY = "linear";
+export const GITHUB_CONNECT_QUERY = "github";
 export const CONNECTOR_CARD_KIND = "connector" as const;
+
+export function connectorDisplayName(provider: string): string {
+  if (provider === "linear") {
+    return "Linear";
+  }
+  if (provider === "github") {
+    return "GitHub";
+  }
+  return provider;
+}
 
 export type ConnectorCardAttachment = {
   kind: typeof CONNECTOR_CARD_KIND;
@@ -113,21 +124,45 @@ export function sanitizeLinearReturnPath(
   return pathname;
 }
 
-export function linearConnectReturnScope(
+export function connectorConnectReturnProvider(
   search: string
-): ConnectorScope | null {
+): ConnectorProvider | null {
   const params = new URLSearchParams(
     search.startsWith("?") ? search.slice(1) : search
   );
-  if (params.get("connector") !== LINEAR_CONNECT_QUERY) {
+  const provider = params.get("connector")?.trim().toLowerCase();
+  if (!provider || !isKnownConnectorProvider(provider)) {
     return null;
   }
+  return provider;
+}
+
+export function connectorConnectReturnScope(
+  search: string
+): ConnectorScope | null {
+  if (connectorConnectReturnProvider(search) === null) {
+    return null;
+  }
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search
+  );
   return params.get("scope") === "user" ? "user" : "org";
 }
 
+export function linearConnectReturnScope(
+  search: string
+): ConnectorScope | null {
+  if (connectorConnectReturnProvider(search) !== LINEAR_CONNECT_QUERY) {
+    return null;
+  }
+  return connectorConnectReturnScope(search);
+}
+
 /** Convex `connectionId` from the OAuth return query (2nd+ account). */
-export function linearConnectReturnConnectionId(search: string): string | null {
-  if (linearConnectReturnScope(search) === null) {
+export function connectorConnectReturnConnectionId(
+  search: string
+): string | null {
+  if (connectorConnectReturnProvider(search) === null) {
     return null;
   }
   const params = new URLSearchParams(
@@ -135,6 +170,13 @@ export function linearConnectReturnConnectionId(search: string): string | null {
   );
   const connectionId = params.get("connectionId")?.trim();
   return connectionId && connectionId.length > 0 ? connectionId : null;
+}
+
+export function linearConnectReturnConnectionId(search: string): string | null {
+  if (connectorConnectReturnProvider(search) !== LINEAR_CONNECT_QUERY) {
+    return null;
+  }
+  return connectorConnectReturnConnectionId(search);
 }
 
 export function stripLinearConnectReturnSearch(search: string): string {

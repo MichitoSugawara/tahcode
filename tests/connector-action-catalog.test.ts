@@ -15,15 +15,16 @@ import { resolveConnectorMcpServer } from "../shared/opsMcp.ts";
 import type { JobConnectorSnapshot } from "../shared/opsMcp.ts";
 
 const extraGithub: ConnectorActionDescriptor = {
-  actionId: "github.create_issue",
-  description:
-    "Create a GitHub issue on the mentioned tahcode-owned connector.",
+  actionId: "github.get_issue",
+  description: "Get one GitHub issue on the mentioned tahcode-owned connector.",
   fields: [
     { name: "connectionId", omitFromAction: true, type: "string" },
-    { name: "title", required: true, type: "string" },
+    { integerMin: 1, name: "issueNumber", required: true, type: "integer" },
+    { name: "owner", required: true, type: "string" },
+    { name: "repo", required: true, type: "string" },
   ],
   provider: "github",
-  toolName: "create_github_issue",
+  toolName: "get_github_issue",
 };
 
 describe("connector action catalog", () => {
@@ -38,9 +39,9 @@ describe("connector action catalog", () => {
       linear: hasConnectorActions("linear"),
       names,
       teams: isConnectorActionToolName("list_linear_teams"),
-      unknown: isConnectorActionToolName("create_github_issue"),
+      unknown: isConnectorActionToolName("get_github_issue"),
     }).toStrictEqual({
-      github: false,
+      github: true,
       leaked: false,
       linear: true,
       names: LINEAR_AGENT_TOOLS.map((tool) => tool.name),
@@ -51,27 +52,48 @@ describe("connector action catalog", () => {
 
   it("adds a new Action from a catalog row only (no new tool file)", () => {
     const catalog = [...CONNECTOR_ACTION_CATALOG, extraGithub];
-    const githubTools = materializeConnectorTools("github", catalog);
-    expect(githubTools.map((tool) => tool.name)).toStrictEqual([
-      "create_github_issue",
+    const extraTools = materializeConnectorTools("github", [extraGithub]);
+    expect(extraTools.map((tool) => tool.name)).toStrictEqual([
+      "get_github_issue",
     ]);
     expect(hasConnectorActions("github", catalog)).toBeTruthy();
-    expect(
-      isConnectorActionToolName("create_github_issue", catalog)
-    ).toBeTruthy();
+    expect(isConnectorActionToolName("get_github_issue", catalog)).toBeTruthy();
     expect(
       mapConnectorActionInput(
-        "create_github_issue",
-        { title: "Ship TAH-65" },
+        "get_github_issue",
+        { issueNumber: 79, owner: "acme", repo: "web" },
         catalog
       )
     ).toStrictEqual({
-      actionId: "github.create_issue",
-      input: { title: "Ship TAH-65" },
+      actionId: "github.get_issue",
+      input: { issueNumber: 79, owner: "acme", repo: "web" },
     });
     expect(connectorActionInputSchema(extraGithub)).toMatchObject({
-      required: ["title"],
+      required: ["issueNumber", "owner", "repo"],
       type: "object",
+    });
+  });
+
+  it("materializes curated GitHub Actions without a hand-written tool file", () => {
+    expect({
+      create: mapConnectorActionInput("create_github_issue", {
+        owner: "acme",
+        repo: "web",
+        title: "Ship GitHub plugin",
+      }),
+      names: materializeConnectorTools("github").map((tool) => tool.name),
+    }).toStrictEqual({
+      create: {
+        actionId: "github.create_issue",
+        input: { owner: "acme", repo: "web", title: "Ship GitHub plugin" },
+      },
+      names: [
+        "list_github_repos",
+        "list_github_issues",
+        "search_github_issues",
+        "create_github_issue",
+        "update_github_issue",
+      ],
     });
   });
 
@@ -95,7 +117,7 @@ describe("connector action catalog", () => {
       "tahcode-linear-k57abcde"
     );
     expect(
-      resolveConnectorMcpServer({ ...linear, provider: "github" })
-    ).toBeNull();
+      resolveConnectorMcpServer({ ...linear, provider: "github" })?.name
+    ).toBe("tahcode-github-k57abcde");
   });
 });

@@ -1,7 +1,7 @@
 # コネクタ Action のエージェントツール自動露出（TAH-65）
 
-Status: Phase 1  
-Issue: [TAH-65](https://linear.app/tahcode/issue/TAH-65/コネクタ-action-をエージェントツールに自動露出する)  
+Status: Phase 1 + GitHub 行（TAH-79）  
+Issue: [TAH-65](https://linear.app/tahcode/issue/TAH-65/コネクタ-action-をエージェントツールに自動露出する) / [TAH-79](https://linear.app/tahcode/issue/TAH-79)  
 Repo: [https://github.com/MichitoSugawara/tahcode](https://github.com/MichitoSugawara/tahcode)
 
 関連: [TAH-54](https://linear.app/tahcode/issue/TAH-54) / [TAH-55](https://linear.app/tahcode/issue/TAH-55) / [ops MCP](ops-mcp.md) / [Agent Tools](agent-tools.md)
@@ -106,8 +106,22 @@ Linear の既存 4 課題ツールに加え、コネクタ上に既にある `li
 
 ---
 
-## Phase 2 候補
+## Phase 2（一部完了: GitHub）
+
+[TAH-79](https://linear.app/tahcode/issue/TAH-79) で GitHub をカタログ行として足した。新しいツールファイルは無い。`resolveConnectorMcpServer` / `invokeConnector` はそのまま。
+
+| エージェントツール | OpenConnector Action |
+| --- | --- |
+| `list_github_repos` | `github.list_my_repositories` |
+| `list_github_issues` | `github.list_repository_issues`（`owner` / `repo` 必須） |
+| `search_github_issues` | `github.search_issues_and_pull_requests` |
+| `create_github_issue` | `github.create_issue`（`owner` / `repo` / `title` 必須） |
+| `update_github_issue` | `github.update_issue`（`owner` / `repo` / `issueNumber` 必須） |
+
+`github.get_current_user` は接続確認（health）だけ。Linear の `linear.get_current_user` と同じくツールには出さない。接続手順は [github-plugin.md](github-plugin.md)。
+
+残りの Phase 2 候補:
 
 - リモート Action 一覧をカタログの入力にする（curated allowlist は残す）
 - カタログ肥大時だけ SEARCH / GET_SCHEMAS を足す（Claude の一次ツールは維持）
-- Linear 以外の provider 行をカタログに足す。`resolveConnectorMcpServer` と `invokeConnector` はそのまま使う
+- Slack など他 provider 行を同じカタログに足す

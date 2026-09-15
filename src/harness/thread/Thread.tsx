@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
 import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
-import { LinearConnectorCard } from "@/harness/connectors/LinearConnectorCard";
+import { ConnectorProviderCard } from "@/harness/connectors/LinearConnectorCard";
 import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
-import { firstConnectorCardAttachment } from "@/lib/connectorCard";
+import {
+  LINEAR_CONNECTOR,
+  connectorCatalogEntry,
+  firstConnectorCardAttachment,
+} from "@/lib/connectorCard";
 import { displayName } from "@/lib/format";
 import { agentMention, isProviderKind } from "@/lib/providers";
 
@@ -194,7 +198,11 @@ export function Thread({
                       {message.body}
                     </p>
                   ) : null}
-                  <LinearConnectorCard
+                  <ConnectorProviderCard
+                    catalog={
+                      connectorCatalogEntry(connector.provider) ??
+                      LINEAR_CONNECTOR
+                    }
                     preferredScope={connector.scope}
                     variant="chat"
                   />

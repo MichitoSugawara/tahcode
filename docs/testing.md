@@ -132,7 +132,7 @@ main に後から入った **Connectors（Linear OAuth / マルチアカウン�
 | `agentTools` | invoke | 代表的な認可 |
 | `skills` / `skillProfiles` | CRUD + attach | 厚い |
 | `connectorConnections` | listByOrg, upsert, disconnect, rename, remove | 厚い（後続 PR） |
-| `connectorConnect` | startLinearConnect, completeLinearConnect | 厚い（後続 PR。fetch は mock） |
+| `connectorConnect` | startLinearConnect, completeLinearConnect, startGithubConnect, completeGithubConnect | 厚い（fetch は mock。GitHub は Linear と同じ start+complete） |
 | `seed` | ensurePreviewLogin / ensurePreviewWorkspace | preview のみ。本番拒否あり |
 | `users` | me, updateProfile, ensureHandle | なし |
 | `http.ts` | `/files/consume-upload`, `/files/authorize-download` | なし（internal を呼べば足りる） |

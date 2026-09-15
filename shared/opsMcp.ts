@@ -16,7 +16,7 @@ import { parseMentions } from "./mentions.ts";
  *
  * TAH-65 rides `resolveConnectorMcpServer`: inject catalogued connector
  * Actions from tahcode `connectorConnections` when the prompt mentions
- * that provider (`@linear` today).
+ * that provider (`@linear` / `@github`).
  */
 
 export const JOB_MCP_CONFIG_FILENAME = "tahcode-mcp.json";

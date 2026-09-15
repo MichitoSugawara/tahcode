@@ -5,6 +5,9 @@ import type {
 
 export {
   LINEAR_CONNECT_QUERY,
+  connectorConnectReturnConnectionId,
+  connectorConnectReturnProvider,
+  connectorConnectReturnScope,
   firstConnectorCardAttachment,
   isPendingConnectorAccountId,
   linearConnectReturnConnectionId,
@@ -181,9 +184,23 @@ export const LINEAR_CONNECTOR: ConnectorCatalogEntry = {
   provider: "linear",
 };
 
+export const GITHUB_CONNECTOR: ConnectorCatalogEntry = {
+  description: "リポジトリと Issue を org から接続します。",
+  displayName: "GitHub",
+  homepageUrl: "https://github.com",
+  provider: "github",
+};
+
 export const CONNECTOR_CATALOG: readonly ConnectorCatalogEntry[] = [
   LINEAR_CONNECTOR,
+  GITHUB_CONNECTOR,
 ];
+
+export function connectorCatalogEntry(
+  provider: string
+): ConnectorCatalogEntry | undefined {
+  return CONNECTOR_CATALOG.find((entry) => entry.provider === provider);
+}
 
 export function filterConnectorCatalog<T extends ConnectorCatalogEntry>(
   entries: readonly T[],
@@ -205,7 +222,8 @@ export const CONNECTOR_CARD_COPY = {
   add: "追加",
   addAnotherAccount: "+ 別のアカウントを追加",
   authorize: "認証",
-  authorizeHint: "認証すると Linear に移動し、完了後この画面に戻ります。",
+  authorizeHint: (name: string) =>
+    `認証すると ${name} に移動し、完了後この画面に戻ります。`,
   cardError: "プラグインカードを表示できませんでした",
   chatIntro: (name: string) => `${name} をこの org に接続します。`,
   chatIntroUser: (name: string) => `${name} を個人アカウントとして接続します。`,
@@ -214,8 +232,8 @@ export const CONNECTOR_CARD_COPY = {
   confirming: (name: string) => `${name} の認証を確認しています…`,
   connected: "接続済み",
   disconnect: "切断",
-  disconnectDetail:
-    "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
+  disconnectDetail: (name: string) =>
+    `tahcode からの連携だけを止めます。${name} 側のアカウントはそのままです。`,
   emptySearch: "該当するプラグインがありません",
   loading: "プラグインを読み込んでいます",
   needsAuth: "認証が必要",
@@ -223,8 +241,8 @@ export const CONNECTOR_CARD_COPY = {
   personal: "個人",
   remove: "削除",
   removeAccount: (label: string) => `${label} を削除`,
-  removeDetail:
-    "このアカウントの連携だけを削除します。他の Linear アカウントは残ります。Linear 側のアカウントはそのままです。",
+  removeDetail: (name: string) =>
+    `このアカウントの連携だけを削除します。他の ${name} アカウントは残ります。${name} 側のアカウントはそのままです。`,
   rename: "名前を変更",
   renamePlaceholder: "アカウント",
   reopen: "再表示",

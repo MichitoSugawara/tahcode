@@ -19,6 +19,12 @@ export const LINEAR_SEARCH_ISSUES_ACTION = "linear.search_issues";
 export const LINEAR_CREATE_ISSUE_ACTION = "linear.create_linear_issue";
 export const LINEAR_UPDATE_ISSUE_ACTION = "linear.update_issue";
 export const LINEAR_LIST_TEAMS_ACTION = "linear.list_linear_teams";
+export const GITHUB_LIST_REPOS_ACTION = "github.list_my_repositories";
+export const GITHUB_LIST_ISSUES_ACTION = "github.list_repository_issues";
+export const GITHUB_SEARCH_ISSUES_ACTION =
+  "github.search_issues_and_pull_requests";
+export const GITHUB_CREATE_ISSUE_ACTION = "github.create_issue";
+export const GITHUB_UPDATE_ISSUE_ACTION = "github.update_issue";
 
 export type ConnectorActionFieldType = "boolean" | "integer" | "string";
 
@@ -152,6 +158,103 @@ export const CONNECTOR_ACTION_CATALOG = [
     fields: [CONNECTION_ID_FIELD],
     provider: "linear",
     toolName: "list_linear_teams",
+  },
+  {
+    actionId: GITHUB_LIST_REPOS_ACTION,
+    description:
+      "List repositories visible to the tahcode-owned GitHub connector mentioned in this job (`@github`). Not Cursor marketplace MCP.",
+    fields: [
+      CONNECTION_ID_FIELD,
+      {
+        actionKey: "perPage",
+        integerMax: 100,
+        integerMin: 1,
+        name: "limit",
+        type: "integer",
+      },
+      { integerMin: 1, name: "page", type: "integer" },
+      { name: "visibility", type: "string" },
+    ],
+    provider: "github",
+    toolName: "list_github_repos",
+  },
+  {
+    actionId: GITHUB_LIST_ISSUES_ACTION,
+    description:
+      "List issues on a repository via the mentioned tahcode-owned GitHub connector. owner and repo are required.",
+    fields: [
+      CONNECTION_ID_FIELD,
+      {
+        actionKey: "perPage",
+        integerMax: 100,
+        integerMin: 1,
+        name: "limit",
+        type: "integer",
+      },
+      { name: "owner", required: true, type: "string" },
+      { integerMin: 1, name: "page", type: "integer" },
+      { name: "repo", required: true, type: "string" },
+      { name: "state", type: "string" },
+    ],
+    provider: "github",
+    toolName: "list_github_issues",
+  },
+  {
+    actionId: GITHUB_SEARCH_ISSUES_ACTION,
+    description:
+      "Search issues and pull requests on the mentioned tahcode-owned GitHub connector.",
+    fields: [
+      CONNECTION_ID_FIELD,
+      {
+        actionKey: "perPage",
+        integerMax: 100,
+        integerMin: 1,
+        name: "limit",
+        type: "integer",
+      },
+      { name: "owner", type: "string" },
+      { integerMin: 1, name: "page", type: "integer" },
+      { name: "query", type: "string" },
+      { name: "repo", type: "string" },
+      { name: "state", type: "string" },
+    ],
+    provider: "github",
+    toolName: "search_github_issues",
+  },
+  {
+    actionId: GITHUB_CREATE_ISSUE_ACTION,
+    description:
+      "Create a GitHub issue on the mentioned tahcode-owned connector. owner, repo, and title are required.",
+    fields: [
+      { name: "body", type: "string" },
+      CONNECTION_ID_FIELD,
+      { name: "owner", required: true, type: "string" },
+      { name: "repo", required: true, type: "string" },
+      { name: "title", required: true, type: "string" },
+    ],
+    provider: "github",
+    toolName: "create_github_issue",
+  },
+  {
+    actionId: GITHUB_UPDATE_ISSUE_ACTION,
+    description:
+      "Update a GitHub issue on the mentioned tahcode-owned connector. owner, repo, and issueNumber are required.",
+    fields: [
+      { name: "body", type: "string" },
+      CONNECTION_ID_FIELD,
+      {
+        integerMin: 1,
+        name: "issueNumber",
+        required: true,
+        type: "integer",
+      },
+      { name: "owner", required: true, type: "string" },
+      { name: "repo", required: true, type: "string" },
+      { name: "state", type: "string" },
+      { name: "title", type: "string" },
+    ],
+    provider: "github",
+    toolName: "update_github_issue",
   },
 ] as const satisfies readonly ConnectorActionDescriptor[];
 
@@ -309,6 +412,9 @@ export function sanitizeConnectorToolResult(value: unknown): unknown {
 export function connectorProviderLabel(provider: string): string {
   if (provider === "linear") {
     return "Linear";
+  }
+  if (provider === "github") {
+    return "GitHub";
   }
   return "Plugin";
 }

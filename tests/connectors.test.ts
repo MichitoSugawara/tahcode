@@ -79,8 +79,15 @@ describe(normalizeConnectorCardAttachment, () => {
       provider: "linear",
       scope: "user",
     });
-    expect(() =>
+    expect(
       normalizeConnectorCardAttachment({ provider: "github" })
+    ).toStrictEqual({
+      kind: "connector",
+      provider: "github",
+      scope: "org",
+    });
+    expect(() =>
+      normalizeConnectorCardAttachment({ provider: "slack" })
     ).toThrow(/unknown connector/i);
   });
 

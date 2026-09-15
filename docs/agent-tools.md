@@ -53,15 +53,20 @@ Cursor の `agent -p` には `--mcp-config` が無いので、ツールはシェ
 | `get_runtime_status` | 1 台の online/offline・stale・検出 CLI。`tokenHash` は返さない |
 | `list_connectors` | 見えるコネクタ（tahcode の接続状態。マーケットプレイス MCP ではない） |
 | `get_connector_status` | 1 件（`connectionId`）または `provider` で一覧 |
-| `suggest_connector` | アクティブなチャットに Linear コネクタカード（Add / 認証 / Waiting / 接続済み）を出す。`provider` / `scope` / `chatId` 省略時は Linear・org・ツールセッション |
+| `suggest_connector` | アクティブなチャットに Linear / GitHub プラグインカード（追加 / 認証 / Waiting / 接続済み）を出す。`provider` / `scope` / `chatId` 省略時は Linear・org・ツールセッション |
 | `list_linear_issues` | ジョブでメンションされた tahcode Linear の課題一覧（未メンション / 未接続では呼ばない） |
 | `search_linear_issues` | 同上の全文検索 |
 | `create_linear_issue` | 課題作成（`teamId` + `title`） |
 | `update_linear_issue` | 課題更新（`issueId`） |
 | `list_linear_teams` | 同上のチーム一覧（`create_linear_issue` の `teamId` 用。カタログ行のみで追加） |
+| `list_github_repos` | ジョブでメンションされた tahcode GitHub のリポジトリ一覧 |
+| `list_github_issues` | 同上の Issue 一覧（`owner` + `repo`） |
+| `search_github_issues` | 同上の Issue / PR 検索 |
+| `create_github_issue` | Issue 作成（`owner` + `repo` + `title`） |
+| `update_github_issue` | Issue 更新（`owner` + `repo` + `issueNumber`） |
 
-会話中のカードは `/o/:slug/connectors` と同じ `connectorConnections` を見る。UI からの明示トリガーは `/connect`（同じ `messages.suggestConnector`）。キーワード検出はしない。
+会話中のカードは `/o/:slug/connectors` と同じ `connectorConnections` を見る。UI からの明示トリガーは `/connect`（Linear）と `/github`（同じ `messages.suggestConnector`）。キーワード検出はしない。
 
-Linear ツールは `@linear` / `@linear/<slug>` があるジョブだけでカタログと MCP に載る。Claude では注入サーバ `tahcode-linear-<last8>`、ほかのハーネスでは `tahcode tool`。どちらも同じ catalog materialize。トークンは Convex action 側に残す。
+Linear / GitHub ツールは `@linear` / `@github`（または `@<provider>/<slug>`）があるジョブだけでカタログと MCP に載る。Claude では注入サーバ `tahcode-<provider>-<last8>`、ほかのハーネスでは `tahcode tool`。どちらも同じ catalog materialize。トークンは Convex action 側に残す。接続手順は [github-plugin.md](github-plugin.md)。
 
 他 Org の id を渡した場合は、その Org のメンバーであり、かつ既存の可視ルールを満たすときだけ通ります。メンバーでない Org や非公開プロジェクト／プライベートチャットは拒否します。

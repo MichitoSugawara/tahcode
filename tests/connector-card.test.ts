@@ -6,6 +6,7 @@ import type { ConnectorStatus } from "../shared/connectors.ts";
 import {
   CONNECTOR_CARD_COPY,
   CONNECTOR_CATALOG,
+  GITHUB_CONNECTOR,
   LINEAR_CONNECTOR,
   connectionMeta,
   connectorAccountCountLabel,
@@ -166,11 +167,13 @@ describe(filterConnectorCatalog, () => {
     expect({
       empty: filterConnectorCatalog(CONNECTOR_CATALOG, ""),
       linear: filterConnectorCatalog(CONNECTOR_CATALOG, "linear"),
+      github: filterConnectorCatalog(CONNECTOR_CATALOG, "github"),
       description: filterConnectorCatalog(CONNECTOR_CATALOG, "課題"),
-      miss: filterConnectorCatalog(CONNECTOR_CATALOG, "github"),
+      miss: filterConnectorCatalog(CONNECTOR_CATALOG, "slack"),
     }).toStrictEqual({
-      empty: [LINEAR_CONNECTOR],
+      empty: [LINEAR_CONNECTOR, GITHUB_CONNECTOR],
       linear: [LINEAR_CONNECTOR],
+      github: [GITHUB_CONNECTOR],
       description: [LINEAR_CONNECTOR],
       miss: [],
     });
@@ -179,54 +182,72 @@ describe(filterConnectorCatalog, () => {
 
 describe("connector card copy", () => {
   it("keeps Japanese CTAs and the Grok Bot Team badge", () => {
-    expect(LINEAR_CONNECTOR.provider).toBe("linear");
-    expect(LINEAR_CONNECTOR.description).toContain("課題とプロジェクト");
-    expect(CONNECTOR_CARD_COPY).toMatchObject({
-      accounts: "アカウント",
-      add: "追加",
-      addAnotherAccount: "+ 別のアカウントを追加",
-      authorize: "認証",
-      authorizeHint: expect.stringContaining("Linear に移動"),
-      connected: "接続済み",
-      disconnect: "切断",
-      emptySearch: "該当するプラグインがありません",
-      remove: "削除",
-      rename: "名前を変更",
-      needsAuth: "認証が必要",
-      notConfigured: "認証を開始できません。管理者に連絡してください。",
-      reopen: "再表示",
-      retry: "再試行",
-      searchLabel: "プラグインを検索",
-      surface: "プラグイン",
-      team: "Team",
-      chatMemberHint: "Team 連携の認証は Owner / Admin が行います。",
-    });
-    expect(JSON.stringify(CONNECTOR_CARD_COPY)).not.toContain(
-      "認可の開始は準備中です"
-    );
     expect({
-      intro: CONNECTOR_CARD_COPY.chatIntro("Linear"),
-      retry: CONNECTOR_CARD_COPY.retryHint("Linear"),
-      waiting: CONNECTOR_CARD_COPY.waiting("Linear"),
+      copy: CONNECTOR_CARD_COPY,
+      githubDesc: GITHUB_CONNECTOR.description,
+      githubHint: CONNECTOR_CARD_COPY.authorizeHint("GitHub"),
+      githubProvider: GITHUB_CONNECTOR.provider,
+      linearDesc: LINEAR_CONNECTOR.description,
+      linearHint: CONNECTOR_CARD_COPY.authorizeHint("Linear"),
+      linearProvider: LINEAR_CONNECTOR.provider,
+      phrases: {
+        intro: CONNECTOR_CARD_COPY.chatIntro("Linear"),
+        retry: CONNECTOR_CARD_COPY.retryHint("Linear"),
+        waiting: CONNECTOR_CARD_COPY.waiting("Linear"),
+      },
+      stale: JSON.stringify(CONNECTOR_CARD_COPY).includes(
+        "認可の開始は準備中です"
+      ),
     }).toStrictEqual({
-      intro: expect.stringContaining("この org"),
-      retry: expect.stringContaining("認証が完了しませんでした"),
-      waiting: expect.stringContaining("認証を待っています"),
+      copy: expect.objectContaining({
+        accounts: "アカウント",
+        add: "追加",
+        addAnotherAccount: "+ 別のアカウントを追加",
+        authorize: "認証",
+        authorizeHint: expect.any(Function),
+        chatMemberHint: "Team 連携の認証は Owner / Admin が行います。",
+        connected: "接続済み",
+        disconnect: "切断",
+        emptySearch: "該当するプラグインがありません",
+        needsAuth: "認証が必要",
+        notConfigured: "認証を開始できません。管理者に連絡してください。",
+        remove: "削除",
+        rename: "名前を変更",
+        reopen: "再表示",
+        retry: "再試行",
+        searchLabel: "プラグインを検索",
+        surface: "プラグイン",
+        team: "Team",
+      }),
+      githubDesc: expect.stringContaining("リポジトリと Issue"),
+      githubHint: expect.stringContaining("GitHub に移動"),
+      githubProvider: "github",
+      linearDesc: expect.stringContaining("課題とプロジェクト"),
+      linearHint: expect.stringContaining("Linear に移動"),
+      linearProvider: "linear",
+      phrases: {
+        intro: expect.stringContaining("この org"),
+        retry: expect.stringContaining("認証が完了しませんでした"),
+        waiting: expect.stringContaining("認証を待っています"),
+      },
+      stale: false,
     });
   });
 
   it("does not mention infrastructure names in card copy", () => {
     const haystack = [
       LINEAR_CONNECTOR.description,
-      CONNECTOR_CARD_COPY.authorizeHint,
-      CONNECTOR_CARD_COPY.disconnectDetail,
+      GITHUB_CONNECTOR.description,
+      CONNECTOR_CARD_COPY.authorizeHint("Linear"),
+      CONNECTOR_CARD_COPY.authorizeHint("GitHub"),
+      CONNECTOR_CARD_COPY.disconnectDetail("Linear"),
       CONNECTOR_CARD_COPY.addAnotherAccount,
       CONNECTOR_CARD_COPY.notConfigured,
       CONNECTOR_CARD_COPY.removeAccount("pottos"),
-      CONNECTOR_CARD_COPY.removeDetail,
+      CONNECTOR_CARD_COPY.removeDetail("GitHub"),
       CONNECTOR_CARD_COPY.searchLabel,
       CONNECTOR_CARD_COPY.chatIntro("Linear"),
-      CONNECTOR_CARD_COPY.chatIntroUser("Linear"),
+      CONNECTOR_CARD_COPY.chatIntroUser("GitHub"),
       CONNECTOR_CARD_COPY.chatMemberHint,
     ].join(" ");
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
@@ -368,11 +389,15 @@ describe("chat-inline connector card", () => {
       attachment: thread.includes("firstConnectorCardAttachment"),
       chatRow: card.includes("connector-chat-card"),
       mount: thread.includes('variant="chat"'),
+      githubAction: card.includes("startGithubConnect"),
+      githubSlash: composer.includes('name: "/github"'),
       slash: composer.includes('name: "/connect"'),
       tool: composer.includes("suggestConnector"),
     }).toStrictEqual({
       attachment: true,
       chatRow: true,
+      githubAction: true,
+      githubSlash: true,
       mount: true,
       slash: true,
       tool: true,

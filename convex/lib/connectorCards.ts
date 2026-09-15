@@ -1,4 +1,7 @@
-import { normalizeConnectorCardAttachment } from "../../shared/connectors.ts";
+import {
+  connectorDisplayName,
+  normalizeConnectorCardAttachment,
+} from "../../shared/connectors.ts";
 import type { ConnectorScope } from "../../shared/connectors.ts";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -32,8 +35,7 @@ export async function postConnectorCardMessage(
     provider: input.provider,
     scope: input.scope,
   });
-  const displayName =
-    attachment.provider === "linear" ? "Linear" : attachment.provider;
+  const displayName = connectorDisplayName(attachment.provider);
   const body =
     attachment.scope === "user"
       ? `${displayName} を個人アカウントとして接続します。`
