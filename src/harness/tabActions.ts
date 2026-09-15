@@ -43,3 +43,8 @@ export function isCloseTabShortcut(event: {
   }
   return event.key.toLowerCase() === "w";
 }
+
+/** Chrome / Firefox / VS Code / Cursor: button === 1 is the scroll-wheel click. */
+export function isMiddleClickButton(button: number): boolean {
+  return button === 1;
+}

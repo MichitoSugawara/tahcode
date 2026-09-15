@@ -42,5 +42,15 @@ export function readChatDrag(dataTransfer: ChatDragTransfer): string | null {
   if (fromMime) {
     return fromMime;
   }
-  return peekChatDrag();
+  const peeked = peekChatDrag();
+  if (peeked) {
+    return peeked;
+  }
+  /* Some engines hide custom MIME until drop, or fire dragend before drop.
+   * text/plain is the Codex / VS Code-style fallback, but only when this
+   * document started a chat drag (custom type still listed). */
+  if (!dataTransfer.types.includes(CHAT_DRAG_MIME)) {
+    return null;
+  }
+  return dataTransfer.getData("text/plain").trim() || null;
 }

@@ -784,6 +784,7 @@ export default function SidebarNav({
               aria-label={section.label}
             >
               <div
+                data-sidebar-section-heading={section.id}
                 className="sidebar-hover-target sidebar-copy relative mx-2 mb-1 flex h-7 items-center rounded-[8px] px-2"
                 data-hover-actions={
                   actionsOpenId === section.id ? "open" : undefined
