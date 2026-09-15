@@ -209,8 +209,25 @@ describe("shell source contracts", () => {
     expect(bar).toContain("プロジェクトを選択");
     expect(bar).toContain("マシンを選択");
     expect(bar).toContain("ブランチを選択");
-    expect(bar).toContain("フォルダを指定");
+    expect(bar).toContain("evaluateComposerBranchApply");
     expect(bar).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
+  it("does not treat a branch pick as checked out", () => {
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    expect(bar).not.toContain("onChange={org.setComposerBranch}");
+    expect(bar).toContain("data-composer-branch-error");
+    expect(composer).toContain("disabled: catalogLocked");
+    expect(composer).toContain("COMPOSER_CATALOG_OFFLINE_MESSAGE");
+    expect(composer).not.toContain("別のモデルも指名できます");
+  });
+
+  it("drops the composer helper footnote near EmptyHero", () => {
+    const chat = readFileSync("src/pages/ChatPage.tsx", "utf-8");
+    expect(chat).not.toContain("別のモデルも指名できます");
+    expect(chat).not.toContain("メンションは不要です");
+    expect(chat).not.toContain("modelMentionExample");
   });
 
   it("lets create-project map a folder per machine", () => {

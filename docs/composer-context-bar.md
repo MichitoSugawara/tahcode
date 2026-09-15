@@ -1,8 +1,8 @@
-# Composer コンテキストバー（TAH-71）
+# Composer コンテキストバー（TAH-71 / TAH-72）
 
 Status: Implemented (phased)  
 Date: 2026-09-15  
-Issue: [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意)
+Issue: [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意) · [TAH-72](https://linear.app/tahcode/issue/TAH-72/コンテキストバー-ブランチ失敗全オフライン時の-ux-注釈削除)
 
 Composer 直上の灰色バーで **プロジェクト / マシン / ブランチ** を切り替える。モデル選択は従来どおり Composer 内。新しいチャットのフルページ化（TAH-68）とネイティブフォルダピッカー（TAH-67）は対象外。
 
@@ -49,11 +49,27 @@ Composer 直上の灰色バーで **プロジェクト / マシン / ブラン�
 
 ### 3. マシン
 
-オンラインで利用可能なランタイム + 「自動」。`org.setRuntimeId` と同じ永続化。オフライン / 許可なしは選べない。UI に OpenConnector / OOMOL / workers.dev / gateway は出さない。
+オンラインで利用可能なランタイム + 「自動」。`org.setRuntimeId` と同じ永続化。オフライン / 許可なしは選べない（幽霊ランタイムを usable に見せない）。UI に OpenConnector / OOMOL / workers.dev / gateway は出さない。
 
-### 4. ブランチ（Phase 1 はメタデータ）
+オンラインランタイムが 0 のとき、Composer のプロバイダ / モデル / オプション picker は無効。理由は `COMPOSER_CATALOG_OFFLINE_MESSAGE`。CTA は既存の `NoRuntimeChrome`（登録 / 設定で確認）。静的カタログやオフラインマシンの最終報告を「今使える」ようには扱わない。
 
-Git checkout はブリッジにまだ無い。バーで名前を選び、エージェント context と localStorage（プロジェクトごと）に残す。既定は `main`。ランタイム側の実 checkout は後続。
+### 4. ブランチ（確定は成功時だけ）
+
+バーに出る名前は **confirmed**（`org.composerBranch`）だけ。メニューで選んだ瞬間に確定しない。
+
+`evaluateComposerBranchApply` が先に見る:
+
+1. 名前が Git checkout の対象になりうるか（空・空白・`..` などは拒否。空を `main` に勝手にしない）
+2. 同じ confirmed なら no-op（失敗扱いにしない）
+3. ランタイム一覧の読み込み中なら確定しない
+4. 指定マシンがオフライン、または自動でオンライン usable が 0 → 失敗
+5. プロジェクトでフォルダ必須なのに未マップ → 失敗
+
+失敗時は confirmed を書き換えない。toast + カード外のインラインエラー + CTA（再試行 / フォルダを指定 / マシンをオンラインにする・別のマシンを選ぶ）。楽観更新するなら失敗でロールバックするが、この経路は成功するまで書かない。
+
+ブリッジに git checkout RPC はまだ無い。前提を満たしたときだけ intended branch を localStorage と send context に残す。成功 toast で「checkout した」とは言わない。ランタイム側の実 checkout が来たら、同じ apply 関数の後ろに載せて git エラーも `ok: false` にする。
+
+既定は `main`。
 
 ### 5. マシン別フォルダ
 
@@ -65,9 +81,26 @@ Git checkout はブリッジにまだ無い。バーで名前を選び、エー�
 - マップ 0 件の既存プロジェクトは従来どおり送信可（テストと既存データを壊さない）
 - パス入力のみ。ディレクトリ picker は TAH-67
 
+## 失敗 / オフライン UX（TAH-72）
+
+| 状態 | バー | Composer |
+| --- | --- | --- |
+| ブランチ apply 失敗 | 表示は confirmed のまま | カード外 Notice + toast + CTA |
+| 全マシン offline | オフライン行は選択不可 | プロバイダ / モデル disable + `NoRuntimeChrome` |
+| 指定マシンだけ offline | 名前は指定中として残る | ブランチ切替は失敗。別マシン CTA |
+
+Composer 直下の説明注釈（「@codex がこのチャットのエージェント · 別のモデルも指名できます · $imagegen」など）は置かない。生成中や「チャットを開くと送信できます」、オフライン理由だけ残す。
+
+## エビデンス（失敗 / オフライン）
+
+- t3code [BranchToolbar.tsx](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/BranchToolbar.tsx) — checkout / worktree を composer 周辺に置き、成功表示と実状態を揃える
+- [t3code deep dive](https://flaviocopes.com/t3-code/)
+- Cursor / IDE: リモートやエージェント実行環境が無いときモデル切替を無効にする
+- 一般 SaaS: 依存リソース offline のコントロールは disable + CTA（登録 / 設定）
+
 ## やらないこと
 
 - `/new` フルページや NewChatDialog の置換（TAH-68）
 - デスクトップ / ブリッジの `pickDirectory`（TAH-67）
-- 実 Git ブランチの列挙・checkout
+- 実 Git ブランチの列挙・checkout RPC
 - 右レールの再設計

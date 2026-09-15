@@ -1,4 +1,7 @@
-import { composerSendBlockedReason } from "@shared/composerContext.ts";
+import {
+  COMPOSER_CATALOG_OFFLINE_MESSAGE,
+  composerSendBlockedReason,
+} from "@shared/composerContext.ts";
 import {
   applyImagegenDraft,
   imagegenInsert,
@@ -8,7 +11,6 @@ import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
 import { shouldShowNoRuntimeChrome } from "@shared/runtimeHealth.ts";
 import { useMutation, useQuery } from "convex/react";
 import {
-  AtSign,
   Bot,
   Brain,
   Cpu,
@@ -35,10 +37,12 @@ import type {
   PromptPicker,
 } from "@/components/primitives/PromptBar";
 import {
+  ComposerBranchNotice,
   ComposerContextBar,
   ComposerFolderNotice,
   effectiveComposerProject,
   effectiveComposerRuntime,
+  useComposerBranchApply,
 } from "@/harness/ComposerContextBar";
 import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
@@ -55,7 +59,6 @@ import {
   monogram,
 } from "@/lib/format";
 import {
-  MENTION_BOUNDARY,
   MENTION_HANDLE,
   activeAgentToken,
   expandResolvedMentions,
@@ -74,7 +77,6 @@ import {
   isProviderKind,
   modelCatalogFor,
   modelDisplayName,
-  modelMentionExample,
   optionAriaLabel,
   optionDescriptorsFor,
   optionFooterFor,
@@ -90,9 +92,6 @@ import type {
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-
-/* the draft ends in an @token still being typed — hold the auto-mention hint */
-const TYPING_MENTION = new RegExp(`${MENTION_BOUNDARY}@${MENTION_HANDLE}*$`);
 
 function ConnectorMentionIcon({
   displayName,
@@ -438,6 +437,7 @@ export function Composer({
   }) => void;
 }) {
   const org = useOrg();
+  const branchApply = useComposerBranchApply(chat);
   const suggestConnector = useMutation(api.messages.suggestConnector);
   const { send: sendWithRules, busy } = useSendMessage(chat);
   const { agent, setAgent } = useChatAgent(chat);
@@ -453,13 +453,8 @@ export function Composer({
 
   const disabled = !chat && !ensureChat;
   const isProject = chat?.kind === "project";
-  const typingMention = TYPING_MENTION.test(draft);
-  const needsMention =
-    isProject &&
-    draft.trim().length > 0 &&
-    !hasAgentMention(draft) &&
-    !typingMention;
   const mention = agentMention(agent.driverKind, agent.model);
+  const catalogLocked = shouldShowNoRuntimeChrome(org.runtimes, org.now);
   const provider = PROVIDERS[agent.driverKind];
 
   const liveRuntimes = useMemo(
@@ -723,6 +718,8 @@ export function Composer({
   const pickers: PromptPicker[] = [
     {
       ariaLabel: "プロバイダを選択",
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
       footer:
         "t3code 由来のプロバイダ配線 · CLI はランタイム側（tahcode start のブリッジ）",
       id: "provider",
@@ -748,6 +745,8 @@ export function Composer({
     },
     {
       ariaLabel: "モデルを選択",
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
       footer: supportsModelPick(agent.driverKind)
         ? `メンションは @${provider.handle}/<slug> の形になります · 既定 = CLI 側の設定 · ${catalog.source === "live" ? "live: " : ""}${catalog.note}`
         : `${provider.label} は headless CLI がなく、モデルは選べません`,
@@ -772,7 +771,11 @@ export function Composer({
       onChange: (key) => setAgent(agent.driverKind, key || null),
       value: pickerModelSlug(agent.driverKind, agent.model),
     },
-    ...optionPickers(agent, catalog.models, setAgent),
+    ...optionPickers(agent, catalog.models, setAgent).map((picker) => ({
+      ...picker,
+      disabled: catalogLocked,
+      disabledReason: COMPOSER_CATALOG_OFFLINE_MESSAGE,
+    })),
   ];
 
   const send = async (text: string) => {
@@ -830,22 +833,12 @@ export function Composer({
     hint = null;
   } else if (disabled) {
     hint = "チャットを開くと送信できます";
-  } else if (needsMention) {
-    hint = (
-      <span className="inline-flex flex-wrap items-center gap-1">
-        <AtSign size={11} /> メンションがないので送信時に{" "}
-        <code className="text-ink-2 font-mono">{mention}</code>{" "}
-        を自動付与します（Phase 1 のルール）
-      </span>
-    );
+  } else if (catalogLocked) {
+    hint = COMPOSER_CATALOG_OFFLINE_MESSAGE;
   } else if (activeJob) {
     hint = activeJob.canCancel
       ? "生成中 — 中断でこのジョブを止められます"
       : "生成中です";
-  } else if (isProject) {
-    hint = `${mention} がこのチャットのエージェント · ${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
-  } else {
-    hint = `DM ではエージェントが常に応答します（${mention}） · $imagegen で画像生成 · ⏎ 送信 · ⇧⏎ 改行`;
   }
 
   return (
@@ -866,7 +859,11 @@ export function Composer({
             tall ? "rounded-[22px]" : "rounded-[14px]"
           }`}
         >
-          <ComposerContextBar chat={chat} tall={tall} />
+          <ComposerContextBar
+            applyBranch={branchApply.applyBranch}
+            chat={chat}
+            tall={tall}
+          />
           <PromptBar
             tall={tall}
             embedded
@@ -908,6 +905,12 @@ export function Composer({
             }}
           />
         </div>
+        <ComposerBranchNotice
+          applyBranch={branchApply.applyBranch}
+          chat={chat}
+          error={branchApply.error}
+          onDismiss={() => branchApply.setError(null)}
+        />
         <ComposerFolderNotice chat={chat} />
       </div>
       <input

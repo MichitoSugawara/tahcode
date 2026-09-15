@@ -71,6 +71,9 @@ export interface PromptPicker {
   onChange: (key: string) => void;
   emptyHint?: string;
   footer?: ReactNode;
+  /** Lock this picker without disabling the whole composer (e.g. no online runtime). */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface PromptAttachment {
@@ -276,7 +279,8 @@ export default function PromptBar({
     };
   }, [menu, rows.length, wide]);
 
-  const picker = pickers.find((item) => item.id === openPicker) ?? null;
+  const picker =
+    pickers.find((item) => item.id === openPicker && !item.disabled) ?? null;
   const pickerIndex = picker
     ? picker.items.findIndex((item) => item.key === picker.value)
     : -1;
@@ -766,8 +770,12 @@ export default function PromptBar({
                   data-prompt-trigger={`picker-${item.id}`}
                   aria-expanded={openPicker === item.id}
                   aria-label={item.ariaLabel}
-                  disabled={disabled}
+                  title={item.disabled ? item.disabledReason : undefined}
+                  disabled={disabled || Boolean(item.disabled)}
                   onClick={() => {
+                    if (item.disabled) {
+                      return;
+                    }
                     setPlusOpen(false);
                     setOpenPicker((current) =>
                       current === item.id ? null : item.id
