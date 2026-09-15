@@ -67,6 +67,7 @@ import {
   closeTabsToTheRight,
   isCloseTabShortcut,
   isEditableKeyboardTarget,
+  isMiddleClickButton,
 } from "@/harness/tabActions";
 import { ContextMenu } from "@/harness/ui/ContextMenu";
 import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
@@ -598,8 +599,19 @@ export function TabBar({
       }))
     : [];
 
+  const closeTabOnMiddleClick = (
+    event: { button: number; preventDefault: () => void },
+    id: Id<"chats">
+  ) => {
+    if (!isMiddleClickButton(event.button)) {
+      return;
+    }
+    event.preventDefault();
+    closeChatTab(id);
+  };
+
   return (
-    <div className="border-line flex h-11 shrink-0 items-center border-b">
+    <div className="border-line flex h-11 min-w-0 shrink-0 items-center border-b">
       <div
         data-shell-tab-scroller
         role="toolbar"
@@ -635,6 +647,7 @@ export function TabBar({
           return (
             <div
               key={String(chat._id)}
+              data-shell-tab
               className={`group/tab flex h-7 w-40 shrink-0 items-center gap-0.5 rounded-[7px] pr-0.5 pl-2.5 text-[12.5px] font-medium transition-colors duration-100 ${
                 active
                   ? "bg-hover-2 text-ink"
@@ -646,14 +659,10 @@ export function TabBar({
                 aria-pressed={active}
                 onClick={() => org.goChat(chat._id)}
                 onAuxClick={(event) => {
-                  if (event.button !== 1) {
-                    return;
-                  }
-                  event.preventDefault();
-                  closeChatTab(chat._id);
+                  closeTabOnMiddleClick(event, chat._id);
                 }}
                 onMouseDown={(event) => {
-                  if (event.button === 1) {
+                  if (isMiddleClickButton(event.button)) {
                     event.preventDefault();
                   }
                 }}
@@ -683,6 +692,14 @@ export function TabBar({
                 onClick={() => {
                   closeChatTab(chat._id);
                 }}
+                onAuxClick={(event) => {
+                  closeTabOnMiddleClick(event, chat._id);
+                }}
+                onMouseDown={(event) => {
+                  if (isMiddleClickButton(event.button)) {
+                    event.preventDefault();
+                  }
+                }}
                 className="text-ink-3 hover:bg-hover-2 hover:text-ink -my-1 flex size-6 shrink-0 items-center justify-center rounded-[5px] transition-[background-color,color] duration-100"
               >
                 <X size={11} strokeWidth={2.4} />
@@ -701,7 +718,7 @@ export function TabBar({
       </div>
       <div
         data-shell-header-tools
-        className="border-line flex shrink-0 items-center gap-1 border-l px-2"
+        className="border-line bg-page relative z-10 flex flex-none items-center gap-1 border-l px-2"
       >
         {trailing}
       </div>

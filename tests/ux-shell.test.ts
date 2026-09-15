@@ -20,6 +20,7 @@ import {
   closeTabsToTheRight,
   isCloseTabShortcut,
   isEditableKeyboardTarget,
+  isMiddleClickButton,
   tabStillOpen,
 } from "../src/harness/tabActions.ts";
 import {
@@ -160,6 +161,12 @@ describe("tab actions", () => {
     expect(isCloseTabShortcut({ ...close, shiftKey: true })).toBeFalsy();
     expect(isEditableKeyboardTarget(null)).toBeFalsy();
   });
+
+  it("treats button 1 as the middle-click close used by Chrome / VS Code", () => {
+    expect(isMiddleClickButton(1)).toBeTruthy();
+    expect(isMiddleClickButton(0)).toBeFalsy();
+    expect(isMiddleClickButton(2)).toBeFalsy();
+  });
 });
 
 describe("session drag", () => {
@@ -185,6 +192,28 @@ describe("session drag", () => {
     expect(peekChatDrag()).toBe("chat-1");
     endChatDrag();
     expect(peekChatDrag()).toBeNull();
+  });
+
+  it("falls back to text/plain when the in-memory drag id is gone", () => {
+    const store: Record<string, string> = {};
+    const types: string[] = [];
+    const transfer = {
+      effectAllowed: "none",
+      getData: (type: string) => store[type] ?? "",
+      setData: (type: string, value: string) => {
+        store[type] = value;
+        if (!types.includes(type)) {
+          types.push(type);
+        }
+      },
+      types,
+    };
+    writeChatDrag(transfer, "chat-plain");
+    store[CHAT_DRAG_MIME] = "";
+    endChatDrag();
+    expect(peekChatDrag()).toBeNull();
+    expect(readChatDrag(transfer)).toBe("chat-plain");
+    expect(isChatDrag({ ...transfer, types: ["text/plain"] })).toBeFalsy();
   });
 });
 
@@ -213,29 +242,109 @@ describe("invite email", () => {
 describe("shell source contracts", () => {
   it("keeps header tools out of the scrolling tab row", () => {
     const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
-    expect(shell).toContain("data-shell-tab-scroller");
-    expect(shell).toContain("data-shell-header-tools");
+    const scroller = shell.indexOf("data-shell-tab-scroller");
+    const tools = shell.indexOf("data-shell-header-tools");
+    expect(scroller).toBeGreaterThan(-1);
+    expect(tools).toBeGreaterThan(scroller);
+    expect(shell).toContain("overflow-x-auto");
+    expect(shell).toContain("flex-none");
+    expect(shell).toContain("data-shell-chat-drop");
+  });
+
+  it("keeps runtime off the left-rail labels in Shell", () => {
+    const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
+    const palette = readFileSync("src/harness/CommandPalette.tsx", "utf-8");
     expect(shell).not.toContain('label: "ランタイム"');
     expect(shell).not.toContain('groupsLabel="チャット"');
-    const palette = readFileSync("src/harness/CommandPalette.tsx", "utf-8");
     expect(palette).toContain('goSettings("runtimes")');
   });
 
-  it("drops heading search/plus and the agent-row interrupt", () => {
+  it("closes tabs on middle-click", () => {
+    const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
+    expect(shell).toContain("isMiddleClickButton");
+    expect(shell).toContain("data-shell-tab");
+    expect(shell).toContain("onAuxClick");
+  });
+
+  it("opens sessions from sidebar DnD onto the tab strip", () => {
+    const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
     const sidebar = readFileSync(
       "src/components/primitives/SidebarNav.tsx",
       "utf-8"
     );
-    const reply = readFileSync("src/harness/thread/AgentReply.tsx", "utf-8");
-    const invite = readFileSync(
-      "src/harness/dialogs/InviteDialog.tsx",
+    expect(shell).toContain("writeChatDrag");
+    expect(shell).toContain("data-shell-chat-drop");
+    expect(sidebar).toContain("draggable");
+    expect(sidebar).toContain("onItemDragStart");
+    expect(shell).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
+  it("keeps the chats section heading as a label only", () => {
+    const sidebar = readFileSync(
+      "src/components/primitives/SidebarNav.tsx",
+      "utf-8"
+    );
+    const chatsHeading = sidebar.match(
+      /data-sidebar-section-heading=\{section\.id\}[\s\S]*?<\/div>/
+    )?.[0];
+    expect(chatsHeading).toBeTruthy();
+    expect(chatsHeading).toContain("{section.label}");
+    expect(chatsHeading).not.toContain("<button");
+    expect(chatsHeading).not.toContain("Plus");
+    expect(chatsHeading).not.toContain("Search");
+  });
+
+  it("drops leftover chats search chrome", () => {
+    const sidebar = readFileSync(
+      "src/components/primitives/SidebarNav.tsx",
       "utf-8"
     );
     expect(sidebar).not.toContain("チャットを検索");
     expect(sidebar).not.toContain("onAddGroup");
+    expect(sidebar).not.toContain("<Search");
+  });
+
+  it("stops generation from the composer only", () => {
+    const reply = readFileSync("src/harness/thread/AgentReply.tsx", "utf-8");
+    const promptBar = readFileSync(
+      "src/components/primitives/PromptBar.tsx",
+      "utf-8"
+    );
+    const replyHeader = reply.match(/<header[\s\S]*?<\/header>/)?.[0];
+    expect(replyHeader).toBeTruthy();
+    expect(replyHeader).not.toContain("中断");
     expect(reply).not.toContain("生成を中断");
+    expect(promptBar).toContain(
+      'aria-label={jobRunning ? "生成を中断" : "送信"}'
+    );
+  });
+
+  it("keeps invite email optional in the dialog", () => {
+    const invite = readFileSync(
+      "src/harness/dialogs/InviteDialog.tsx",
+      "utf-8"
+    );
     expect(invite).toContain('type="email"');
     expect(invite).toContain("normalizeOptionalEmail");
+  });
+
+  it("does not put a create action on the personal chats group", () => {
+    const sections = buildSidebarSections({
+      chats: [
+        {
+          _id: "dm1",
+          kind: "dm",
+          ownerId: "me",
+          title: "ignored",
+          visibility: "inherit",
+        },
+      ],
+      isAdmin: true,
+      meId: "me",
+      projects: [],
+    });
+    expect(sections[1]).toMatchObject({ id: "chats", label: "DM" });
+    expect(sections[1]?.groups[0]?.addKind).toBeUndefined();
   });
 
   it("mounts the composer context bar instead of a runtime picker", () => {
