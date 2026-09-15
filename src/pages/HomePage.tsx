@@ -2,7 +2,7 @@ import { Cpu, Folder, MessageSquare, Sparkles, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Composer, useSendMessage } from "@/harness/Composer";
-import { EmptyHero } from "@/harness/EmptyHero";
+import { EmptyHero, useHeroComposerMenu } from "@/harness/EmptyHero";
 import type { Suggestion } from "@/harness/EmptyHero";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
@@ -25,6 +25,7 @@ const PROMPTS = [
 export default function HomePage() {
   const org = useOrg();
   const [offset, setOffset] = useState(0);
+  const { composerMenuOpen, onSuggestMenuOpenChange } = useHeroComposerMenu();
   useDocumentTitle(org.org.name);
   const dm =
     org.chats?.find(
@@ -114,8 +115,10 @@ export default function HomePage() {
             autoFocus
             placeholder="Personal DM でエージェントに聞く…（常時応答）"
             onSubmit={(chat) => org.goChat(chat._id)}
+            onSuggestMenuOpenChange={onSuggestMenuOpenChange}
           />
         }
+        composerMenuOpen={composerMenuOpen}
         suggestions={suggestions}
         onShuffle={() => setOffset((current) => (current + 3) % PROMPTS.length)}
         link={{
