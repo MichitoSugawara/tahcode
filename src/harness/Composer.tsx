@@ -329,14 +329,18 @@ export function useSendMessage(chat: Chat | null) {
     return `📎 [${uploaded.name}](${url})`;
   };
 
-  const send = async (text: string, files: File[] = []) => {
-    if (!chat || busy) {
+  const send = async (
+    text: string,
+    files: File[] = [],
+    target: Chat | null = chat
+  ) => {
+    if (!target || busy) {
       return null;
     }
     setBusy(true);
     try {
       /* a chat opened straight from its create dialog may still carry a placeholder id */
-      const chatId = await resolveId(chat._id);
+      const chatId = await resolveId(target._id);
       const links: string[] = [];
       for (const file of files) {
         links.push(await upload(chatId, file));
@@ -345,7 +349,7 @@ export function useSendMessage(chat: Chat | null) {
         agent.driverKind,
         [text, ...links].filter(Boolean).join("\n")
       );
-      if (chat.kind === "project" && !hasAgentMention(body)) {
+      if (target.kind === "project" && !hasAgentMention(body)) {
         body = `${agentMention(agent.driverKind, agent.model)} ${body}`;
       }
       body = expandResolvedMentions(body);
@@ -406,6 +410,8 @@ export function Composer({
   onSubmit,
   onSent,
   onSuggestMenuOpenChange,
+  ensureChat,
+  hideHint = false,
 }: {
   chat: Chat | null;
   tall?: boolean;
@@ -414,6 +420,9 @@ export function Composer({
   /** fires as the message leaves the composer — before the round-trip, so callers can navigate at once */
   onSubmit?: (chat: Chat) => void;
   onSuggestMenuOpenChange?: (open: boolean) => void;
+  /** create or resolve a chat when the composer has no thread yet (new-chat page) */
+  ensureChat?: (draft: string) => Promise<Chat | null>;
+  hideHint?: boolean;
   onSent?: (result: {
     chatId: Id<"chats">;
     dispatched: boolean;
@@ -434,7 +443,7 @@ export function Composer({
     serverChatId ? { chatId: serverChatId } : "skip"
   );
 
-  const disabled = !chat;
+  const disabled = !chat && !ensureChat;
   const isProject = chat?.kind === "project";
   const typingMention = TYPING_MENTION.test(draft);
   const needsMention =
@@ -595,7 +604,7 @@ export function Composer({
 
   const commands: PromptMenuItem[] = [
     {
-      action: () => org.openDialog({ kind: "newChat" }),
+      action: () => org.goNewChat(),
       desc: "新しいチャット",
       icon: <MessageSquarePlus size={14} />,
       key: "new",
@@ -795,10 +804,17 @@ export function Composer({
   ];
 
   const send = async (text: string) => {
-    if (chat && !busy) {
-      onSubmit?.(chat);
+    if (busy) {
+      return false;
     }
-    const result = await sendWithRules(text, pending);
+    let target = chat;
+    if (!target && ensureChat) {
+      target = await ensureChat(text);
+    }
+    if (target) {
+      onSubmit?.(target);
+    }
+    const result = await sendWithRules(text, pending, target);
     if (result) {
       setPending([]);
       onSent?.(result);
@@ -808,7 +824,9 @@ export function Composer({
   };
 
   let hint: ReactNode = null;
-  if (disabled) {
+  if (hideHint) {
+    hint = null;
+  } else if (disabled) {
     hint = "チャットを開くと送信できます";
   } else if (needsMention) {
     hint = (
