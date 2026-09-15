@@ -36,6 +36,26 @@ export type ClaimedFsBrowse = {
   path: string;
 };
 
+export type ClaimedPtyOpen = {
+  _id: string;
+  cols: number;
+  cwd: string;
+  rows: number;
+  terminalId: string;
+};
+
+export type ClaimedPtyInput = {
+  close: boolean;
+  cols?: number;
+  data: string;
+  rows?: number;
+};
+
+export type ClaimedPreview = {
+  _id: string;
+  url: string;
+};
+
 export interface ClaimedJob {
   _id: string;
   assistantMessageId: string;
@@ -149,6 +169,99 @@ export class RuntimeClient {
     token: string;
   }): Promise<void> {
     await this.client.mutation("runtimeFs:complete" as never, input as never);
+  }
+
+  async claimNextPtyOpen(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedPtyOpen | null> {
+    return await this.client.mutation(
+      "workbenchPty:claimNextOpen" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async listActivePty(runtimeId: string, token: string): Promise<string[]> {
+    return await this.client.mutation(
+      "workbenchPty:listActive" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async reportPtyStarted(input: {
+    error?: string;
+    pid?: number;
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchPty:reportStarted" as never,
+      input as never
+    );
+  }
+
+  async takePtyInput(input: {
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<ClaimedPtyInput | null> {
+    return await this.client.mutation(
+      "workbenchPty:takeInput" as never,
+      input as never
+    );
+  }
+
+  async appendPtyOutput(input: {
+    data: string;
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchPty:appendOutput" as never,
+      input as never
+    );
+  }
+
+  async reportPtyExited(input: {
+    error?: string;
+    exitCode?: number;
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchPty:reportExited" as never,
+      input as never
+    );
+  }
+
+  async claimNextPreview(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedPreview | null> {
+    return await this.client.mutation(
+      "workbenchPreview:claimNext" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async completePreview(input: {
+    body?: string;
+    contentType?: string;
+    error?: string;
+    httpStatus?: number;
+    requestId: string;
+    runtimeId: string;
+    title?: string;
+    token: string;
+    url?: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchPreview:complete" as never,
+      input as never
+    );
   }
 
   async claimNext(

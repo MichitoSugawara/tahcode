@@ -57,7 +57,7 @@ tahcode への写し方: **ブラウザ**タブを第一級にする。Phase 1 �
 - `apps/web/src/components/ThreadTerminalDrawer.tsx`
 - DeepWiki: [Terminal Integration](https://deepwiki.com/pingdotgg/t3code/3.4-terminal-integration), [Frontend](https://deepwiki.com/pingdotgg/t3code/3-frontend-application)
 
-tahcode への写し方: 右は closable deck。開閉とアクティブ面を `localStorage`（既存 `useStoredState`）に残す。PTY / Ghostty は移植しない。
+tahcode への写し方: 右は closable deck。開閉とアクティブ面を `localStorage`（既存 `useStoredState`）に残す。PTY / Ghostty / preview の実配線は [TAH-69](https://linear.app/tahcode/issue/TAH-69/) / [`docs/workbench-tah69.md`](workbench-tah69.md)。
 
 ### VS Code — Secondary Side Bar + Panel
 
@@ -105,8 +105,8 @@ tahcode への写し方: タブラベルは **リモートデスクトップ**�
 | シェル | 開閉・幅 360px・4 タブ切替。xl ドック / 未満シート | リサイズ、最大化、スレッドごとの開いている面インジケータ |
 | 永続 | `th:workbench:docked` / `th:workbench:panel`（`useStoredState`） | スレッド単位のパネルセット（Codex #41406） |
 | サイドチャット | ローカル下書きスレッド。Convex スキーマなし | 別 `kind`、ACL、メンション、本線と履歴分離 |
-| ターミナル | 端末枠 + PTY 待ち empty。オフラインは「オンラインのマシンが必要」 | node-pty / ブリッジ PTY、tool ログ、リンク→プレビュー |
-| ブラウザ | disabled アドレス欄 + プレビュー枠 | iframe / webcontents、注釈、localhost 許可 |
+| ターミナル | 端末枠 + PTY 待ち empty。オフラインは「オンラインのマシンが必要」 | **TAH-69 で実 PTY**（Ghostty + ブリッジ）。複数 split / tool ログは残件 |
+| ブラウザ | disabled アドレス欄 + プレビュー枠 | **TAH-69 で URL→マシン fetch→描画**。Chromium guest / 注釈は残件 |
 | リモート | セッション枠 + **停止**（active job → `jobs.cancel`） | RDP / VNC / 画面ストリーム |
 | Files / Diff | 出さない | ランタイムが構造化 diff / ファイル樹を返してから |
 

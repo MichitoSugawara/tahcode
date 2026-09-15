@@ -14,12 +14,14 @@ import {
   installMethod,
   jobStatus,
   liveModel,
-  optionSelection,
   maintenanceKind,
   maintenanceStatus,
   messageAuthorType,
+  optionSelection,
   orgRole,
+  previewNavStatus,
   providerKind,
+  ptySessionStatus,
   visibility,
 } from "./lib/validators";
 
@@ -318,6 +320,65 @@ export default defineSchema({
   })
     .index("by_runtime", ["runtimeId"])
     .index("by_runtime_and_status", ["runtimeId", "status"]),
+
+  /* Interactive PTY on a linked machine (TAH-69). Client opens/writes;
+   * the bridge claims starting sessions and drains input — t3code
+   * TerminalManager verbs over Convex instead of a WebSocket. */
+  ptySessions: defineTable({
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    requestedBy: v.id("users"),
+    chatId: v.optional(v.id("chats")),
+    terminalId: v.string(),
+    cwd: v.string(),
+    cols: v.number(),
+    rows: v.number(),
+    status: ptySessionStatus,
+    label: v.string(),
+    history: v.string(),
+    pendingInput: v.string(),
+    pendingCols: v.optional(v.number()),
+    pendingRows: v.optional(v.number()),
+    pendingClose: v.optional(v.boolean()),
+    pid: v.optional(v.number()),
+    exitCode: v.optional(v.number()),
+    error: v.optional(v.string()),
+    lastBridgeAt: v.optional(v.number()),
+    claimedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"])
+    .index("by_runtime_owner_terminal", [
+      "runtimeId",
+      "requestedBy",
+      "terminalId",
+    ]),
+
+  /* In-app preview session (TAH-69). t3code PreviewOpen/Navigate +
+   * desktop Chromium guest → tahcode bridge fetch + snapshot. */
+  previewSessions: defineTable({
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    requestedBy: v.id("users"),
+    chatId: v.optional(v.id("chats")),
+    tabId: v.string(),
+    url: v.string(),
+    title: v.string(),
+    status: previewNavStatus,
+    pendingUrl: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
+    contentType: v.optional(v.string()),
+    body: v.optional(v.string()),
+    error: v.optional(v.string()),
+    history: v.array(v.string()),
+    lastBridgeAt: v.optional(v.number()),
+    claimedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"])
+    .index("by_runtime_owner_tab", ["runtimeId", "requestedBy", "tabId"]),
 
   runtimeGrants: defineTable({
     runtimeId: v.id("runtimes"),

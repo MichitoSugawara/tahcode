@@ -17,5 +17,6 @@ export default defineConfig({
     "**/.claude/skills/**",
     "**/apps/desktop/out/**",
     "**/apps/desktop/release/**",
+    "**/src/harness/workbench/terminal/ghostty/**",
   ],
 });

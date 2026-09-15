@@ -32,6 +32,11 @@ import {
   updateCommandLabel,
 } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
+import { BRIDGE_CAPABILITY_PREVIEW } from "../../shared/workbenchPreview.ts";
+import {
+  BRIDGE_CAPABILITY_PTY,
+  PTY_POLL_MS,
+} from "../../shared/workbenchTerminal.ts";
 import {
   agentToolsPromptSuffix,
   jobAgentToolEnv,
@@ -49,8 +54,10 @@ import { RuntimeClient } from "./convexClient.ts";
 import { browseRuntimeFolder } from "./filesystemBrowse.ts";
 import type { ModelsDiscovery } from "./maintenance.ts";
 import { discoverModels, plannedUpdate, runUpdate } from "./maintenance.ts";
+import { fetchPreviewPage } from "./previewFetch.ts";
 import type { ProviderProbe } from "./providers.ts";
 import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
+import { PtyProcess, resolvePtyCwd } from "./ptyHost.ts";
 import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
 
 export interface RunnerOptions {
@@ -75,6 +82,8 @@ export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_AGENT_TOOLS,
   BRIDGE_CAPABILITY_JOB_CANCEL,
   BRIDGE_CAPABILITY_FILESYSTEM_BROWSE,
+  BRIDGE_CAPABILITY_PTY,
+  BRIDGE_CAPABILITY_PREVIEW,
 ];
 
 /**
@@ -161,6 +170,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
   let probes: ProviderProbe[] = [];
   let lastHeartbeat = 0;
   let lastWorkPoll = 0;
+  const ptySessions = new Map<string, PtyProcess>();
 
   console.log(`[runtime] polling ${options.convexUrl} as ${options.runtimeId}`);
   const cliEntry = process.argv[1];
@@ -221,6 +231,17 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         continue;
       }
 
+      const preview = await client.claimNextPreview(
+        options.runtimeId,
+        options.token
+      );
+      if (preview) {
+        await executePreviewFetch(client, options, preview._id, preview.url);
+        continue;
+      }
+
+      const ptyBusy = await syncPtySessions(client, options, ptySessions);
+
       if (Date.now() - lastWorkPoll >= pollMs) {
         lastWorkPoll = Date.now();
         const job = await client.claimNext(options.runtimeId, options.token);
@@ -246,7 +267,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         }
       }
 
-      await sleep(Math.min(pollMs, FS_BROWSE_POLL_MS));
+      await sleep(ptyBusy ? PTY_POLL_MS : Math.min(pollMs, FS_BROWSE_POLL_MS));
     } catch (error) {
       console.error(
         "[runtime] loop error",
@@ -254,6 +275,143 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       );
       await sleep(pollMs);
     }
+  }
+}
+
+async function executePreviewFetch(
+  client: RuntimeClient,
+  options: RunnerOptions,
+  requestId: string,
+  url: string
+): Promise<void> {
+  const result = await fetchPreviewPage(url);
+  await client.completePreview({
+    ...result,
+    requestId,
+    runtimeId: options.runtimeId,
+    token: options.token,
+  });
+}
+
+async function syncPtySessions(
+  client: RuntimeClient,
+  options: RunnerOptions,
+  sessions: Map<string, PtyProcess>
+): Promise<boolean> {
+  const auth = { runtimeId: options.runtimeId, token: options.token };
+  const opened = await client.claimNextPtyOpen(
+    options.runtimeId,
+    options.token
+  );
+  if (opened && !sessions.has(opened._id)) {
+    await attachPtySession(client, options, sessions, opened);
+  }
+  const active = await client.listActivePty(options.runtimeId, options.token);
+  const activeSet = new Set(active);
+  for (const [sessionId, process] of sessions) {
+    if (!activeSet.has(sessionId)) {
+      process.close();
+      sessions.delete(sessionId);
+    }
+  }
+  const busy = sessions.size > 0 || opened !== null;
+  for (const sessionId of active) {
+    const process = sessions.get(sessionId);
+    if (!process) {
+      continue;
+    }
+    const input = await client.takePtyInput({ ...auth, sessionId });
+    if (!input) {
+      continue;
+    }
+    if (input.close) {
+      process.close();
+      sessions.delete(sessionId);
+      await client.reportPtyExited({ ...auth, exitCode: 0, sessionId });
+      continue;
+    }
+    if (input.cols !== undefined && input.rows !== undefined) {
+      process.resize(input.cols, input.rows);
+    }
+    if (input.data.length > 0) {
+      process.write(input.data);
+    }
+  }
+  return busy;
+}
+
+async function attachPtySession(
+  client: RuntimeClient,
+  options: RunnerOptions,
+  sessions: Map<string, PtyProcess>,
+  opened: {
+    _id: string;
+    cols: number;
+    cwd: string;
+    rows: number;
+  }
+): Promise<void> {
+  const auth = {
+    runtimeId: options.runtimeId,
+    sessionId: opened._id,
+    token: options.token,
+  };
+  let output = "";
+  let flushTimer: NodeJS.Timeout | null = null;
+  const flush = async () => {
+    if (!output) {
+      return;
+    }
+    const data = output;
+    output = "";
+    try {
+      await client.appendPtyOutput({ ...auth, data });
+    } catch (error) {
+      console.error(
+        "[runtime] pty output failed",
+        error instanceof Error ? error.message : error
+      );
+    }
+  };
+  try {
+    const cwd = resolvePtyCwd(opened.cwd || options.cwd || "");
+    const process = new PtyProcess(cwd, opened.cols, opened.rows, (event) => {
+      if (event.kind === "started") {
+        void client.reportPtyStarted({ ...auth, pid: event.pid });
+        return;
+      }
+      if (event.kind === "output") {
+        output += event.data;
+        if (!flushTimer) {
+          flushTimer = setTimeout(() => {
+            flushTimer = null;
+            void flush();
+          }, 32);
+        }
+        return;
+      }
+      if (event.kind === "error") {
+        void client.reportPtyExited({ ...auth, error: event.message });
+        sessions.delete(opened._id);
+        return;
+      }
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+      }
+      void flush().then(async () => {
+        await client.reportPtyExited({
+          ...auth,
+          exitCode: event.code ?? undefined,
+        });
+      });
+      sessions.delete(opened._id);
+    });
+    sessions.set(opened._id, process);
+  } catch (error) {
+    await client.reportPtyStarted({
+      ...auth,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

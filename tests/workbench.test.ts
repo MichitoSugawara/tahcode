@@ -111,6 +111,46 @@ describe("workbench source contracts", () => {
     expect(rail).not.toContain("TeamPane");
   });
 
+  it("wires Terminal to a Ghostty session instead of stub copy", () => {
+    const terminal = readFileSync(
+      "src/harness/workbench/TerminalPane.tsx",
+      "utf-8"
+    );
+    expect(terminal).toContain("api.workbenchPty.open");
+    expect(terminal).toContain("GhosttySurface");
+    expect(terminal).not.toContain("PTY 待ち");
+  });
+
+  it("wires Browser to a preview session instead of stub chrome", () => {
+    const browser = readFileSync(
+      "src/harness/workbench/BrowserPane.tsx",
+      "utf-8"
+    );
+    expect(browser).toContain("api.workbenchPreview.navigate");
+    expect(browser).toContain("PreviewFrame");
+    expect(browser).toContain('placeholder="http://localhost:3000"');
+  });
+
+  it("vendors the same Ghostty wasm magic t3code ships", () => {
+    const wasm = readFileSync(
+      "src/harness/workbench/terminal/ghostty/vendor/ghostty-vt.wasm"
+    );
+    expect(wasm.subarray(0, 4)).toStrictEqual(
+      Buffer.from([0, 0x61, 0x73, 0x6d])
+    );
+    expect(wasm).toHaveLength(630_932);
+  });
+
+  it("vendors t3code's write-pty trampoline wasm", () => {
+    const trampoline = readFileSync(
+      "src/harness/workbench/terminal/ghostty/vendor/ghostty-write-pty.wasm"
+    );
+    expect(trampoline.subarray(0, 4)).toStrictEqual(
+      Buffer.from([0, 0x61, 0x73, 0x6d])
+    );
+    expect(trampoline).toHaveLength(112);
+  });
+
   it("wires the header toggle and drops the old visibility gate", () => {
     const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
     const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");

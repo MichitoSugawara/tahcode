@@ -19,6 +19,8 @@ const projectIgnores = [
   // Electron-vite / electron-builder output.
   "**/apps/desktop/out/**",
   "**/apps/desktop/release/**",
+  // Adapted Ghostty WASM stack from pingdotgg/t3code — keep upstream shape.
+  "**/src/harness/workbench/terminal/ghostty/**",
 ];
 
 export default defineConfig({
