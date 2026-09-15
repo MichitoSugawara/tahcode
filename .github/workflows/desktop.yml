@@ -137,9 +137,9 @@ jobs:
         run: |
           npm run build -w @tahcode/desktop
           if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
-            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
+            node apps/desktop/scripts/run-electron-builder.mjs --mac dmg zip --arm64 --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
           else
-            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish never
+            node apps/desktop/scripts/run-electron-builder.mjs --mac dmg zip --arm64 --projectDir apps/desktop --publish never
           fi
 
       - name: Build unsigned .dmg / .zip
@@ -150,7 +150,7 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
             npm run build -w @tahcode/desktop
-            node apps/desktop/scripts/run-electron-builder.mjs --mac --arm64 dmg zip --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
+            node apps/desktop/scripts/run-electron-builder.mjs --mac dmg zip --arm64 --projectDir apps/desktop --publish always -c.publish.tag="${GITHUB_REF_NAME}"
           else
             npm run dist:mac -w @tahcode/desktop
           fi

@@ -27,6 +27,8 @@ open apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg
 
 ワークスペース指定で直接叩く場合: `npm run <script> -w @tahcode/desktop`（`dev` / `build` / `pack` / `dist:mac`（未署名 arm64）/ `dist:mac:signed`（Developer ID + 公証）/ `dist:mac:universal`（arm64 + x64）/ `dist:mac:intel` / `smoke`）。ルートからは `npm run desktop:build`（未署名）と `npm run desktop:build:signed`。
 
+electron-builder 26 はターゲットを `--mac` の直後に置く（`--mac dmg zip --arm64`。`--mac --arm64 dmg zip` は `Unknown arguments: dmg, zip`）。
+
 未署名の .app なので、初回は Finder で **右クリック → 開く**（または `xattr -dr com.apple.quarantine <path>.app`）。自分の Mac でビルドした .app には quarantine 属性が付かないため、そのまま開ける。Apple Silicon 向けには electron-builder が ad-hoc 署名を自動で施す。
 
 ### 接続先の切替
