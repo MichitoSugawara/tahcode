@@ -210,7 +210,7 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
   },
   {
     description:
-      "Show a Linear connector card in the chat so the user can Add / Authorize / wait / see Connected. Use when the user asks to connect Linear, or Linear is required. Defaults to the active session and the org-scoped Team connection.",
+      "Show a Linear or GitHub plugin card in the chat so the user can Add / Authorize / wait / see Connected. Use when the user asks to connect Linear or GitHub. Defaults to Linear, the active session, and the org-scoped Team connection.",
     inputSchema: {
       additionalProperties: false,
       properties: {
@@ -314,7 +314,7 @@ export function formatAgentToolCatalog(options?: {
     header.push(
       providers.includes("linear") && providers.length === 1
         ? "Linear issue tools use the tahcode-owned `@linear` connector for this job, not Cursor marketplace MCP."
-        : "Connector tools use the tahcode-owned mentioned connectors for this job, not Cursor marketplace MCP."
+        : "Plugin tools use the tahcode-owned mentioned connectors for this job, not Cursor marketplace MCP."
     );
   }
   header.push(STALE_CLI_TOOL_PROMPT_HINT);

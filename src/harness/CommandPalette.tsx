@@ -157,7 +157,8 @@ export function CommandPalette({
         hint: "/connectors",
         icon: <Plug size={14} />,
         key: "connectors",
-        keywords: "connectors plugins linear コネクタ プラグイン 連携 oauth",
+        keywords:
+          "connectors plugins linear github コネクタ プラグイン 連携 oauth",
         label: CONNECTOR_CARD_COPY.surface,
         onSelect: run(org.goConnectors),
       },

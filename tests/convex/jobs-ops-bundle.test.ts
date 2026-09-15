@@ -166,4 +166,68 @@ describe("jobs claim opsBundle", () => {
       )
     ).toBeFalsy();
   });
+
+  it("injects GitHub MCP when the prompt mentions @github", async () => {
+    const t = fresh();
+    const alice = await insertUser(t, { handle: "alice-gh" });
+    const aliceCtx = asUser(t, alice);
+    const orgId = await aliceCtx.mutation(api.orgs.create, { name: "Hub" });
+    const projectId = await aliceCtx.mutation(api.projects.create, {
+      name: "Public",
+      orgId,
+      visibility: "org",
+    });
+    const chatId = await aliceCtx.mutation(api.chats.createProjectChat, {
+      projectId,
+      title: "Room",
+      visibility: "inherit",
+    });
+    const connectionId = await aliceCtx.mutation(
+      api.connectorConnections.upsert,
+      {
+        connectedAccountId: "ca_default-github",
+        displayLabel: "octocat",
+        orgId,
+        provider: "github",
+        scope: "org",
+      }
+    );
+    const tokenHash = await sha256Hex("th_ops_github");
+    const runtimeId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("runtimes", {
+          lastSeenAt: Date.now(),
+          name: "box",
+          orgId,
+          ownerUserId: alice,
+          slug: "box-gh",
+          status: "online",
+          tokenHash,
+        })
+    );
+    await aliceCtx.mutation(api.messages.send, {
+      body: "@claude please use @github/octocat",
+      chatId,
+    });
+    const claimed = await t.mutation(api.jobs.claimNext, {
+      runtimeId,
+      token: "th_ops_github",
+    });
+    if (!claimed) {
+      throw new Error("expected a claimed job");
+    }
+    expect(claimed.opsBundle.mentionedConnectors).toStrictEqual([
+      { handle: "github/octocat", provider: "github" },
+    ]);
+    expect(claimed.opsBundle.mcp.servers).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          connectionId,
+          inject: true,
+          kind: "connector",
+          provider: "github",
+        }),
+      ])
+    );
+  });
 });

@@ -3,19 +3,27 @@ import { describe, expect, it } from "vitest";
 import { pendingConnectorAccountId } from "../shared/connectors.ts";
 import {
   DEFAULT_OPENCONNECTOR_BASE_URL,
+  GITHUB_GET_CURRENT_USER_ACTION,
   LINEAR_GET_CURRENT_USER_ACTION,
+  buildGithubReturnUri,
   buildLinearReturnUri,
+  confirmGithubConnectionRequest,
   confirmLinearConnectionRequest,
+  connectorConnectReturnProvider,
   getLinearConnectionRequest,
+  githubDisplayLabel,
+  healthCheckGithubConnection,
   healthCheckLinearConnection,
   isAllowedLinearReturnOrigin,
   isOpenConnectorConfigured,
   linearConnectReturnConnectionId,
   linearConnectReturnScope,
   linearDisplayLabel,
+  parseGithubViewer,
   parseRuntimeEnvelope,
   readOpenConnectorEnv,
   resolveLinearReturnSiteUrl,
+  startGithubConnectionRequest,
   startLinearConnectionRequest,
   stripLinearConnectReturnSearch,
 } from "../shared/openConnector.ts";
@@ -135,6 +143,21 @@ describe(buildLinearReturnUri, () => {
   });
 });
 
+describe(buildGithubReturnUri, () => {
+  it("uses the same connectors surface with connector=github", () => {
+    expect(
+      buildGithubReturnUri({
+        connectionId: "k17pendinggithub",
+        orgSlug: "preview",
+        scope: "org",
+        siteUrl: "https://app.example",
+      })
+    ).toBe(
+      "https://app.example/o/preview/connectors?connector=github&scope=org&connectionId=k17pendinggithub"
+    );
+  });
+});
+
 describe("Linear return query", () => {
   it("reads scope from our query and defaults missing scope to org", () => {
     expect(
@@ -157,6 +180,17 @@ describe("Linear return query", () => {
     ).toBeNull();
     expect(
       linearConnectReturnConnectionId("?connectionId=k17pending")
+    ).toBeNull();
+  });
+
+  it("reads GitHub from the same connector query, not Linear wrappers", () => {
+    expect(
+      connectorConnectReturnProvider(
+        "?connector=github&scope=org&status=success"
+      )
+    ).toBe("github");
+    expect(
+      linearConnectReturnScope("?connector=github&scope=user&status=success")
     ).toBeNull();
   });
 
@@ -218,6 +252,78 @@ describe(confirmLinearConnectionRequest, () => {
         status: "connected",
       })
     ).toThrow(/opaque/i);
+  });
+});
+
+describe(confirmGithubConnectionRequest, () => {
+  it("confirms only a GitHub request appId", () => {
+    expect(
+      confirmGithubConnectionRequest({
+        appId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+        connectionRequestId: "req-gh-1",
+        errorCode: null,
+        errorMessage: null,
+        service: "github",
+        status: "connected",
+      })
+    ).toStrictEqual({
+      connectedAccountId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+      kind: "connected",
+    });
+    expect(
+      confirmGithubConnectionRequest({
+        appId: "bfd5bc8a-0044-4f8e-9134-c1db5c9cf7f8",
+        connectionRequestId: "req-gh-1",
+        errorCode: null,
+        errorMessage: null,
+        service: "linear",
+        status: "connected",
+      })
+    ).toMatchObject({ kind: "failed" });
+  });
+});
+
+describe(parseGithubViewer, () => {
+  it("reads login / name / numeric id from get_current_user", () => {
+    expect(
+      parseGithubViewer({
+        email: "octocat@github.com",
+        id: 1,
+        login: "octocat",
+        name: "The Octocat",
+      })
+    ).toStrictEqual({
+      displayName: "The Octocat",
+      email: "octocat@github.com",
+      id: "1",
+      name: "octocat",
+    });
+    expect(parseGithubViewer({ login: "octocat" })).toMatchObject({
+      displayName: "octocat",
+      name: "octocat",
+    });
+    expect(
+      parseGithubViewer({ viewer: { name: "Linear shaped" } })
+    ).toBeUndefined();
+  });
+});
+
+describe(githubDisplayLabel, () => {
+  it("prefers the GitHub profile name, then login — never alias", () => {
+    expect(
+      githubDisplayLabel(
+        { displayName: "The Octocat", name: "octocat" },
+        {
+          accountLabel: "default",
+          alias: "default",
+          id: "a",
+          service: "github",
+          status: "active",
+        }
+      )
+    ).toBe("The Octocat");
+    expect(githubDisplayLabel({ name: "octocat" })).toBe("octocat");
+    expect(githubDisplayLabel({ displayName: "github" })).toBeUndefined();
   });
 });
 
@@ -390,6 +496,96 @@ describe("OpenConnector HTTP helpers", () => {
     expect(actions).toStrictEqual([
       LINEAR_GET_CURRENT_USER_ACTION,
       "linear.list_linear_teams",
+    ]);
+  });
+
+  it("starts GitHub OAuth with returnUri connector=github", async () => {
+    const calls: { body?: string; url: string }[] = [];
+    const started = await startGithubConnectionRequest({
+      config: {
+        adminToken: "admin",
+        baseUrl: "https://oc.example",
+        siteUrl: "https://app.example",
+      },
+      fetchImpl: async (url, init) => {
+        calls.push({ body: init?.body, url });
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              data: {
+                authorizationUrl:
+                  "https://github.com/login/oauth/authorize?x=1",
+                connectionRequestId: "req-gh-42",
+                expiresAt: "2026-09-15T07:10:00.000Z",
+                stateHandle: "state-gh",
+                status: "initiated",
+              },
+              message: "OK",
+              success: true,
+            }),
+        };
+      },
+      connectionId: "k17pendinggithub",
+      orgSlug: "preview",
+      scope: "org",
+    });
+    expect({
+      started,
+      url: calls[0]?.url,
+    }).toMatchObject({
+      started: {
+        authorizationUrl: "https://github.com/login/oauth/authorize?x=1",
+        connectionRequestId: "req-gh-42",
+        status: "initiated",
+      },
+      url: "https://oc.example/v1/connections/github/connect",
+    });
+    expect(calls[0]?.body).toContain(
+      "https://app.example/o/preview/connectors?connector=github&scope=org&connectionId=k17pendinggithub"
+    );
+    expect(calls[0]?.body).not.toMatch(
+      new RegExp(`connectedAccountId|${pendingConnectorAccountId("github")}`)
+    );
+  });
+
+  it("falls back to list_my_repositories when GitHub get_current_user fails", async () => {
+    const actions: string[] = [];
+    const health = await healthCheckGithubConnection({
+      config: { adminToken: "admin", baseUrl: "https://oc.example" },
+      connectionAlias: "work",
+      fetchImpl: async (url) => {
+        const actionId = url.split("/").pop() ?? "";
+        actions.push(actionId);
+        if (actionId === GITHUB_GET_CURRENT_USER_ACTION) {
+          return {
+            ok: false,
+            status: 500,
+            text: async () =>
+              JSON.stringify({
+                data: null,
+                message: "provider_error",
+                success: false,
+              }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              data: { repositories: [{ name: "tahcode" }] },
+              message: "OK",
+              success: true,
+            }),
+        };
+      },
+    });
+    expect(health.viewer).toBeUndefined();
+    expect(actions).toStrictEqual([
+      GITHUB_GET_CURRENT_USER_ACTION,
+      "github.list_my_repositories",
     ]);
   });
 });

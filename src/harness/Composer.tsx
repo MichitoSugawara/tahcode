@@ -50,7 +50,10 @@ import type { Chat } from "@/harness/OrgContext";
 import { NoRuntimeChrome } from "@/harness/ui/NoRuntimeChrome";
 import {
   CONNECTOR_CARD_COPY,
+  CONNECTOR_CATALOG,
+  GITHUB_CONNECTOR,
   LINEAR_CONNECTOR,
+  connectionsForProvider,
   providerIconSource,
 } from "@/lib/connectorCard";
 import { connectorMentionSuggestItems } from "@/lib/connectorMentions";
@@ -480,11 +483,9 @@ export function Composer({
       ),
     [usable]
   );
-  const linearConnections = useQuery(api.connectorConnections.listByOrg, {
+  const connectorConnections = useQuery(api.connectorConnections.listByOrg, {
     orgId: org.org._id,
-    provider: LINEAR_CONNECTOR.provider,
   });
-  const linearMentionIcon = providerIconSource(LINEAR_CONNECTOR);
 
   /* `@cursor/` switches the @ menu from providers + people to that provider's models */
   const modelToken = useMemo(() => {
@@ -577,30 +578,30 @@ export function Composer({
         trailing:
           String(member.user._id) === String(org.me._id) ? "あなた" : undefined,
       }));
-    const connectors: PromptMenuItem[] = connectorMentionSuggestItems(
-      linearConnections ?? []
-    ).map((item) => ({
-      desc: item.desc,
-      icon: (
-        <ConnectorMentionIcon
-          displayName={LINEAR_CONNECTOR.displayName}
-          src={linearMentionIcon}
-        />
-      ),
-      insert: item.insert,
-      key: item.key,
-      name: item.name,
-      search: item.search,
-      trailing: (
-        <span className="bg-inset text-ink-3 rounded-[4px] px-1 text-[10.5px] font-medium">
-          {item.trailing}
-        </span>
-      ),
-    }));
+    const connectors: PromptMenuItem[] = CONNECTOR_CATALOG.flatMap((entry) => {
+      const src = providerIconSource(entry);
+      return connectorMentionSuggestItems(
+        connectionsForProvider(connectorConnections ?? [], entry.provider),
+        { displayName: entry.displayName, provider: entry.provider }
+      ).map((item) => ({
+        desc: item.desc,
+        icon: (
+          <ConnectorMentionIcon displayName={entry.displayName} src={src} />
+        ),
+        insert: item.insert,
+        key: item.key,
+        name: item.name,
+        search: item.search,
+        trailing: (
+          <span className="bg-inset text-ink-3 rounded-[4px] px-1 text-[10.5px] font-medium">
+            {item.trailing}
+          </span>
+        ),
+      }));
+    });
     return [...agents, ...connectors, ...people];
   }, [
-    linearConnections,
-    linearMentionIcon,
+    connectorConnections,
     modelToken,
     org.members,
     org.me._id,
@@ -648,7 +649,7 @@ export function Composer({
         }
         void suggestConnector({
           chatId: serverChatId,
-          provider: "linear",
+          provider: LINEAR_CONNECTOR.provider,
           scope: "org",
         }).catch((error: unknown) => {
           toast.error(CONNECTOR_CARD_COPY.cardError, {
@@ -660,6 +661,27 @@ export function Composer({
       icon: <Plug size={14} />,
       key: "connect",
       name: "/connect",
+    },
+    {
+      action: () => {
+        if (!serverChatId) {
+          toast.error("チャットの準備ができていません");
+          return;
+        }
+        void suggestConnector({
+          chatId: serverChatId,
+          provider: GITHUB_CONNECTOR.provider,
+          scope: "org",
+        }).catch((error: unknown) => {
+          toast.error(CONNECTOR_CARD_COPY.cardError, {
+            description: errorSummary(error),
+          });
+        });
+      },
+      desc: "GitHub を接続",
+      icon: <Plug size={14} />,
+      key: "github",
+      name: "/github",
     },
     ...(org.isAdmin
       ? [

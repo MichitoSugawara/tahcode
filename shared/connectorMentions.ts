@@ -1,5 +1,5 @@
 /**
- * Shared @linear / @linear/<slug> mention handles.
+ * Shared @linear / @github mention handles.
  *
  * UI suggestions (`src/lib/connectorMentions.ts`) and job MCP injection
  * (TAH-54) must assign the same tokens so `@linear` matches the account
@@ -33,10 +33,10 @@ export function connectorMentionSlug(label: string): string {
 }
 
 /**
- * Stable @ tokens for connected Linear accounts:
- * unnamed / first unlabeled → `@linear`
- * labeled → `@linear/<slug>`
- * collision or empty slug → `@linear/<connectionId>`
+ * Stable @ tokens for connected accounts:
+ * unnamed / first unlabeled → `@linear` / `@github`
+ * labeled → `@linear/<slug>` / `@github/<slug>`
+ * collision or empty slug → `@<provider>/<connectionId>`
  */
 export function connectorMentionHandle(
   provider: string,

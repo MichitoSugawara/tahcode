@@ -72,6 +72,16 @@ describe("agent tool catalog", () => {
     expect(formatAgentToolCatalog()).not.toContain("list_linear_issues");
   });
 
+  it("adds GitHub tools from the same catalog when providers include github", () => {
+    const text = formatAgentToolCatalog({ providers: ["github"] });
+    expect(text).toContain("list_github_repos");
+    expect(text).toContain("create_github_issue");
+    expect(text).toContain(
+      "Plugin tools use the tahcode-owned mentioned connectors"
+    );
+    expect(text).not.toContain("list_linear_issues");
+  });
+
   it("adds Claude MCP flags only", () => {
     const claude = headlessArgs(
       "claudeAgent",

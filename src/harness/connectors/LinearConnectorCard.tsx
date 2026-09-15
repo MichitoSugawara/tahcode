@@ -11,7 +11,6 @@ import { StatusPill } from "@/components/atoms/StatusPill";
 import { useOrg } from "@/harness/OrgContext";
 import { Dialog, SectionLabel, Well } from "@/harness/ui/Dialog";
 import { Input } from "@/harness/ui/Field";
-import { Notice } from "@/harness/ui/Notice";
 import type {
   ConnectorCardLocalPhase,
   ConnectorCardPhase,
@@ -20,15 +19,17 @@ import type {
 } from "@/lib/connectorCard";
 import {
   CONNECTOR_CARD_COPY,
+  GITHUB_CONNECTOR,
   LINEAR_CONNECTOR,
   connectorAccountCountLabel,
   connectorAccountLabel,
+  connectorConnectReturnConnectionId,
+  connectorConnectReturnProvider,
+  connectorConnectReturnScope,
   connectorStatusLabel,
   connectorStatusTone,
   connectionsForProvider,
   isPendingConnectorAccountId,
-  linearConnectReturnConnectionId,
-  linearConnectReturnScope,
   marketplaceConnectorPhase,
   providerIconSource,
   resolveConnectorCardPhase,
@@ -51,24 +52,34 @@ const LINEAR_CONNECT_MAX_POLLS = 15;
 function parseReturnConnectionId(
   search: string
 ): Id<"connectorConnections"> | undefined {
-  const raw = linearConnectReturnConnectionId(search);
+  const raw = connectorConnectReturnConnectionId(search);
   if (!raw) {
     return;
   }
   return raw as Id<"connectorConnections">;
 }
 
-function useLinearConnectReturn({
+function useConnectorConnectReturn({
+  completeConnect,
+  displayName,
   enabled,
   orgId,
+  provider,
   scope,
   setConfirming,
   setDetailOpen,
   setLocalPhase,
   setWaitingConnectionId,
 }: {
+  completeConnect: (args: {
+    connectionId?: Id<"connectorConnections">;
+    orgId: Id<"orgs">;
+    scope: ConnectorScope;
+  }) => Promise<{ status: string }>;
+  displayName: string;
   enabled: boolean;
   orgId: Id<"orgs">;
+  provider: string;
   scope: ConnectorScope;
   setConfirming: (value: boolean) => void;
   setDetailOpen: (open: boolean) => void;
@@ -77,14 +88,18 @@ function useLinearConnectReturn({
     value: Id<"connectorConnections"> | undefined
   ) => void;
 }) {
-  const completeConnect = useAction(api.connectorConnect.completeLinearConnect);
   const location = useLocation();
   const navigate = useNavigate();
-  const returningScope = linearConnectReturnScope(location.search);
+  const returningProvider = connectorConnectReturnProvider(location.search);
+  const returningScope = connectorConnectReturnScope(location.search);
   const returningConnectionId = parseReturnConnectionId(location.search);
 
   useEffect(() => {
-    if (!enabled || returningScope !== scope) {
+    if (
+      !enabled ||
+      returningProvider !== provider ||
+      returningScope !== scope
+    ) {
       return;
     }
     let cancelled = false;
@@ -130,10 +145,10 @@ function useLinearConnectReturn({
         if (result.status === "connected") {
           setLocalPhase("idle");
           setWaitingConnectionId(undefined);
-          toast.success("Linear を接続しました");
+          toast.success(`${displayName} を接続しました`);
         } else {
           setLocalPhase("failed");
-          toast.error("Linear の認証を確認できませんでした");
+          toast.error(`${displayName} の認証を確認できませんでした`);
         }
         setConfirming(false);
         clearReturnQuery();
@@ -143,7 +158,7 @@ function useLinearConnectReturn({
         }
         setConfirming(false);
         setLocalPhase("failed");
-        toast.error("Linear の認証を確認できませんでした", {
+        toast.error(`${displayName} の認証を確認できませんでした`, {
           description: errorSummary(error),
         });
         clearReturnQuery();
@@ -158,12 +173,15 @@ function useLinearConnectReturn({
     };
   }, [
     completeConnect,
+    displayName,
     enabled,
     location.pathname,
     location.search,
     navigate,
     orgId,
+    provider,
     returningConnectionId,
+    returningProvider,
     returningScope,
     scope,
     setConfirming,
@@ -680,7 +698,7 @@ function ConnectorDetailDialog({
                     {CONNECTOR_CARD_COPY.authorize}
                   </Button>
                   <p className="text-ink-3 mt-1 text-[12px]">
-                    {CONNECTOR_CARD_COPY.authorizeHint}
+                    {CONNECTOR_CARD_COPY.authorizeHint(catalog.displayName)}
                   </p>
                 </>
               ) : null}
@@ -711,8 +729,8 @@ function ConnectorDetailDialog({
         title={`${catalog.displayName} を削除しますか？`}
         description={
           pendingRemove?.scope === "org"
-            ? "このアカウントの org 連携だけを削除します。他の Linear アカウントは残ります。"
-            : "このアカウントの個人連携だけを削除します。他の Linear アカウントは残ります。"
+            ? `このアカウントの org 連携だけを削除します。他の ${catalog.displayName} アカウントは残ります。`
+            : `このアカウントの個人連携だけを削除します。他の ${catalog.displayName} アカウントは残ります。`
         }
         footer={
           <>
@@ -746,32 +764,35 @@ function ConnectorDetailDialog({
       >
         <p className="text-ink-2 text-[13px] leading-relaxed">
           {pendingRemove
-            ? `${connectorAccountLabel(pendingRemove.displayLabel)} — ${CONNECTOR_CARD_COPY.removeDetail}`
-            : CONNECTOR_CARD_COPY.removeDetail}
+            ? `${connectorAccountLabel(pendingRemove.displayLabel)} — ${CONNECTOR_CARD_COPY.removeDetail(catalog.displayName)}`
+            : CONNECTOR_CARD_COPY.removeDetail(catalog.displayName)}
         </p>
       </Dialog>
     </>
   );
 }
 
-export function LinearConnectorCard({
+export function ConnectorProviderCard({
+  catalog,
   preferredScope = "org",
   variant = "marketplace",
 }: {
+  catalog: ConnectorCatalogEntry;
   preferredScope?: ConnectorScope;
   variant?: "chat" | "marketplace";
 }) {
   const { org, isAdmin, me } = useOrg();
   const connections = useQuery(api.connectorConnections.listByOrg, {
     orgId: org._id,
-    provider: LINEAR_CONNECTOR.provider,
+    provider: catalog.provider,
   });
-  const linearConnections = connectionsForProvider(
+  const providerConnections = connectionsForProvider(
     connections ?? [],
-    LINEAR_CONNECTOR.provider
+    catalog.provider
   );
   const location = useLocation();
-  const returningScope = linearConnectReturnScope(location.search);
+  const returningProvider = connectorConnectReturnProvider(location.search);
+  const returningScope = connectorConnectReturnScope(location.search);
   const canAddPreferred = preferredScope === "user" || isAdmin;
   const [detailOpen, setDetailOpen] = useState(false);
   const [localPhase, setLocalPhase] = useState<ConnectorCardLocalPhase>("idle");
@@ -779,13 +800,31 @@ export function LinearConnectorCard({
   const [waitingConnectionId, setWaitingConnectionId] = useState<
     Id<"connectorConnections"> | undefined
   >();
-  const startConnect = useAction(api.connectorConnect.startLinearConnect);
+  const startLinearConnect = useAction(api.connectorConnect.startLinearConnect);
+  const completeLinearConnect = useAction(
+    api.connectorConnect.completeLinearConnect
+  );
+  const startGithubConnect = useAction(api.connectorConnect.startGithubConnect);
+  const completeGithubConnect = useAction(
+    api.connectorConnect.completeGithubConnect
+  );
+  const startConnect =
+    catalog.provider === GITHUB_CONNECTOR.provider
+      ? startGithubConnect
+      : startLinearConnect;
+  const completeConnect =
+    catalog.provider === GITHUB_CONNECTOR.provider
+      ? completeGithubConnect
+      : completeLinearConnect;
   const renameConnection = useMutation(api.connectorConnections.rename);
   const removeConnection = useMutation(api.connectorConnections.remove);
 
-  useLinearConnectReturn({
-    enabled: returningScope !== null,
+  useConnectorConnectReturn({
+    completeConnect,
+    displayName: catalog.displayName,
+    enabled: returningProvider === catalog.provider,
     orgId: org._id,
+    provider: catalog.provider,
     scope: returningScope ?? "org",
     setConfirming,
     setDetailOpen,
@@ -833,11 +872,11 @@ export function LinearConnectorCard({
       toast.message(
         result.reason === "oauth_not_configured"
           ? CONNECTOR_CARD_COPY.notConfigured
-          : CONNECTOR_CARD_COPY.authorizeHint
+          : CONNECTOR_CARD_COPY.authorizeHint(catalog.displayName)
       );
     } catch (error: unknown) {
       setLocalPhase("failed");
-      toast.error("Linear の接続を開始できませんでした", {
+      toast.error(`${catalog.displayName} の接続を開始できませんでした`, {
         description: errorSummary(error),
       });
     }
@@ -867,7 +906,7 @@ export function LinearConnectorCard({
         setWaitingConnectionId(undefined);
         setLocalPhase("idle");
       }
-      toast.success("Linear アカウントを削除しました");
+      toast.success(`${catalog.displayName} アカウントを削除しました`);
     } catch (error: unknown) {
       toast.error("削除に失敗しました", {
         description: errorSummary(error),
@@ -899,33 +938,31 @@ export function LinearConnectorCard({
       ) : null}
 
       {connections !== undefined && variant === "marketplace" ? (
-        <div className="connector-marketplace grid grid-cols-1 gap-x-12 md:grid-cols-2">
-          <ConnectorMarketplaceRow
-            catalog={LINEAR_CONNECTOR}
-            connections={linearConnections}
-            onOpen={() => {
-              if (shouldStartOauthFromMarketplace(linearConnections)) {
-                void runStart(isAdmin ? "org" : "user");
-                return;
-              }
-              setDetailOpen(true);
-            }}
-          />
-        </div>
+        <ConnectorMarketplaceRow
+          catalog={catalog}
+          connections={providerConnections}
+          onOpen={() => {
+            if (shouldStartOauthFromMarketplace(providerConnections)) {
+              void runStart(isAdmin ? "org" : "user");
+              return;
+            }
+            setDetailOpen(true);
+          }}
+        />
       ) : null}
 
       {connections !== undefined && variant === "chat" ? (
         <ConnectorChatRow
           canAdd={canAddPreferred}
-          catalog={LINEAR_CONNECTOR}
-          connections={linearConnections}
+          catalog={catalog}
+          connections={providerConnections}
           localPhase={localPhase}
           preferredScope={preferredScope}
           onAdd={() => {
             void runStart(preferredScope);
           }}
           onAuthorize={() => {
-            const target = linearConnections.find((connection) => {
+            const target = providerConnections.find((connection) => {
               if (connection.scope !== preferredScope) {
                 return false;
               }
@@ -949,7 +986,7 @@ export function LinearConnectorCard({
           }}
           onReopen={() => {
             if (waitingConnectionId) {
-              const waiting = linearConnections.find(
+              const waiting = providerConnections.find(
                 (connection) =>
                   String(connection._id) === String(waitingConnectionId)
               );
@@ -966,9 +1003,9 @@ export function LinearConnectorCard({
 
       <ConnectorDetailDialog
         actorUserId={me._id}
-        catalog={LINEAR_CONNECTOR}
+        catalog={catalog}
         confirming={confirming}
-        connections={linearConnections}
+        connections={providerConnections}
         isAdmin={isAdmin}
         localPhase={localPhase}
         open={detailOpen}
@@ -992,20 +1029,43 @@ export function LinearConnectorCard({
         }}
       />
 
-      {variant === "marketplace" && !isAdmin ? (
-        <Notice
-          tone="locked"
-          title="Org 連携の追加と切断は Owner / Admin の操作です"
-        >
-          あなたは Member です。接続状態は見られますが、Team
-          連携の認証はできません。
-        </Notice>
-      ) : null}
       {variant === "chat" && !canAddPreferred ? (
         <p className="text-ink-3 px-1 text-[11px] leading-snug">
           {CONNECTOR_CARD_COPY.chatMemberHint}
         </p>
       ) : null}
     </div>
+  );
+}
+
+export function LinearConnectorCard({
+  preferredScope,
+  variant,
+}: {
+  preferredScope?: ConnectorScope;
+  variant?: "chat" | "marketplace";
+}) {
+  return (
+    <ConnectorProviderCard
+      catalog={LINEAR_CONNECTOR}
+      preferredScope={preferredScope}
+      variant={variant}
+    />
+  );
+}
+
+export function GithubConnectorCard({
+  preferredScope,
+  variant,
+}: {
+  preferredScope?: ConnectorScope;
+  variant?: "chat" | "marketplace";
+}) {
+  return (
+    <ConnectorProviderCard
+      catalog={GITHUB_CONNECTOR}
+      preferredScope={preferredScope}
+      variant={variant}
+    />
   );
 }

@@ -27,8 +27,8 @@ export default function ConnectorsPage() {
             {CONNECTOR_CARD_COPY.surface}
           </h1>
           <p className="text-ink-3 mt-1 max-w-[42rem] text-[13px] leading-relaxed">
-            Linear などのサービスをこの org に接続します。追加と認証は Owner /
-            Admin が行います。
+            Linear や GitHub などのサービスをこの org に接続します。追加と認証は
+            Owner / Admin が行います。
           </p>
         </header>
 

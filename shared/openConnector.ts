@@ -1,6 +1,9 @@
 import {
+  GITHUB_CONNECT_QUERY,
   LINEAR_CONNECT_QUERY,
   MAX_CONNECTOR_DISPLAY_LABEL,
+  connectorDisplayName,
+  isKnownConnectorProvider,
   normalizeOpaqueConnectorId,
   normalizeOptionalConnectorText,
   sanitizeLinearReturnPath,
@@ -8,7 +11,11 @@ import {
 import type { ConnectorScope } from "./connectors.ts";
 
 export {
+  GITHUB_CONNECT_QUERY,
   LINEAR_CONNECT_QUERY,
+  connectorConnectReturnConnectionId,
+  connectorConnectReturnProvider,
+  connectorConnectReturnScope,
   linearConnectReturnConnectionId,
   linearConnectReturnScope,
   stripLinearConnectReturnSearch,
@@ -18,11 +25,14 @@ export const DEFAULT_OPENCONNECTOR_BASE_URL =
   "https://tahcode-open-connector.gawara.workers.dev";
 
 export const LINEAR_CONNECTOR_SERVICE = "linear";
+export const GITHUB_CONNECTOR_SERVICE = "github";
 export const LINEAR_GET_CURRENT_USER_ACTION = "linear.get_current_user";
+export const GITHUB_GET_CURRENT_USER_ACTION = "github.get_current_user";
 export const LINEAR_TEAM_HEALTH_ACTIONS = [
   "linear.list_linear_teams",
   "linear.get_all_linear_teams",
 ] as const;
+export const GITHUB_HEALTH_ACTIONS = ["github.list_my_repositories"] as const;
 
 export const OPENCONNECTOR_FETCH_TIMEOUT_MS = 12_000;
 
@@ -159,7 +169,7 @@ export function normalizeSiteOrigin(value?: string): string | undefined {
   }
 }
 
-/** Browser / SITE_URL origins we may send as Linear OAuth returnUri. */
+/** Browser / SITE_URL origins we may send as plugin OAuth returnUri. */
 export function isAllowedLinearReturnOrigin(origin: string): boolean {
   const normalized = normalizeSiteOrigin(origin);
   if (!normalized) {
@@ -200,6 +210,32 @@ export function resolveLinearReturnSiteUrl(input: {
   return normalizeSiteOrigin(input.envSiteUrl);
 }
 
+export function buildConnectorReturnUri(input: {
+  connectionId?: string;
+  orgSlug: string;
+  provider: string;
+  returnPath?: string;
+  scope: ConnectorScope;
+  siteUrl: string;
+}): string {
+  const provider = input.provider.trim().toLowerCase();
+  if (!isKnownConnectorProvider(provider)) {
+    throw new Error("Unknown connector");
+  }
+  const origin = trimTrailingSlash(input.siteUrl);
+  const url = new URL(
+    sanitizeLinearReturnPath(input.returnPath, input.orgSlug),
+    origin
+  );
+  url.searchParams.set("connector", provider);
+  url.searchParams.set("scope", input.scope);
+  const connectionId = input.connectionId?.trim();
+  if (connectionId && connectionId.length > 0) {
+    url.searchParams.set("connectionId", connectionId);
+  }
+  return url.toString();
+}
+
 export function buildLinearReturnUri(input: {
   connectionId?: string;
   orgSlug: string;
@@ -207,18 +243,23 @@ export function buildLinearReturnUri(input: {
   scope: ConnectorScope;
   siteUrl: string;
 }): string {
-  const origin = trimTrailingSlash(input.siteUrl);
-  const url = new URL(
-    sanitizeLinearReturnPath(input.returnPath, input.orgSlug),
-    origin
-  );
-  url.searchParams.set("connector", LINEAR_CONNECT_QUERY);
-  url.searchParams.set("scope", input.scope);
-  const connectionId = input.connectionId?.trim();
-  if (connectionId && connectionId.length > 0) {
-    url.searchParams.set("connectionId", connectionId);
-  }
-  return url.toString();
+  return buildConnectorReturnUri({
+    ...input,
+    provider: LINEAR_CONNECT_QUERY,
+  });
+}
+
+export function buildGithubReturnUri(input: {
+  connectionId?: string;
+  orgSlug: string;
+  returnPath?: string;
+  scope: ConnectorScope;
+  siteUrl: string;
+}): string {
+  return buildConnectorReturnUri({
+    ...input,
+    provider: GITHUB_CONNECT_QUERY,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -264,7 +305,7 @@ export function parseConnectionRequestStart(
     !stateHandle ||
     data.status !== "initiated"
   ) {
-    throw new Error("OpenConnector did not start a Linear connection request");
+    throw new Error("OpenConnector did not start a connection request");
   }
   return {
     authorizationUrl,
@@ -341,15 +382,40 @@ export function parseLinearViewer(data: unknown): LinearViewer | undefined {
   };
 }
 
+export function parseGithubViewer(data: unknown): LinearViewer | undefined {
+  if (!isRecord(data)) {
+    return;
+  }
+  const login = asOptionalString(data.login);
+  const name = asOptionalString(data.name);
+  const email = asOptionalString(data.email);
+  const rawId = data.id;
+  const id =
+    typeof rawId === "number" && Number.isFinite(rawId)
+      ? String(rawId)
+      : asOptionalString(rawId);
+  if (!login && !name && !email) {
+    return;
+  }
+  return {
+    displayName: name ?? login,
+    email,
+    id,
+    name: login ?? name,
+  };
+}
+
 /**
- * Confirm a Linear connection-request from OpenConnector. The browser query
+ * Confirm a connection-request from OpenConnector. The browser query
  * `connectedAccountId` is never an input — only `appId` from the request.
  */
-export function confirmLinearConnectionRequest(
-  request: OpenConnectorConnectionRequest
+export function confirmConnectorConnectionRequest(
+  request: OpenConnectorConnectionRequest,
+  service: string
 ): ConfirmLinearConnectionRequest {
-  if (request.service !== LINEAR_CONNECTOR_SERVICE) {
-    return { kind: "failed", reason: "Connection request is not for Linear" };
+  const label = connectorDisplayName(service);
+  if (request.service !== service) {
+    return { kind: "failed", reason: `Connection request is not for ${label}` };
   }
   if (request.status === "initiated") {
     return { kind: "pending" };
@@ -360,14 +426,14 @@ export function confirmLinearConnectionRequest(
       reason:
         request.errorMessage ??
         (request.status === "expired"
-          ? "Linear authorization expired"
-          : "Linear authorization failed"),
+          ? `${label} authorization expired`
+          : `${label} authorization failed`),
     };
   }
   if (!request.appId) {
     return {
       kind: "failed",
-      reason: "Linear connection request is missing an account id",
+      reason: `${label} connection request is missing an account id`,
     };
   }
   return {
@@ -376,7 +442,20 @@ export function confirmLinearConnectionRequest(
   };
 }
 
-export function linearDisplayLabel(
+export function confirmLinearConnectionRequest(
+  request: OpenConnectorConnectionRequest
+): ConfirmLinearConnectionRequest {
+  return confirmConnectorConnectionRequest(request, LINEAR_CONNECTOR_SERVICE);
+}
+
+export function confirmGithubConnectionRequest(
+  request: OpenConnectorConnectionRequest
+): ConfirmLinearConnectionRequest {
+  return confirmConnectorConnectionRequest(request, GITHUB_CONNECTOR_SERVICE);
+}
+
+export function connectorDisplayLabel(
+  provider: string,
   viewer: LinearViewer | undefined,
   _connection?: OpenConnectorManagedConnection
 ): string | undefined {
@@ -386,7 +465,7 @@ export function linearDisplayLabel(
     return;
   }
   const normalized = trimmed.toLowerCase();
-  if (normalized === "default" || normalized === "linear") {
+  if (normalized === "default" || normalized === provider) {
     return;
   }
   return normalizeOptionalConnectorText(
@@ -394,6 +473,20 @@ export function linearDisplayLabel(
     MAX_CONNECTOR_DISPLAY_LABEL,
     "Display label"
   );
+}
+
+export function linearDisplayLabel(
+  viewer: LinearViewer | undefined,
+  connection?: OpenConnectorManagedConnection
+): string | undefined {
+  return connectorDisplayLabel(LINEAR_CONNECTOR_SERVICE, viewer, connection);
+}
+
+export function githubDisplayLabel(
+  viewer: LinearViewer | undefined,
+  connection?: OpenConnectorManagedConnection
+): string | undefined {
+  return connectorDisplayLabel(GITHUB_CONNECTOR_SERVICE, viewer, connection);
 }
 
 async function readJson(response: {
@@ -467,22 +560,27 @@ export async function openConnectorRequest(input: {
   }
 }
 
-export async function startLinearConnectionRequest(input: {
+export async function startConnectorConnectionRequest(input: {
   config: OpenConnectorEnv;
   connectionId?: string;
   fetchImpl?: FetchLike;
   orgSlug: string;
   returnPath?: string;
   scope: ConnectorScope;
+  service: string;
 }): Promise<OpenConnectorConnectionRequestStart> {
   if (!input.config.adminToken || !input.config.siteUrl) {
     throw new Error("OpenConnector is not configured");
   }
+  if (!isKnownConnectorProvider(input.service)) {
+    throw new Error("Unknown connector");
+  }
   const data = await openConnectorRequest({
     body: {
-      returnUri: buildLinearReturnUri({
+      returnUri: buildConnectorReturnUri({
         connectionId: input.connectionId,
         orgSlug: input.orgSlug,
+        provider: input.service,
         returnPath: input.returnPath,
         scope: input.scope,
         siteUrl: input.config.siteUrl,
@@ -491,10 +589,38 @@ export async function startLinearConnectionRequest(input: {
     config: input.config,
     fetchImpl: input.fetchImpl,
     method: "POST",
-    path: `/v1/connections/${LINEAR_CONNECTOR_SERVICE}/connect`,
+    path: `/v1/connections/${input.service}/connect`,
     useAdmin: true,
   });
   return parseConnectionRequestStart(data);
+}
+
+export async function startLinearConnectionRequest(input: {
+  config: OpenConnectorEnv;
+  connectionId?: string;
+  fetchImpl?: FetchLike;
+  orgSlug: string;
+  returnPath?: string;
+  scope: ConnectorScope;
+}): Promise<OpenConnectorConnectionRequestStart> {
+  return await startConnectorConnectionRequest({
+    ...input,
+    service: LINEAR_CONNECTOR_SERVICE,
+  });
+}
+
+export async function startGithubConnectionRequest(input: {
+  config: OpenConnectorEnv;
+  connectionId?: string;
+  fetchImpl?: FetchLike;
+  orgSlug: string;
+  returnPath?: string;
+  scope: ConnectorScope;
+}): Promise<OpenConnectorConnectionRequestStart> {
+  return await startConnectorConnectionRequest({
+    ...input,
+    service: GITHUB_CONNECTOR_SERVICE,
+  });
 }
 
 export async function getLinearConnectionRequest(input: {
@@ -545,22 +671,28 @@ export async function executeLinearAction(input: {
   });
 }
 
-export async function healthCheckLinearConnection(input: {
+export const executeConnectorAction = executeLinearAction;
+
+async function healthCheckConnectorConnection(input: {
   config: OpenConnectorEnv;
   connectionAlias: string;
+  fallbackActions: readonly string[];
   fetchImpl?: FetchLike;
+  parseViewer: (data: unknown) => LinearViewer | undefined;
+  primaryAction: string;
+  serviceLabel: string;
 }): Promise<{ viewer?: LinearViewer }> {
   try {
     const output = await executeLinearAction({
-      actionId: LINEAR_GET_CURRENT_USER_ACTION,
+      actionId: input.primaryAction,
       config: input.config,
       connectionAlias: input.connectionAlias,
       fetchImpl: input.fetchImpl,
     });
-    return { viewer: parseLinearViewer(output) };
+    return { viewer: input.parseViewer(output) };
   } catch {
     let lastError: Error | undefined;
-    for (const actionId of LINEAR_TEAM_HEALTH_ACTIONS) {
+    for (const actionId of input.fallbackActions) {
       try {
         await executeLinearAction({
           actionId,
@@ -573,9 +705,37 @@ export async function healthCheckLinearConnection(input: {
         lastError =
           error instanceof Error
             ? error
-            : new Error("Linear health check failed");
+            : new Error(`${input.serviceLabel} health check failed`);
       }
     }
-    throw lastError ?? new Error("Linear health check failed");
+    throw lastError ?? new Error(`${input.serviceLabel} health check failed`);
   }
+}
+
+export async function healthCheckLinearConnection(input: {
+  config: OpenConnectorEnv;
+  connectionAlias: string;
+  fetchImpl?: FetchLike;
+}): Promise<{ viewer?: LinearViewer }> {
+  return await healthCheckConnectorConnection({
+    ...input,
+    fallbackActions: LINEAR_TEAM_HEALTH_ACTIONS,
+    parseViewer: parseLinearViewer,
+    primaryAction: LINEAR_GET_CURRENT_USER_ACTION,
+    serviceLabel: "Linear",
+  });
+}
+
+export async function healthCheckGithubConnection(input: {
+  config: OpenConnectorEnv;
+  connectionAlias: string;
+  fetchImpl?: FetchLike;
+}): Promise<{ viewer?: LinearViewer }> {
+  return await healthCheckConnectorConnection({
+    ...input,
+    fallbackActions: GITHUB_HEALTH_ACTIONS,
+    parseViewer: parseGithubViewer,
+    primaryAction: GITHUB_GET_CURRENT_USER_ACTION,
+    serviceLabel: "GitHub",
+  });
 }
