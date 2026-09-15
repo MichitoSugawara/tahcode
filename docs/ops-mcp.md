@@ -59,8 +59,7 @@ Linear ツールは `shared/connectorActionCatalog.ts` から materialize する
 
 1. preview / staging にログイン（`test@test.com` / `test1234`）。
 2. `/o/preview/connectors` で Linear を接続（未接続でも claim の `opsBundle.connectors` は空配列で返る）。
-3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。起動 argv に `--allowedTools mcp__tahcode__*` が付き、MCP の `list_connectors` は権限未承認にならない（`bypassPermissions` は使わない）。
-4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` / `--allowedTools` は付かず、起動 argv に `--trust --force` が付き、`tahcode tool` 案内になる。
-5. Linear を接続したうえで `@claude @linear 課題を一覧` を流す。思考トレースの injected が 1 以上、起動 argv に `mcp__tahcode-linear-<last8>__*` が付き、課題一覧は tahcode コネクタ経由（Cursor 内蔵 Linear MCP ではない）。Cursor ジョブでは `tahcode tool list_linear_issues` がカタログに出る（`--force` が無いとシェルが拒否され呼べない）。
+3. Claude が検出されているマシンで `@claude` だけの挨拶を流す。`tahcode ops MCP attached` は本文にも思考トレースにも出ない（TAH-76。ツール不要ターンは `--mcp-config` を付けない）。
+4. Linear を接続したうえで `@claude @linear 課題を一覧` を流す。起動 argv に `--mcp-config` と `mcp__tahcode__*` / `mcp__tahcode-linear-<last8>__*` が付く。思考トレースに attach ステータス行は出さない。課題一覧は tahcode コネクタ経由（Cursor 内蔵 Linear MCP ではない）。Cursor ジョブでは `--mcp-config` は付かず、`tahcode tool list_linear_issues` がカタログに出る。
 
 Cloudflare の preview Worker は `pr-<number>` で分かれている。Convex も同じ `pr-<number>` 識別子に載せる。チームの deployment 上限（40）で新規作成できないときは、閉じた PR の残りプレビューを 1 件消してから `pr-<number>` を取り直す。マージ済みブランチ名へ関数だけ載せて他 PR と共有すると、後から来た preview が `agentTools:invoke` のバリデータを上書きする。

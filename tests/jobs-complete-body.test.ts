@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cancelledNoticeDetail,
   collapseDuplicatedMessageBody,
+  JOB_CANCELLED_MESSAGE,
   resolveCompletedMessageBody,
+  shouldWriteJobEventToMessageBody,
 } from "../shared/jobs.ts";
+
+describe("job event / cancel copy (TAH-76)", () => {
+  it("writes only text events onto the assistant body", () => {
+    expect(shouldWriteJobEventToMessageBody("text")).toBeTruthy();
+    expect(shouldWriteJobEventToMessageBody("thinking")).toBeFalsy();
+    expect(shouldWriteJobEventToMessageBody("tool")).toBeFalsy();
+  });
+
+  it("omits a duplicate 中断しました under the notice title", () => {
+    expect(cancelledNoticeDetail()).toBeNull();
+    expect(cancelledNoticeDetail(JOB_CANCELLED_MESSAGE)).toBeNull();
+    expect(cancelledNoticeDetail("lease lost")).toBe("lease lost");
+  });
+});
 
 describe(resolveCompletedMessageBody, () => {
   const greeting = "こんにちは！今日はどんなお手伝いをしましょうか？";

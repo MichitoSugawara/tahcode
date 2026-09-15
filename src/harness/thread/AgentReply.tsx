@@ -1,4 +1,5 @@
-import { JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
+import { cancelledNoticeDetail, JOB_CANCELLED_MESSAGE } from "@shared/jobs.ts";
+import { isJobMcpAttachNote } from "@shared/opsMcp.ts";
 import {
   hasUsableOnlineRuntime,
   isNoOnlineRuntimeNotice,
@@ -205,6 +206,14 @@ function LiveMarkdown({ text, live }: { text: string; live: boolean }) {
   );
 }
 
+function CancelledNotice({ detail }: { detail: string | null }) {
+  return (
+    <Notice tone="warn" title="中断しました">
+      {detail ? <span className="font-mono text-[12px]">{detail}</span> : null}
+    </Notice>
+  );
+}
+
 export function AgentReply({
   message,
   prompt,
@@ -242,7 +251,9 @@ export function AgentReply({
   const rows = useMemo<ThinkingRow[]>(() => {
     const events = job?.events ?? [];
     return events
-      .filter((event) => event.type === "thinking")
+      .filter(
+        (event) => event.type === "thinking" && !isJobMcpAttachNote(event.text)
+      )
       .map((event) => summarizeEvent(event.type, event.text));
   }, [job]);
   const tools = useMemo<ToolStep[]>(
@@ -387,7 +398,9 @@ export function AgentReply({
 
       {!streaming &&
         !failed &&
+        !cancelled &&
         finalText.trim().length > 0 &&
+        !isJobMcpAttachNote(finalText) &&
         finalText.trim() !== JOB_CANCELLED_MESSAGE && (
           <div style={{ animation: "fade-in 260ms ease both" }}>
             <Markdown>{finalText}</Markdown>
@@ -399,11 +412,7 @@ export function AgentReply({
       )}
 
       {cancelled && (
-        <Notice tone="warn" title="中断しました">
-          <span className="font-mono text-[12px]">
-            {job?.job.error ?? JOB_CANCELLED_MESSAGE}
-          </span>
-        </Notice>
+        <CancelledNotice detail={cancelledNoticeDetail(job?.job.error)} />
       )}
 
       {failed && (

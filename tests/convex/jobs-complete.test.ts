@@ -112,4 +112,19 @@ describe("jobs.complete message body", () => {
     expect(agent?.body.split(greeting)).toHaveLength(2);
     expect(agent?.status).toBe("done");
   });
+
+  it("keeps thinking / MCP attach notes off the assistant body (TAH-76)", async () => {
+    const t = fresh();
+    const seed = await seedClaimedJob(t);
+    await t.mutation(api.jobs.appendEvent, {
+      jobId: seed.jobId,
+      runtimeId: seed.runtimeId,
+      text: "tahcode ops MCP attached (--mcp-config). connectors: 1 listed, 0 injected.",
+      token: TOKEN,
+      type: "thinking",
+    });
+    const agent = await agentBody(seed.aliceCtx, seed.chatId);
+    expect(agent?.body).toBe("");
+    expect(agent?.body).not.toContain("tahcode ops MCP attached");
+  });
 });

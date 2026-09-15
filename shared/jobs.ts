@@ -3,6 +3,24 @@ export const BRIDGE_CAPABILITY_JOB_CANCEL = "jobCancel";
 
 export const JOB_CANCELLED_MESSAGE = "中断しました";
 
+/** Only assistant tokens belong in `messages.body`. Thinking / tool stay on `jobEvents`. */
+export function shouldWriteJobEventToMessageBody(
+  type: "thinking" | "tool" | "text" | "error" | "done" | "cancelled"
+): boolean {
+  return type === "text";
+}
+
+/** Notice title is already 「中断しました」 — omit a duplicate body. */
+export function cancelledNoticeDetail(
+  error: string | undefined
+): string | null {
+  const text = error?.trim() ?? "";
+  if (text.length === 0 || text === JOB_CANCELLED_MESSAGE) {
+    return null;
+  }
+  return text;
+}
+
 const COMPLETED_BODY_MAX = 100_000;
 
 /** Drop consecutive identical non-empty lines (doubled assistant snapshots). */
