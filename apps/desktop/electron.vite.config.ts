@@ -9,8 +9,14 @@ const pkg = JSON.parse(
   readFileSync(new URL("package.json", import.meta.url), "utf-8")
 ) as { version: string };
 
+// TAHCODE_DESKTOP_SIGNED must be the exact `process.env.*` member expression
+// in main/preload so this define is baked into the packaged app. A runtime
+// env var on the user's Mac is not enough for canInstallInApp / quitAndInstall.
 const define = {
   "process.env.TAHCODE_DESKTOP_VERSION": JSON.stringify(pkg.version),
+  "process.env.TAHCODE_DESKTOP_SIGNED": JSON.stringify(
+    process.env.TAHCODE_DESKTOP_SIGNED === "1" ? "1" : ""
+  ),
 };
 
 export default defineConfig({

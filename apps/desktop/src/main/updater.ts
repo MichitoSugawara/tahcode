@@ -18,6 +18,8 @@ import { createUpdateService } from "./updateService";
 import type { DesktopUpdateService } from "./updateService";
 
 export function isDesktopBuildSigned(): boolean {
+  // Compile-time: electron.vite.config.ts inlines TAHCODE_DESKTOP_SIGNED.
+  // Unsigned builds stay on the download-.dmg path (canInstallInApp=false).
   return process.env.TAHCODE_DESKTOP_SIGNED === "1";
 }
 

@@ -37,6 +37,7 @@
     "desktop:typecheck": "npm run typecheck -w @tahcode/desktop",
     "desktop:pack": "npm run pack -w @tahcode/desktop",
     "desktop:build": "npm run dist -w @tahcode/desktop",
+    "desktop:build:signed": "npm run dist:mac:signed -w @tahcode/desktop",
     "desktop:smoke": "npm run smoke -w @tahcode/desktop --",
     "prepare": "lefthook install"
   },

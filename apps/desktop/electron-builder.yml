@@ -1,6 +1,13 @@
 # electron-builder configuration for the tahcode desktop shell.
-# Build on a Mac: `npm run dist` (Apple Silicon .dmg + .zip in release/).
-# Signing / notarization are intentionally off for now — see README.md.
+# Build on a Mac: `npm run dist:mac` (unsigned Apple Silicon .dmg + .zip)
+# or `npm run dist:mac:signed` (Developer ID + notarize when env is set).
+#
+# Signing / notarization are selected at build time — do not pin
+# `mac.identity: null` here. Unsigned scripts pass -c.mac.identity=null
+# (see scripts/desktop-signing.mjs). Signed builds leave identity unset so
+# electron-builder discovers Developer ID from CSC_LINK / the keychain.
+# @see https://www.electron.build/code-signing
+# @see https://www.electron.build/mac
 appId: com.tahcode.desktop
 productName: tahcode
 copyright: Copyright © 2026 tahcode
@@ -32,11 +39,14 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.png
   darkModeSupport: true
-  # Unsigned for now. Remove `identity: null` and add APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
-  # APPLE_TEAM_ID (+ a Developer ID certificate in the keychain) to sign and notarize.
-  identity: null
+  # identity is intentionally omitted. Unsigned: scripts set it to null.
+  # Signed: CSC_IDENTITY_AUTO_DISCOVERY=true + CSC_LINK / keychain.
   hardenedRuntime: true
   gatekeeperAssess: false
+  # @electron/notarize runs only when Apple credentials are in the environment
+  # (APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID, or an App Store
+  # Connect API key). Unsigned scripts force this off with -c.mac.notarize=false.
+  notarize: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -51,6 +61,9 @@ mac:
         - arm64
 
 dmg:
+  # Default unsigned. Signed scripts pass -c.dmg.sign=true.
+  # electron-builder notes DMG signing can conflict with notarization; we still
+  # enable it for signed distribution so the disk image matches the .app.
   sign: false
   contents:
     - x: 140
@@ -70,8 +83,9 @@ linux:
 
 # GitHub Releases are the feed for desktop-v* tags. CI publishes only on those
 # tags (see .github/workflows/desktop.yml). workflow_dispatch stays artifact-only.
-# In-app replace still waits for Developer ID + notarization; unsigned builds
-# download the .dmg and ask the user to copy it into Applications.
+# Signed+notarized builds set TAHCODE_DESKTOP_SIGNED=1 so the in-app updater
+# can offer quitAndInstall. Unsigned builds download the .dmg and ask the user
+# to copy it into Applications.
 publish:
   provider: github
   owner: MichitoSugawara
