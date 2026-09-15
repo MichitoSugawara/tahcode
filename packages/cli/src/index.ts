@@ -360,7 +360,6 @@ async function cmdStart(flags: Flags): Promise<void> {
   );
   warnStaleAgentToolsOnStart();
 
-
   if (foreground) {
     const envMode = process.env.TAHCODE_BRIDGE_MODE;
     const mode: BridgeMode =
