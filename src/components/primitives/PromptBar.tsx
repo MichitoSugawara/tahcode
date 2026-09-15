@@ -12,8 +12,10 @@ import type { ReactNode } from "react";
 
 import { MentionText } from "@/components/atoms/MentionText";
 import {
+  composerMenuKeepOpenSelectors,
   composerSuggestMenuKind,
   parseComposerSuggestToken,
+  shouldDismissComposerMenu,
 } from "@/lib/composerMenu";
 import type { ComposerSuggestKind } from "@/lib/composerMenu";
 import {
@@ -353,25 +355,46 @@ export default function PromptBar({
     alignHighlight(input, highlightRef.current);
   }, [draft, expanded, tall, pickers.length]);
 
-  /* clicking anywhere outside the composer closes the open menus */
-  useEffect(() => {
-    if (!openPicker && !plusOpen) {
-      return;
-    }
-    const close = (event: PointerEvent) => {
-      if (!(event.target as Element).closest("[data-promptbar]")) {
-        setOpenPicker(null);
-        setPlusOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [openPicker, plusOpen]);
-
-  const closeMenus = () => {
+  const closeMenus = (dismissSuggest = false) => {
     setPlusOpen(false);
     setOpenPicker(null);
+    if (dismissSuggest) {
+      setDismissed(true);
+    }
   };
+
+  /* Dismiss on outside pointerdown / Escape — menu + trigger stay open so
+   * the pill toggle does not race pointerdown-close then click-reopen. */
+  useEffect(() => {
+    const keepOpen = composerMenuKeepOpenSelectors({
+      openPicker,
+      plusOpen,
+      suggestOpen: menu !== null,
+    });
+    if (keepOpen.length === 0) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (shouldDismissComposerMenu(event.target, keepOpen)) {
+        setPlusOpen(false);
+        setOpenPicker(null);
+        setDismissed(true);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPlusOpen(false);
+        setOpenPicker(null);
+        setDismissed(true);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menu, openPicker, plusOpen]);
 
   const update = (next: string) => {
     setDraft(next);
@@ -436,6 +459,7 @@ export default function PromptBar({
         {menu && (
           <div
             onMouseLeave={() => setEngaged(false)}
+            data-prompt-menu="suggest"
             data-suggest-side={menuPlacement.side}
             className={`bg-surface shadow-raised absolute inset-x-0 z-20 overflow-y-auto overscroll-contain rounded-[10px] p-1 ${
               menuPlacement.side === "above"
@@ -509,6 +533,7 @@ export default function PromptBar({
         {picker && (
           <div
             onMouseLeave={() => setPickerHovered(null)}
+            data-prompt-menu="picker"
             className="bg-surface shadow-raised absolute z-20 flex w-56 flex-col rounded-[10px] p-1"
             style={{
               animation: POP,
@@ -631,6 +656,7 @@ export default function PromptBar({
           >
             <button
               type="button"
+              data-prompt-trigger="plus"
               aria-label="添付とメンション"
               aria-expanded={plusOpen}
               disabled={disabled}
@@ -663,6 +689,7 @@ export default function PromptBar({
               </div>
               <textarea
                 ref={inputRef}
+                data-prompt-input
                 rows={1}
                 value={draft}
                 disabled={disabled}
@@ -701,8 +728,7 @@ export default function PromptBar({
                     }
                   }
                   if (event.key === "Escape") {
-                    setDismissed(true);
-                    closeMenus();
+                    closeMenus(true);
                     return;
                   }
                   if (event.key === "Enter" && !event.shiftKey) {
@@ -730,6 +756,7 @@ export default function PromptBar({
                     pickerTriggerRefs.current[item.id] = el;
                   }}
                   type="button"
+                  data-prompt-trigger={`picker-${item.id}`}
                   aria-expanded={openPicker === item.id}
                   aria-label={item.ariaLabel}
                   disabled={disabled}

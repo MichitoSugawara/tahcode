@@ -57,3 +57,83 @@ export function isComposerSuggestMenuOpen(input: {
 export function shouldShowHeroSuggestions(composerMenuOpen: boolean): boolean {
   return !composerMenuOpen;
 }
+
+export const COMPOSER_PICKER_MENU = '[data-prompt-menu="picker"]';
+export const COMPOSER_SUGGEST_MENU = '[data-prompt-menu="suggest"]';
+export const COMPOSER_PLUS_TRIGGER = '[data-prompt-trigger="plus"]';
+export const COMPOSER_INPUT = "[data-prompt-input]";
+
+type ClosestNode = { closest: (selector: string) => unknown };
+
+export function composerPickerTriggerSelector(pickerId: string): string {
+  return `[data-prompt-trigger="picker-${pickerId}"]`;
+}
+
+/**
+ * Roots that must stay hit-testable so a toggle click does not race
+ * pointerdown-dismiss (Radix / SidebarNav keep-open pattern).
+ */
+export function composerMenuKeepOpenSelectors(state: {
+  openPicker: string | null;
+  plusOpen: boolean;
+  suggestOpen: boolean;
+}): readonly string[] {
+  if (state.openPicker) {
+    return [
+      COMPOSER_PICKER_MENU,
+      composerPickerTriggerSelector(state.openPicker),
+    ];
+  }
+  if (state.plusOpen) {
+    return [COMPOSER_SUGGEST_MENU, COMPOSER_PLUS_TRIGGER];
+  }
+  if (state.suggestOpen) {
+    return [COMPOSER_SUGGEST_MENU, COMPOSER_INPUT];
+  }
+  return [];
+}
+
+type ParentBearing = {
+  parentElement: unknown;
+};
+
+function hasClosest(value: unknown): value is ClosestNode {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "closest" in value &&
+    typeof (value as ClosestNode).closest === "function"
+  );
+}
+
+function hasParentElement(value: unknown): value is ParentBearing {
+  return (
+    typeof value === "object" && value !== null && "parentElement" in value
+  );
+}
+
+/** Element (or text-node parent) that can answer `closest`. */
+export function composerEventTarget(target: unknown): ClosestNode | null {
+  if (hasClosest(target)) {
+    return target;
+  }
+  if (hasParentElement(target)) {
+    return hasClosest(target.parentElement) ? target.parentElement : null;
+  }
+  return null;
+}
+
+/** True when the event missed the open menu and its trigger. */
+export function shouldDismissComposerMenu(
+  target: unknown,
+  keepOpenSelectors: readonly string[]
+): boolean {
+  if (keepOpenSelectors.length === 0) {
+    return false;
+  }
+  const node = composerEventTarget(target);
+  if (!node) {
+    return true;
+  }
+  return !keepOpenSelectors.some((selector) => Boolean(node.closest(selector)));
+}
