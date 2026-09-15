@@ -1,6 +1,5 @@
 import type { ReactElement, SVGProps } from "react";
 
-import { Monogram } from "@/components/atoms/EntityChip";
 import { PROVIDERS, isProviderKind } from "@/lib/providers";
 import type { ProviderDriverKind } from "@/lib/providers";
 
@@ -86,7 +85,9 @@ export function hasProviderBrandIcon(kind?: string | null): boolean {
 }
 
 /**
- * Provider brand mark in the existing monogram chip. Unknown kinds
+ * Bare provider brand mark — logo only, no brand-color tile.
+ * Selected / hover stay on the surrounding control (border, text, opacity),
+ * matching Cursor / VS Code switchers and Codex / t3code. Unknown kinds
  * (and Antigravity, whose mark is a raster) fall back to the letter.
  */
 export function ProviderMark({
@@ -98,20 +99,18 @@ export function ProviderMark({
 }) {
   const info = kind && isProviderKind(kind) ? PROVIDERS[kind] : undefined;
   const Mark = kind && isProviderKind(kind) ? (BRAND_MARK[kind] ?? null) : null;
-  if (Mark && info) {
-    return (
-      <span
-        className={`flex shrink-0 items-center justify-center rounded-full text-white ${className}`}
-        style={{ background: info.color }}
-        aria-hidden
-      >
-        <Mark className="size-[58%]" />
-      </span>
-    );
-  }
   return (
-    <Monogram color={info?.color} className={className}>
-      {(info?.label ?? "?").charAt(0)}
-    </Monogram>
+    <span
+      className={`inline-flex shrink-0 items-center justify-center ${className}`}
+      aria-hidden
+    >
+      {Mark ? (
+        <Mark className="size-full" />
+      ) : (
+        <span className="text-[10px] leading-none font-semibold">
+          {(info?.label ?? "?").charAt(0)}
+        </span>
+      )}
+    </span>
   );
 }
