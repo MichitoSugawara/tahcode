@@ -21,6 +21,13 @@ export const PREVIEW_TOOL_CANARIES = [
 ];
 export const DELETE_SETTLE_MS = 8000;
 export const MAX_PRUNE_DELETES = 3;
+export const FORBIDDEN_IDENTIFIERS = new Set([
+  "dev",
+  "local",
+  "prod",
+  "production",
+  "staging",
+]);
 
 const PREVIEW_ANNOUNCEMENT_RE =
   /\[Preview\]\s+\S+:preview\/([^\s(]+)\s+\(dashboard:\s+https:\/\/dashboard\.convex\.dev\/t\/[^/]+\/[^/]+\/([^)\s]+)/;
@@ -43,9 +50,127 @@ export function previewKeyAuthHeader(deployKey) {
   return `Bearer ${deployKey}`;
 }
 
+export function managementHeaders(
+  deployKey,
+  client = "tahcode-preview-isolate"
+) {
+  return {
+    Authorization: previewKeyAuthHeader(deployKey),
+    "Convex-Client": client,
+  };
+}
+
+export function parseJsonObject(text) {
+  try {
+    return JSON.parse(String(text ?? ""));
+  } catch {
+    return null;
+  }
+}
+
+export function deploymentTypeOf(deployment) {
+  return String(
+    deployment?.deployment_type ??
+      deployment?.deploymentType ??
+      deployment?.kind ??
+      ""
+  ).toLowerCase();
+}
+
+export function isPreviewDeploymentRecord(deployment) {
+  return deploymentTypeOf(deployment) === "preview";
+}
+
+export function isUntouchableDeploymentType(deployment) {
+  const type = deploymentTypeOf(deployment);
+  return (
+    type === "prod" ||
+    type === "production" ||
+    type === "dev" ||
+    type === "custom"
+  );
+}
+
+export function previewIdentifierFromDeployment(deployment) {
+  const reference = String(
+    deployment?.reference ?? deployment?.previewReference ?? ""
+  );
+  const matched = reference.match(/^preview\/(.+)$/i);
+  if (matched?.[1]) {
+    return matched[1].trim();
+  }
+  const direct =
+    deployment?.previewName ??
+    deployment?.preview_name ??
+    deployment?.identifier ??
+    deployment?.preview_identifier;
+  if (typeof direct === "string" && direct.trim()) {
+    return direct.trim();
+  }
+  return null;
+}
+
+export function parseDeploymentList(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (Array.isArray(payload?.deployments)) {
+    return payload.deployments;
+  }
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
+  if (Array.isArray(payload?.result)) {
+    return payload.result;
+  }
+  return [];
+}
+
+function projectIdFrom(payload) {
+  if (typeof payload?.id === "number" || typeof payload?.id === "string") {
+    return String(payload.id);
+  }
+  if (
+    typeof payload?.project?.id === "number" ||
+    typeof payload?.project?.id === "string"
+  ) {
+    return String(payload.project.id);
+  }
+  if (
+    typeof payload?.projectId === "number" ||
+    typeof payload?.projectId === "string"
+  ) {
+    return String(payload.projectId);
+  }
+  return "";
+}
+
+function deploymentNameFrom(payload) {
+  if (typeof payload?.name === "string" && payload.name) {
+    return payload.name;
+  }
+  if (typeof payload?.deploymentName === "string" && payload.deploymentName) {
+    return payload.deploymentName;
+  }
+  if (
+    typeof payload?.deployment?.name === "string" &&
+    payload.deployment.name
+  ) {
+    return payload.deployment.name;
+  }
+  return "";
+}
+
+export function isForbiddenPreviewIdentifier(name) {
+  const slug = String(name ?? "")
+    .trim()
+    .toLowerCase();
+  return !slug || FORBIDDEN_IDENTIFIERS.has(slug);
+}
+
 export function isProtectedPreviewName(name, input) {
   const slug = String(name ?? "");
-  if (!slug) {
+  if (!slug || isForbiddenPreviewIdentifier(slug)) {
     return true;
   }
   if (slug === input.preferred) {
@@ -122,9 +247,8 @@ export async function claimPreviewDeployment(input) {
       reuse: true,
     }),
     headers: {
-      Authorization: previewKeyAuthHeader(input.deployKey),
+      ...managementHeaders(input.deployKey),
       "Content-Type": "application/json",
-      "Convex-Client": "tahcode-preview-isolate",
     },
     method: "POST",
   });
@@ -157,10 +281,7 @@ export async function deletePreviewDeployment(input) {
   const response = await fetchImpl(
     `${MANAGEMENT_API_BASE}/deployments/${encodeURIComponent(input.deploymentName)}/delete`,
     {
-      headers: {
-        Authorization: previewKeyAuthHeader(input.deployKey),
-        "Convex-Client": "tahcode-preview-isolate",
-      },
+      headers: managementHeaders(input.deployKey),
       method: "POST",
     }
   );
@@ -172,6 +293,150 @@ export async function deletePreviewDeployment(input) {
     return { kind: "missing" };
   }
   return { body, kind: "error", status: response.status };
+}
+
+export async function getProjectBySlug(input) {
+  const slugs = parsePreviewDeployKey(input.deployKey);
+  if (!slugs) {
+    return { kind: "invalid-key" };
+  }
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    `${MANAGEMENT_API_BASE}/teams/${encodeURIComponent(slugs.teamSlug)}/projects/${encodeURIComponent(slugs.projectSlug)}`,
+    { headers: managementHeaders(input.deployKey) }
+  );
+  const bodyText = await response.text();
+  if (!response.ok) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  const data = parseJsonObject(bodyText);
+  const projectId = projectIdFrom(data);
+  if (!projectId) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  return { kind: "ok", projectId, slugs };
+}
+
+export async function listProjectDeployments(input) {
+  const slugs = parsePreviewDeployKey(input.deployKey);
+  if (!slugs) {
+    return { kind: "invalid-key" };
+  }
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const paths = [];
+  if (input.projectId) {
+    paths.push(
+      `${MANAGEMENT_API_BASE}/projects/${encodeURIComponent(input.projectId)}/list_deployments`,
+      `${MANAGEMENT_API_BASE}/projects/${encodeURIComponent(input.projectId)}/deployments/list`
+    );
+  }
+  paths.push(
+    `${MANAGEMENT_API_BASE}/teams/${encodeURIComponent(slugs.teamSlug)}/projects/${encodeURIComponent(slugs.projectSlug)}/list_deployments`
+  );
+  let lastError = { body: "", kind: "error", status: 0 };
+  for (const url of paths) {
+    const response = await fetchImpl(url, {
+      headers: managementHeaders(input.deployKey),
+    });
+    const bodyText = await response.text();
+    if (!response.ok) {
+      lastError = { body: bodyText, kind: "error", status: response.status };
+      continue;
+    }
+    const deployments = parseDeploymentList(parseJsonObject(bodyText));
+    return { deployments, kind: "ok" };
+  }
+  return lastError;
+}
+
+export async function getDeploymentByName(input) {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    `${MANAGEMENT_API_BASE}/deployments/${encodeURIComponent(input.deploymentName)}`,
+    { headers: managementHeaders(input.deployKey) }
+  );
+  const bodyText = await response.text();
+  if (response.status === 404 || NOT_FOUND_RE.test(bodyText)) {
+    return { kind: "missing" };
+  }
+  if (!response.ok) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  const data = parseJsonObject(bodyText);
+  const deploymentName = deploymentNameFrom(data) || input.deploymentName;
+  if (!data || !deploymentName) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  return { deployment: { ...data, name: deploymentName }, kind: "ok" };
+}
+
+export async function getPreviewDeploymentByReference(input) {
+  const slugs = parsePreviewDeployKey(input.deployKey);
+  if (!slugs) {
+    return { kind: "invalid-key" };
+  }
+  if (isForbiddenPreviewIdentifier(input.identifier)) {
+    return { kind: "forbidden" };
+  }
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const reference = `preview/${input.identifier}`;
+  const url = `${MANAGEMENT_API_BASE}/teams/${encodeURIComponent(slugs.teamSlug)}/projects/${encodeURIComponent(slugs.projectSlug)}/deployment?reference=${encodeURIComponent(reference)}`;
+  const response = await fetchImpl(url, {
+    headers: managementHeaders(input.deployKey),
+  });
+  const bodyText = await response.text();
+  if (response.status === 404 || NOT_FOUND_RE.test(bodyText)) {
+    return { kind: "missing" };
+  }
+  if (!response.ok) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  const data = parseJsonObject(bodyText);
+  const deploymentName = deploymentNameFrom(data);
+  if (!deploymentName) {
+    return { body: bodyText, kind: "error", status: response.status };
+  }
+  return {
+    deployment: { ...data, name: deploymentName },
+    deploymentName,
+    kind: "ok",
+  };
+}
+
+/**
+ * Resolve a preview identifier to a deployment name without inventing one.
+ * Prefer the Management API GET-by-reference; fall back to claim (reuse).
+ */
+export async function resolvePreviewDeployment(input) {
+  if (isForbiddenPreviewIdentifier(input.identifier)) {
+    return { kind: "forbidden" };
+  }
+  const byRef = await getPreviewDeploymentByReference(input);
+  if (byRef.kind === "ok") {
+    if (
+      byRef.deployment &&
+      deploymentTypeOf(byRef.deployment) &&
+      !isPreviewDeploymentRecord(byRef.deployment)
+    ) {
+      return { kind: "forbidden", deployment: byRef.deployment };
+    }
+    return byRef;
+  }
+  if (input.allowClaim === false) {
+    return byRef;
+  }
+  const claimed = await claimPreviewDeployment(input);
+  if (claimed.kind === "ok") {
+    return {
+      deploymentName: claimed.deploymentName,
+      instanceUrl: claimed.instanceUrl,
+      kind: "ok",
+    };
+  }
+  if (claimed.kind === "quota") {
+    return { kind: "missing" };
+  }
+  return claimed;
 }
 
 /**

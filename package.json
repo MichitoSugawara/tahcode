@@ -28,6 +28,8 @@
     "cf:build": "node scripts/cf-build.mjs",
     "env:enc": "node scripts/env.mjs encrypt",
     "env:dec": "node scripts/env.mjs decrypt",
+    "preview:prune": "node scripts/preview-prune.mjs",
+    "preview:deploy": "node scripts/preview-deploy-local.mjs",
     "cli": "tsx packages/cli/src/index.ts",
     "cli:build": "node packages/cli/build.mjs",
     "cli:verify": "node packages/cli/build.mjs && node scripts/verify-cli-agent-tools.mjs",

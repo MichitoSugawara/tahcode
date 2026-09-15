@@ -335,10 +335,25 @@ npx wrangler r2 bucket create team-harness-files-staging
 
 `wrangler versions upload` は既存 Worker にしかバージョンを上げられない。preview 用 Worker `tahcode-preview` が未作成のときは、`deploy-stack` が Wrangler の stderr を含む出力を見て一度 `wrangler deploy --env preview` してから upload し直す。一時的な `fetch failed` は Worker 未作成とは扱わず、preview のみバックオフ再試行する。Cloudflare 資格情報が復号後に無い preview は Worker アップロードを理由付きでスキップする（Convex はデプロイする）。旧 Worker `team-harness` / `team-harness-staging` は新しい URL への切替（Google OAuth の redirect URI、Convex の `SITE_URL`）を確認したあとに削除する。
 
+### Preview 資源の掃除と手元デプロイ
+
+Convex チームの preview 枠（例: 40）が埋まると新規 PR が `DeploymentQuotaReached` で止まる。GitHub Actions が課金切れでも、同じスタックを手元から出せる必要がある。掃除と GHA なしデプロイは [docs/preview-hygiene.md](docs/preview-hygiene.md)。
+
+```bash
+# 既定は dry-run。開いている PR の pr-N / 本番 / staging は消さない
+npm run preview:prune
+node scripts/preview-prune.mjs --apply --decrypt --sweep-unmapped
+
+# Actions が止まっているときの手元 preview（例: PR 62）
+npm run preview:deploy -- --pr 62
+```
+
 ## 開発コマンド
 
 ```bash
 npm run typecheck  # TS（app / convex / runtime + packages/cli / packages/core / apps/desktop）
+npm run preview:prune  # Convex / Cloudflare preview の stale 資源を一覧（dry-run）
+npm run preview:deploy -- --pr <n>  # GHA なしで preview スタックを手元デプロイ
 npm run check      # Ultracite（Oxlint + Oxfmt、`--deny-warnings`）。`lint` はエイリアス
 npm run lint:convex  # Convex 専用 ESLint（`eslint.convex.config.js`。Oxlint ではカバーしない）
 npm run fix        # Ultracite autofix + format
