@@ -94,6 +94,7 @@ describe("agent tool catalog", () => {
         claude.includes("--allowedTools") &&
         claude.includes("mcp__tahcode__*"),
       codexFlags: agentToolsMcpFlags("codex", "/tmp/mcp.json"),
+      cursorHasForce: cursor.includes("--force") && cursor.includes("--trust"),
       cursorHasMcp:
         cursor.includes("--mcp-config") || cursor.includes("--allowedTools"),
     }).toStrictEqual({
@@ -106,6 +107,7 @@ describe("agent tool catalog", () => {
       claudeHasBypass: false,
       claudeHasMcp: true,
       codexFlags: [],
+      cursorHasForce: true,
       cursorHasMcp: false,
     });
     expect(

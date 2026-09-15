@@ -85,10 +85,11 @@ export type ConnectorMcpResolver = (
  * - `cli`: Codex / Cursor / Grok / OpenCode — `tahcode tool` on PATH
  * - `unsupported`: Antigravity has no headless CLI in Phase 1
  *
- * Cursor path (stub): `agent -p --trust` does not accept `--mcp-config`.
- * Do not attach Cursor marketplace Linear MCP. TAH-54 must inject through
- * `resolveConnectorMcpServer` + this plan (Claude file today; Cursor when
- * the CLI grows a config flag, otherwise keep `tahcode tool`).
+ * Cursor path (stub): `agent -p --trust --force` does not accept `--mcp-config`.
+ * `--force` is required so headless shell (`tahcode tool`) is not rejected
+ * (TAH-63). Do not attach Cursor marketplace Linear MCP. TAH-54 must inject
+ * through `resolveConnectorMcpServer` + this plan (Claude file today; Cursor
+ * when the CLI grows a config flag, otherwise keep `tahcode tool`).
  */
 export function jobMcpAttachmentMode(kind: string): JobMcpAttachmentMode {
   if (kind === "claudeAgent") {

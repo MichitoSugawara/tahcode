@@ -209,7 +209,7 @@ function headlessSummary(kind: ProviderDriverKind): string {
       return "claude -p --output-format stream-json (t3code ClaudeDriver)";
     }
     case "cursor": {
-      return "agent -p --output-format stream-json (t3code CursorDriver)";
+      return "agent -p --trust --force --output-format stream-json (t3code CursorDriver)";
     }
     case "grok": {
       return "grok --prompt (t3code GrokDriver)";
@@ -299,11 +299,14 @@ export function headlessArgs(
       ];
     }
     case "cursor": {
-      // Non-interactive bridge cannot answer the Workspace Trust prompt.
+      // Non-interactive bridge cannot answer the Workspace Trust prompt
+      // (`--trust`) or the command-approval prompt. `--force` allows shell
+      // unless explicitly denied so `tahcode tool` can run (TAH-63).
       // `agent -p` has no `--mcp-config` (TAH-55). Tools stay on `tahcode tool`.
       return [
         "-p",
         "--trust",
+        "--force",
         ...modelFlag,
         "--output-format",
         "stream-json",

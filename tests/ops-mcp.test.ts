@@ -70,6 +70,15 @@ describe("job MCP attachment", () => {
       ]),
     });
     expect(TAHCODE_OPS_MCP_ALLOWED_TOOLS).toBe("mcp__tahcode__*");
+    expect(
+      headlessArgs(
+        "cursor",
+        "hi",
+        undefined,
+        undefined,
+        "/tmp/tahcode-mcp.json"
+      )
+    ).toStrictEqual(expect.arrayContaining(["--trust", "--force"]));
   });
 
   it("expands --allowedTools for each injected Linear MCP server", () => {

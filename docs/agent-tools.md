@@ -30,11 +30,13 @@ tahcode tool send_message --args '{"body":"メモ"}'
 
 Claude の headless CLI には、同じツールを stdio で渡すための一時 `--mcp-config` と、無対話で MCP を実行するための `--allowedTools mcp__tahcode__*` も付けます（`tahcode tool-mcp`）。他のハーネスは `tahcode tool` をシェルから呼びます。PATH 先頭に、このジョブ用の `tahcode` ラッパを置きます。ジョブ claim の `opsBundle` と MCP 生成の共通経路は [ops MCP（TAH-55）](ops-mcp.md)。
 
+Cursor の `agent -p` には `--mcp-config` が無いので、ツールはシェルの `tahcode tool` だけです。`--trust` だけでは headless のシェル（コマンド承認）が拒否されるため、ブリッジは `--force`（明示拒否されていないコマンドを許可）も付けます（TAH-63）。この argv は **CLI 0.1.2+** に入ります。
+
 ジョブ外（対話ターミナルだけ）では呼べません。ユーザー JWT ではなく、**ランタイムトークン + ジョブリース**で認証し、トリガーしたユーザーとして認可します。
 
 ## 必要な CLI バージョン
 
-`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。更新: `npm i -g tahcode@0.1.1` のあと `tahcode restart`。バイナリを拾うだけなら `tahcode service install` は不要（TAH-60: 再登録しても `CURSOR_API_KEY` 等は消さない）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
+`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。Cursor がシェルで `tahcode tool` を呼ぶにはさらに **0.1.2+**（`--force`）。更新: `npm i -g tahcode@0.1.2` のあと `tahcode restart`。バイナリを拾うだけなら `tahcode service install` は不要（TAH-60: 再登録しても `CURSOR_API_KEY` 等は消さない）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
 
 ## ツール
 

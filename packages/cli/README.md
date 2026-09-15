@@ -38,7 +38,7 @@ The `link` line is issued by the tahcode web UI (Runtime タブ →「このマ�
 | `tahcode update <provider\|all> [--yes]` | Update an agent CLI with the **same allowlisted command the web UI's「CLI を更新」runs**: npm / Homebrew installs via `npm i -g …@latest` / `brew upgrade …`, everything else via the CLI's own updater (`claude update`, `agent update`, `grok update`, `opencode upgrade`). Prints the command and exits unless `--yes`. |
 | `tahcode unlink` | Remove the stored link. |
 | `tahcode tool [name] [--args JSON]` | While a job is running, call in-app tahcode tools (org / project / chat / runtime / connectors / Linear issues when `@linear` is mentioned). No args prints the catalog. |
-| `tahcode tool-mcp` | Stdio host for the same tools (job env only). The bridge writes a temporary config for Claude `--mcp-config`. Cursor `agent -p` has no equivalent flag. |
+| `tahcode tool-mcp` | Stdio host for the same tools (job env only). The bridge writes a temporary config for Claude `--mcp-config`. Cursor `agent -p` has no equivalent flag and needs `--force` so the `tahcode tool` shell is not rejected. |
 
 Environment fallback (CI / containers): `TAHCODE_URL`, `TAHCODE_RUNTIME_ID`, `TAHCODE_TOKEN` (legacy `DALECODE_*`, `CONVEX_URL` / `HARNESS_RUNTIME_ID` / `HARNESS_RUNTIME_TOKEN` still work). `TAHCODE_HOME` overrides the config directory.
 
@@ -121,12 +121,12 @@ npm run cli:verify
 npm publish --workspace tahcode --access public
 ```
 
-Current version: `0.1.1` (`tahcode tool` / `tool-mcp`, leaseId on `jobs:appendEvent` / `jobs:complete`). `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`. Default start is bridge-only.
+Current version: `0.1.2` (Cursor headless `--force` so `tahcode tool` is not rejected; TAH-63). `0.1.1` added `tahcode tool` / `tool-mcp` and leaseId on `jobs:appendEvent` / `jobs:complete`. `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`. Default start is bridge-only.
 
 Mac upgrade (binary pickup: `tahcode restart` is enough. `service install` now keeps `CURSOR_API_KEY` / Claude env — see [macOS: start at login](#macos-start-at-login-launchd) / TAH-60):
 
 ```bash
-npm i -g tahcode@0.1.1
+npm i -g tahcode@0.1.2
 tahcode restart
 tahcode doctor          # エージェントツール must be ✓
 tahcode tool            # must NOT print 不明なコマンド: tool

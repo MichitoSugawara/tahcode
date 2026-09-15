@@ -279,6 +279,7 @@ describe("headless agent --model", () => {
     ).toStrictEqual([
       "-p",
       "--trust",
+      "--force",
       "--model",
       "cursor-grok-4.6-medium",
       "--output-format",
@@ -305,6 +306,7 @@ describe("headless agent --model", () => {
     expect(headlessArgs("cursor", "こんにちは")).toStrictEqual([
       "-p",
       "--trust",
+      "--force",
       "--output-format",
       "stream-json",
       "こんにちは",
