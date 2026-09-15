@@ -11,7 +11,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { MentionText } from "@/components/atoms/MentionText";
-import { MENTION_BOUNDARY, MENTION_HANDLE } from "@/lib/mentions";
+import {
+  composerSuggestMenuKind,
+  parseComposerSuggestToken,
+} from "@/lib/composerMenu";
+import type { ComposerSuggestKind } from "@/lib/composerMenu";
 import {
   SUGGEST_MENU_PREFERRED_MAX,
   filterSuggestItems,
@@ -72,33 +76,6 @@ export interface PromptAttachment {
   size?: number;
 }
 
-interface Token {
-  kind: "at" | "slash" | "dollar";
-  query: string;
-  start: number;
-}
-
-/* an @ opens after the same boundary the highlighter uses (so it also
- * works mid-sentence in Japanese); a / command only at a word start */
-const AT_TOKEN = new RegExp(`${MENTION_BOUNDARY}(@)(${MENTION_HANDLE}*)$`);
-const SLASH_TOKEN = /(^|\s)(\/)([\w./-]*)$/;
-const DOLLAR_TOKEN = /(^|\s)(\$)([\w-]*)$/;
-
-/* the last @word, $skill, or /word being typed, if any */
-function parseToken(draft: string): Token | null {
-  const match =
-    AT_TOKEN.exec(draft) ?? DOLLAR_TOKEN.exec(draft) ?? SLASH_TOKEN.exec(draft);
-  if (!match) {
-    return null;
-  }
-  const marker = match[2] ?? "";
-  return {
-    kind: marker === "@" ? "at" : marker === "$" ? "dollar" : "slash",
-    query: (match[3] ?? "").toLowerCase(),
-    start: match.index + (match[1]?.length ?? 0),
-  };
-}
-
 /* keep the mention highlighter scrolled and wrapped like the textarea */
 function alignHighlight(
   input: HTMLTextAreaElement | null,
@@ -131,6 +108,7 @@ export default function PromptBar({
   onSend,
   onStop,
   onDraftChange,
+  onSuggestMenuOpenChange,
   hint,
   autoFocus,
   menuFooter,
@@ -159,6 +137,8 @@ export default function PromptBar({
   /** Stop the in-flight chat job. Shown instead of Send while a job is running. */
   onStop?: () => boolean | Promise<boolean>;
   onDraftChange?: (text: string) => void;
+  /** fires when the @ / $ / + menu opens or closes (hero suggestions hide) */
+  onSuggestMenuOpenChange?: (open: boolean) => void;
   /** one quiet line under the controls (shortcuts, auto-mention notice) */
   hint?: ReactNode;
   autoFocus?: boolean;
@@ -211,10 +191,12 @@ export default function PromptBar({
   );
   const pickerRowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const token = dismissed ? null : parseToken(draft);
-  const menu: "at" | "slash" | "dollar" | null = plusOpen
-    ? "at"
-    : (token?.kind ?? null);
+  const token = dismissed ? null : parseComposerSuggestToken(draft);
+  const menu: ComposerSuggestKind | null = composerSuggestMenuKind({
+    dismissed,
+    draft,
+    plusOpen,
+  });
   const query = plusOpen ? "" : (token?.query ?? "");
 
   const rows: PromptMenuItem[] =
@@ -230,6 +212,16 @@ export default function PromptBar({
     setActive(0);
     setEngaged(false);
   }, [menu, query]);
+
+  const suggestMenuOpen = menu !== null;
+  const onSuggestMenuOpenChangeRef = useRef(onSuggestMenuOpenChange);
+  useEffect(() => {
+    onSuggestMenuOpenChangeRef.current = onSuggestMenuOpenChange;
+  });
+  useEffect(() => {
+    onSuggestMenuOpenChangeRef.current?.(suggestMenuOpen);
+    return () => onSuggestMenuOpenChangeRef.current?.(false);
+  }, [suggestMenuOpen]);
 
   /* a single highlight glides to the active row instead of each row
    * toggling its own background — matches the gliding pill in the nav */

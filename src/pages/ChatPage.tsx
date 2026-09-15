@@ -12,7 +12,7 @@ import { useParams } from "react-router-dom";
 import { Button } from "@/components/atoms/Button";
 import LoadingState from "@/components/primitives/LoadingState";
 import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
-import { EmptyHero } from "@/harness/EmptyHero";
+import { EmptyHero, useHeroComposerMenu } from "@/harness/EmptyHero";
 import type { Suggestion } from "@/harness/EmptyHero";
 import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
@@ -65,6 +65,7 @@ export default function ChatPage() {
       : fetched;
   const { send } = useSendMessage(chat ?? null);
   const { agent } = useChatAgent(chat ?? null);
+  const { composerMenuOpen, onSuggestMenuOpenChange } = useHeroComposerMenu();
   useDocumentTitle(
     chat ? (chat.kind === "dm" ? "Personal DM" : chat.title) : undefined,
     org.org.name
@@ -166,7 +167,15 @@ export default function ChatPage() {
               ? "何を手伝いましょう？"
               : `${chat.title} — 何から始めますか？`
           }
-          composer={<Composer chat={chat} tall autoFocus />}
+          composer={
+            <Composer
+              chat={chat}
+              tall
+              autoFocus
+              onSuggestMenuOpenChange={onSuggestMenuOpenChange}
+            />
+          }
+          composerMenuOpen={composerMenuOpen}
           suggestions={suggestions}
           link={{
             label:

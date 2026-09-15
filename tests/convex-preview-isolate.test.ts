@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -28,6 +30,19 @@ describe(parsePreviewDeployKey, () => {
     expect(parsePreviewDeployKey("preview:zany-owl-295|abc")).toBeNull();
     expect(parsePreviewDeployKey("project:acorn:dalecode|abc")).toBeNull();
     expect(parsePreviewDeployKey("")).toBeNull();
+  });
+});
+
+describe("deploy.yml preview lists", () => {
+  it("prunes closed PR pr-N leftovers, not only branch slugs", () => {
+    const yml = readFileSync(".github/workflows/deploy.yml", "utf-8");
+    expect(yml).toContain(
+      "--state merged --limit 30 --json number,headRefName"
+    );
+    expect(yml).toContain(
+      "--state closed --limit 50 --json number,headRefName"
+    );
+    expect(yml).toContain('"pr-\\(.number)"');
   });
 });
 

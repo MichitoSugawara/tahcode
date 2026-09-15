@@ -405,6 +405,7 @@ export function Composer({
   autoFocus,
   onSubmit,
   onSent,
+  onSuggestMenuOpenChange,
 }: {
   chat: Chat | null;
   tall?: boolean;
@@ -412,6 +413,7 @@ export function Composer({
   autoFocus?: boolean;
   /** fires as the message leaves the composer — before the round-trip, so callers can navigate at once */
   onSubmit?: (chat: Chat) => void;
+  onSuggestMenuOpenChange?: (open: boolean) => void;
   onSent?: (result: {
     chatId: Id<"chats">;
     dispatched: boolean;
@@ -864,6 +866,7 @@ export function Composer({
         }
         onSend={send}
         onDraftChange={setDraft}
+        onSuggestMenuOpenChange={onSuggestMenuOpenChange}
         hint={hint}
         autoFocus={autoFocus}
         menuFooter={{

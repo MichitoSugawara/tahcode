@@ -2,6 +2,8 @@ import { ArrowRight, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
+import { shouldShowHeroSuggestions } from "@/lib/composerMenu";
+
 /* ─────────────────────────────────────────────────────────
  * HOME ENTRANCE STORYBOARD (from the harness)
  *
@@ -39,10 +41,17 @@ export interface Suggestion {
   onClick: () => void;
 }
 
+/** Exclusive layer for the empty-hero: hide starter prompts while @ is open. */
+export function useHeroComposerMenu() {
+  const [composerMenuOpen, setComposerMenuOpen] = useState(false);
+  return { composerMenuOpen, onSuggestMenuOpenChange: setComposerMenuOpen };
+}
+
 export function EmptyHero({
   greeting,
   question,
   composer,
+  composerMenuOpen = false,
   suggestions,
   onShuffle,
   link,
@@ -51,6 +60,8 @@ export function EmptyHero({
   greeting: string;
   question: string;
   composer: ReactNode;
+  /** when the composer @ / $ menu is open, unmount starter prompts */
+  composerMenuOpen?: boolean;
   suggestions: Suggestion[];
   onShuffle?: () => void;
   link?: { label: string; onClick: () => void };
@@ -89,48 +100,50 @@ export function EmptyHero({
         {composer}
       </div>
 
-      <div
-        className="home-reveal mt-6 flex flex-col"
-        style={revealStyle(stage >= 4)}
-      >
-        {suggestions.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={item.onClick}
-            className="rounded-control text-ink hover:bg-hover -mx-2 flex items-center gap-3 px-2 py-2.5 text-left text-[14px] transition-colors duration-150"
-          >
-            <span className="text-ink-3 flex size-4 shrink-0 items-center justify-center">
-              {item.icon}
-            </span>
-            <span className="min-w-0 truncate">{item.label}</span>
-          </button>
-        ))}
-        {(link || onShuffle) && (
-          <div className="text-ink-3 mt-1 flex flex-wrap items-center gap-5 pl-0.5 text-[13px]">
-            {link && (
-              <button
-                type="button"
-                onClick={link.onClick}
-                className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
-              >
-                {link.label}
-                <ArrowRight size={13} />
-              </button>
-            )}
-            {onShuffle && (
-              <button
-                type="button"
-                onClick={onShuffle}
-                className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
-              >
-                <RefreshCw size={13} />
-                候補を入れ替え
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {shouldShowHeroSuggestions(composerMenuOpen) && (
+        <div
+          className="home-reveal mt-6 flex flex-col"
+          style={revealStyle(stage >= 4)}
+        >
+          {suggestions.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={item.onClick}
+              className="rounded-control text-ink hover:bg-hover -mx-2 flex items-center gap-3 px-2 py-2.5 text-left text-[14px] transition-colors duration-150"
+            >
+              <span className="text-ink-3 flex size-4 shrink-0 items-center justify-center">
+                {item.icon}
+              </span>
+              <span className="min-w-0 truncate">{item.label}</span>
+            </button>
+          ))}
+          {(link || onShuffle) && (
+            <div className="text-ink-3 mt-1 flex flex-wrap items-center gap-5 pl-0.5 text-[13px]">
+              {link && (
+                <button
+                  type="button"
+                  onClick={link.onClick}
+                  className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
+                >
+                  {link.label}
+                  <ArrowRight size={13} />
+                </button>
+              )}
+              {onShuffle && (
+                <button
+                  type="button"
+                  onClick={onShuffle}
+                  className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
+                >
+                  <RefreshCw size={13} />
+                  候補を入れ替え
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
