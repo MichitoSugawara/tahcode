@@ -36,6 +36,7 @@ import type {
 } from "@/components/primitives/PromptBar";
 import {
   ComposerContextBar,
+  ComposerFolderNotice,
   effectiveComposerProject,
   effectiveComposerRuntime,
 } from "@/harness/ComposerContextBar";
@@ -858,47 +859,56 @@ export function Composer({
           />
         </div>
       )}
-      <div className="flex flex-col gap-1.5">
-        <ComposerContextBar chat={chat} />
-        <PromptBar
-          tall={tall}
-          disabled={disabled}
-          busy={busy}
-          jobRunning={!!activeJob}
-          canStop={!!activeJob?.canCancel && !stopping}
-          onStop={activeJob ? () => cancel(activeJob._id) : undefined}
-          placeholder={
-            placeholder ??
-            (isProject
-              ? `${mention} にタスクを頼む、または相談を書く…`
-              : "何でも聞いてください…")
-          }
-          mentions={mentions}
-          commands={commands}
-          harnessCommands={harnessCommands}
-          plusItems={plusItems}
-          pickers={pickers}
-          attachments={pending.map((file) => ({
-            name: `${file.name} · ${formatBytes(file.size)}`,
-            size: file.size,
-          }))}
-          onRemoveAttachment={(index) =>
-            setPending((current) => current.filter((_, i) => i !== index))
-          }
-          onSend={send}
-          onDraftChange={setDraft}
-          onSuggestMenuOpenChange={onSuggestMenuOpenChange}
-          hint={hint}
-          autoFocus={autoFocus}
-          menuFooter={{
-            at: modelToken
-              ? cursorSuggestKind === "effort"
-                ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
-                : `${PROVIDERS[modelToken.providerKind].label} のモデル · 推論はセレクトで選択 · @${modelToken.handle} だけなら CLI の既定モデル`
-              : "エージェントかメンバーを選択 · @provider/ でモデル候補",
-            dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
-          }}
-        />
+      <div className="flex flex-col gap-2">
+        <div
+          data-composer-shell
+          className={`border-line bg-surface shadow-card focus-within:border-line-strong border transition-[border-color] duration-150 ${
+            tall ? "rounded-[22px]" : "rounded-[14px]"
+          }`}
+        >
+          <ComposerContextBar chat={chat} tall={tall} />
+          <PromptBar
+            tall={tall}
+            embedded
+            disabled={disabled}
+            busy={busy}
+            jobRunning={!!activeJob}
+            canStop={!!activeJob?.canCancel && !stopping}
+            onStop={activeJob ? () => cancel(activeJob._id) : undefined}
+            placeholder={
+              placeholder ??
+              (isProject
+                ? `${mention} にタスクを頼む、または相談を書く…`
+                : "何でも聞いてください…")
+            }
+            mentions={mentions}
+            commands={commands}
+            harnessCommands={harnessCommands}
+            plusItems={plusItems}
+            pickers={pickers}
+            attachments={pending.map((file) => ({
+              name: `${file.name} · ${formatBytes(file.size)}`,
+              size: file.size,
+            }))}
+            onRemoveAttachment={(index) =>
+              setPending((current) => current.filter((_, i) => i !== index))
+            }
+            onSend={send}
+            onDraftChange={setDraft}
+            onSuggestMenuOpenChange={onSuggestMenuOpenChange}
+            hint={hint}
+            autoFocus={autoFocus}
+            menuFooter={{
+              at: modelToken
+                ? cursorSuggestKind === "effort"
+                  ? "推論レベルを選んでください。未選択のまま送ると Medium になります"
+                  : `${PROVIDERS[modelToken.providerKind].label} のモデル · 推論はセレクトで選択 · @${modelToken.handle} だけなら CLI の既定モデル`
+                : "エージェントかメンバーを選択 · @provider/ でモデル候補",
+              dollar: "ハーネス固有の機能 · Codex $imagegen で画像生成",
+            }}
+          />
+        </div>
+        <ComposerFolderNotice chat={chat} />
       </div>
       <input
         ref={fileRef}

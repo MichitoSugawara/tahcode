@@ -98,6 +98,7 @@ const GLIDE =
 export default function PromptBar({
   placeholder = "メッセージを入力…",
   tall = false,
+  embedded = false,
   disabled = false,
   busy = false,
   mentions,
@@ -120,6 +121,8 @@ export default function PromptBar({
   placeholder?: string;
   /** hero sizing: a multi-line input with controls on their own row */
   tall?: boolean;
+  /** Sit flush under a context bar inside a shared card (no own border/radius). */
+  embedded?: boolean;
   disabled?: boolean;
   /** a send is in flight — keeps the button quiet without clearing the draft */
   busy?: boolean;
@@ -605,10 +608,14 @@ export default function PromptBar({
 
         {/* ── composer ───────────────────────────────────── */}
         <div
-          className={`border-line bg-surface shadow-card focus-within:border-line-strong relative isolate flex flex-col overflow-hidden border transition-[border-color,border-radius,opacity] duration-150 ${
-            tall
-              ? "gap-2.5 rounded-[22px] p-3.5"
-              : "gap-1.5 rounded-[14px] p-1.5"
+          className={`relative isolate flex flex-col ${
+            embedded
+              ? `bg-surface ${tall ? "gap-2.5 rounded-b-[22px] p-3.5" : "gap-1.5 rounded-b-[14px] p-1.5"}`
+              : `border-line bg-surface shadow-card focus-within:border-line-strong overflow-hidden border transition-[border-color,border-radius,opacity] duration-150 ${
+                  tall
+                    ? "gap-2.5 rounded-[22px] p-3.5"
+                    : "gap-1.5 rounded-[14px] p-1.5"
+                }`
           } ${disabled ? "opacity-70" : ""}`}
         >
           <span
