@@ -223,6 +223,14 @@ describe("shell source contracts", () => {
     expect(composer).not.toContain("別のモデルも指名できます");
   });
 
+  it("keeps offline catalog copy even when /new hides decorative hints", () => {
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const catalog = composer.indexOf("} else if (catalogLocked) {");
+    const hide = composer.indexOf("} else if (hideHint) {");
+    expect(catalog).toBeGreaterThan(-1);
+    expect(hide).toBeGreaterThan(catalog);
+  });
+
   it("drops the composer helper footnote near EmptyHero", () => {
     const chat = readFileSync("src/pages/ChatPage.tsx", "utf-8");
     expect(chat).not.toContain("別のモデルも指名できます");

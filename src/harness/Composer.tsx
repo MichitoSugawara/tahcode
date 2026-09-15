@@ -829,9 +829,7 @@ export function Composer({
   };
 
   let hint: ReactNode = null;
-  if (hideHint) {
-    hint = null;
-  } else if (disabled) {
+  if (disabled) {
     hint = "チャットを開くと送信できます";
   } else if (catalogLocked) {
     hint = COMPOSER_CATALOG_OFFLINE_MESSAGE;
@@ -839,6 +837,9 @@ export function Composer({
     hint = activeJob.canCancel
       ? "生成中 — 中断でこのジョブを止められます"
       : "生成中です";
+  } else if (hideHint) {
+    /* TAH-68: drop decorative footnotes on /new. Keep offline / job copy. */
+    hint = null;
   }
 
   return (
