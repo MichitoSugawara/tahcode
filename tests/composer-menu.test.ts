@@ -3,8 +3,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  COMPOSER_INPUT,
+  COMPOSER_PICKER_MENU,
+  COMPOSER_PLUS_TRIGGER,
+  COMPOSER_SUGGEST_MENU,
+  composerEventTarget,
+  composerMenuKeepOpenSelectors,
+  composerPickerTriggerSelector,
   isComposerSuggestMenuOpen,
   parseComposerSuggestToken,
+  shouldDismissComposerMenu,
   shouldShowHeroSuggestions,
 } from "../src/lib/composerMenu.ts";
 
@@ -64,5 +72,122 @@ describe("hero wiring", () => {
     expect(home).toContain("onSuggestMenuOpenChange");
     expect(chat).toContain("onSuggestMenuOpenChange");
     expect(composer).toContain("onSuggestMenuOpenChange");
+  });
+});
+
+describe(composerMenuKeepOpenSelectors, () => {
+  it("pins a picker to its panel and matching trigger", () => {
+    expect(
+      composerMenuKeepOpenSelectors({
+        openPicker: "provider",
+        plusOpen: false,
+        suggestOpen: false,
+      })
+    ).toStrictEqual([
+      COMPOSER_PICKER_MENU,
+      composerPickerTriggerSelector("provider"),
+    ]);
+  });
+
+  it("pins the + menu to the suggest list and plus button", () => {
+    expect(
+      composerMenuKeepOpenSelectors({
+        openPicker: null,
+        plusOpen: true,
+        suggestOpen: true,
+      })
+    ).toStrictEqual([COMPOSER_SUGGEST_MENU, COMPOSER_PLUS_TRIGGER]);
+  });
+
+  it("pins a typed @ menu to the suggest list and the textarea", () => {
+    expect(
+      composerMenuKeepOpenSelectors({
+        openPicker: null,
+        plusOpen: false,
+        suggestOpen: true,
+      })
+    ).toStrictEqual([COMPOSER_SUGGEST_MENU, COMPOSER_INPUT]);
+  });
+});
+
+describe(shouldDismissComposerMenu, () => {
+  const pickerKeep = composerMenuKeepOpenSelectors({
+    openPicker: "provider",
+    plusOpen: false,
+    suggestOpen: false,
+  });
+
+  it("keeps the picker open on the menu or its trigger", () => {
+    expect(
+      shouldDismissComposerMenu(
+        {
+          closest: (selector) =>
+            selector === COMPOSER_PICKER_MENU ? {} : null,
+        },
+        pickerKeep
+      )
+    ).toBeFalsy();
+    expect(
+      shouldDismissComposerMenu(
+        {
+          closest: (selector) =>
+            selector === composerPickerTriggerSelector("provider") ? {} : null,
+        },
+        pickerKeep
+      )
+    ).toBeFalsy();
+  });
+
+  it("dismisses a picker when the hit is outside the menu", () => {
+    expect(
+      shouldDismissComposerMenu({ closest: () => null }, pickerKeep)
+    ).toBeTruthy();
+    expect(shouldDismissComposerMenu(null, pickerKeep)).toBeTruthy();
+  });
+
+  it("does not dismiss when no toolbar menu is open", () => {
+    expect(shouldDismissComposerMenu({ closest: () => null }, [])).toBeFalsy();
+  });
+
+  it("walks up from a text node without closest", () => {
+    const parent = {
+      closest: (selector: string) =>
+        selector === COMPOSER_PICKER_MENU ? {} : null,
+    };
+    expect(composerEventTarget({ parentElement: parent })).toBe(parent);
+    expect(
+      shouldDismissComposerMenu({ parentElement: parent }, pickerKeep)
+    ).toBeFalsy();
+  });
+});
+
+describe("dismiss wiring", () => {
+  it("closes PromptBar menus on outside pointerdown, not the whole composer", () => {
+    const promptBar = readFileSync(
+      "src/components/primitives/PromptBar.tsx",
+      "utf-8"
+    );
+    expect(promptBar).toContain("shouldDismissComposerMenu");
+    expect(promptBar).toContain('data-prompt-menu="picker"');
+    expect(promptBar).toContain('data-prompt-menu="suggest"');
+    expect(promptBar).toContain("data-prompt-trigger={`picker-");
+    expect(promptBar).not.toContain('closest("[data-promptbar]")');
+  });
+
+  it("listens for Escape on the document while a toolbar menu is open", () => {
+    const promptBar = readFileSync(
+      "src/components/primitives/PromptBar.tsx",
+      "utf-8"
+    );
+    expect(promptBar).toContain('addEventListener("keydown"');
+    expect(promptBar).toContain('event.key === "Escape"');
+  });
+
+  it("keeps AgentPicker on Radix dismiss defaults", () => {
+    const picker = readFileSync("src/harness/ui/AgentPicker.tsx", "utf-8");
+    expect(picker).toContain("Popover.Root");
+    expect(picker).toContain("onOpenChange={setOpen}");
+    expect(picker).not.toContain("onInteractOutside");
+    expect(picker).not.toContain("onPointerDownOutside");
   });
 });
