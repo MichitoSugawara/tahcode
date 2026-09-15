@@ -9,6 +9,8 @@ import { Dialog } from "@/harness/ui/Dialog";
 import { ChoiceList, Input, Label } from "@/harness/ui/Field";
 import { errorSummary } from "@/lib/format";
 
+import type { Id } from "../../../convex/_generated/dataModel";
+
 /* ─────────────────────────────────────────────────────────
  * CREATE PROJECT — Multica's create dialog: name, visibility,
  * and optional resources (repo / working directory) that
@@ -24,20 +26,22 @@ export function CreateProjectDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { org, goPendingChat } = useOrg();
+  const { org, goPendingChat, runtimes } = useOrg();
   const createProject = useCreateProjectWithChat();
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<"org" | "private">("org");
   const [more, setMore] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
-  const [cwd, setCwd] = useState("");
+  const [machineFolders, setMachineFolders] = useState<Record<string, string>>(
+    {}
+  );
 
   const reset = () => {
     setName("");
     setVisibility("org");
     setMore(false);
     setRepoUrl("");
-    setCwd("");
+    setMachineFolders({});
   };
 
   return (
@@ -50,7 +54,7 @@ export function CreateProjectDialog({
         onOpenChange(next);
       }}
       title="新しいプロジェクト"
-      description="プロジェクトはチャットの入れ物です。名前とリソースはエージェントのコンテキスト（project link）として渡されます。"
+      description="プロジェクトはチャットの入れ物です。作成時にマシン別フォルダを任意で指定できます（1 台だけでよい）。"
       width={480}
       footer={
         <>
@@ -88,10 +92,17 @@ export function CreateProjectDialog({
           if (!projectName) {
             return;
           }
+          const folders = Object.entries(machineFolders)
+            .map(([runtimeId, path]) => ({
+              cwd: path.trim(),
+              runtimeId: runtimeId as Id<"runtimes">,
+            }))
+            .filter((folder) => folder.cwd.length > 0);
           const { chatPlaceholder, projectCreated, chatCreated } =
             createProject(
               {
-                cwd: cwd.trim() || undefined,
+                cwd: folders[0]?.cwd,
+                folders: folders.length > 0 ? folders : undefined,
                 name: projectName,
                 repoUrl: repoUrl.trim() || undefined,
                 visibility,
@@ -166,7 +177,7 @@ export function CreateProjectDialog({
             />
             リソース（任意）
             <span className="text-ink-3 font-normal">
-              リポジトリ / 作業ディレクトリ
+              リポジトリ / マシン別フォルダ
             </span>
           </button>
           <div
@@ -191,13 +202,35 @@ export function CreateProjectDialog({
                   />
                 </div>
                 <div>
-                  <Label hint="ランタイム側のパス">作業ディレクトリ</Label>
-                  <Input
-                    value={cwd}
-                    onChange={(event) => setCwd(event.target.value)}
-                    placeholder="~/code/web"
-                    className="font-mono"
-                  />
+                  <Label hint="任意。1 台だけでよい。未設定のマシンでは作業前に求めます">
+                    マシン別フォルダ
+                  </Label>
+                  {(runtimes ?? []).length === 0 ? (
+                    <p className="text-ink-3 text-[12.5px] leading-relaxed">
+                      ランタイムを登録すると、マシンごとの作業ディレクトリを書けます。あとからでも指定できます。
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {(runtimes ?? []).map((runtime) => (
+                        <div key={String(runtime._id)}>
+                          <div className="text-ink-2 mb-1 text-[12px] font-medium">
+                            {runtime.name}
+                          </div>
+                          <Input
+                            value={machineFolders[String(runtime._id)] ?? ""}
+                            onChange={(event) =>
+                              setMachineFolders((current) => ({
+                                ...current,
+                                [String(runtime._id)]: event.target.value,
+                              }))
+                            }
+                            placeholder="~/code/web"
+                            className="font-mono"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

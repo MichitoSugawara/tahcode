@@ -71,6 +71,7 @@ export const send = authedMutation({
     chatId: v.id("chats"),
     body: v.string(),
     runtimeId: v.optional(v.id("runtimes")),
+    branch: v.optional(v.string()),
     /* the composer's provider / model pick; wins over the chat binding, loses to an explicit @mention */
     driverKind: v.optional(providerKind),
     model: v.optional(v.string()),

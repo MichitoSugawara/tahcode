@@ -29,7 +29,7 @@ import type { SuggestMenuPlacement } from "@/lib/suggestMenu";
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR — ported from Beautiful UI (beautifului.dev/r/prompt-bar)
  * A composer with real controls: attach, @ mentions, / commands,
- * pill pickers (provider · model · effort · runtime), and send.
+ * pill pickers (provider · model · effort), and send.
  * Type @, /, or $ to open the menus; ↑↓ + Enter/Tab to pick, Esc closes.
  * Enter sends (IME-safe), Shift+Enter breaks a line.
  *

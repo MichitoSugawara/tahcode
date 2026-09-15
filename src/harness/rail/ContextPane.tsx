@@ -187,7 +187,13 @@ export function ContextPane({ chatId }: { chatId?: string }) {
       body: project
         ? [
             project.repoUrl ? `repo: ${project.repoUrl}` : null,
-            project.cwd ? `cwd: ${project.cwd}` : null,
+            project.folders?.length
+              ? `folders: ${project.folders
+                  .map((folder) => folder.cwd)
+                  .join(" · ")}`
+              : project.cwd
+                ? `cwd: ${project.cwd}`
+                : null,
           ]
             .filter(Boolean)
             .join(" · ") || "リソース未設定 — プロジェクト名だけが渡されます"
