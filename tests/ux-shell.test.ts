@@ -251,6 +251,16 @@ describe("shell source contracts", () => {
     expect(shell).toContain("data-shell-chat-drop");
   });
 
+  it("opens the verification workbench from the header tools", () => {
+    const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
+    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
+    expect(shell).toContain("data-shell-workbench-toggle");
+    expect(shell).toContain("useWorkbenchDocked");
+    expect(rail).toContain("data-workbench-tab");
+    expect(rail).not.toContain("ContextPane");
+    expect(rail).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
   it("keeps runtime off the left-rail labels in Shell", () => {
     const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
     const palette = readFileSync("src/harness/CommandPalette.tsx", "utf-8");

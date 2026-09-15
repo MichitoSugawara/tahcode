@@ -35,8 +35,6 @@ import {
   buildTabMenuItems,
 } from "@/harness/contextMenus";
 import { useOrg } from "@/harness/OrgContext";
-import { isRightRailVisible } from "@/harness/rail/flags";
-import type { RailTab } from "@/harness/rail/flags";
 import { RightRail } from "@/harness/rail/RightRail";
 import {
   beginChatDrag,
@@ -72,6 +70,10 @@ import {
 import { ContextMenu } from "@/harness/ui/ContextMenu";
 import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
+import {
+  useWorkbenchDocked,
+  WORKBENCH_WIDTH_PX,
+} from "@/harness/workbench/state";
 import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 import { isDesktopShell } from "@/lib/desktop";
 import {
@@ -115,8 +117,8 @@ function sidebarSectionOnAdd(
 
 /* ─────────────────────────────────────────────────────────
  * SHELL — the harness frame: SidebarNav on the canvas, a
- * rounded main pane with chat tabs, and a docked right rail
- * (Context · Runtime · Team, gated by RIGHT_RAIL_SECTION_ENABLED).
+ * rounded main pane with chat tabs, and a docked verification
+ * workbench (Side chat · Terminal · Browser · Remote Desktop).
  * Below lg the sidebar becomes a sheet; below xl the rail becomes a
  * sheet.
  * ───────────────────────────────────────────────────────── */
@@ -740,22 +742,20 @@ export function Shell({
   onToggleTheme,
   children,
   rail,
-  railDefaultTab,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
   children: ReactNode;
-  /** show the docked right rail (chat + home); settings and connectors run full-width */
+  /** show the docked workbench (chat + home); settings and connectors run full-width */
   rail: boolean;
-  railDefaultTab?: RailTab;
 }) {
   const org = useOrg();
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
-  const [railDocked, setRailDocked] = useState(true);
+  const [railDocked, setRailDocked] = useWorkbenchDocked();
   const palette = useCommandPalette();
   const location = useLocation();
-  const showRail = rail && isRightRailVisible();
+  const showRail = rail;
   const chatDrop = useChatDropTarget((id) => {
     org.goChat(id as Id<"chats">);
   });
@@ -803,7 +803,8 @@ export function Shell({
                     <>
                       <button
                         type="button"
-                        aria-label="パネルを開く"
+                        data-shell-workbench-toggle
+                        aria-label="検証ワークベンチを開く"
                         onClick={() => setRailOpen(true)}
                         className="text-ink-3 hover:bg-hover hover:text-ink flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:hidden"
                       >
@@ -811,11 +812,14 @@ export function Shell({
                       </button>
                       <button
                         type="button"
+                        data-shell-workbench-toggle
                         aria-label={
-                          railDocked ? "右パネルを閉じる" : "右パネルを開く"
+                          railDocked
+                            ? "検証ワークベンチを閉じる"
+                            : "検証ワークベンチを開く"
                         }
                         aria-pressed={railDocked}
-                        onClick={() => setRailDocked((open) => !open)}
+                        onClick={() => setRailDocked(!railDocked)}
                         className="text-ink-3 hover:bg-hover hover:text-ink hidden size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:flex"
                       >
                         <PanelRight size={16} />
@@ -843,10 +847,14 @@ export function Shell({
 
           {showRail && railDocked && (
             <aside
-              className="border-line bg-page hidden w-[360px] shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
-              style={{ animation: "fade-in 300ms ease both" }}
+              data-shell-workbench
+              className="border-line bg-page hidden shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
+              style={{
+                animation: "fade-in 300ms ease both",
+                width: WORKBENCH_WIDTH_PX,
+              }}
             >
-              <RightRail defaultTab={railDefaultTab} />
+              <RightRail />
             </aside>
           )}
         </div>
@@ -892,19 +900,18 @@ export function Shell({
             />
             <DialogPrimitive.Content
               aria-describedby={undefined}
-              className="border-line bg-page fixed inset-y-2.5 right-2.5 z-[61] flex w-[min(360px,calc(100vw-20px))] flex-col overflow-hidden rounded-[14px] border outline-none"
+              data-shell-workbench
+              className="border-line bg-page fixed inset-y-2.5 right-2.5 z-[61] flex flex-col overflow-hidden rounded-[14px] border outline-none"
               style={{
                 animation:
                   "sheet-in-right 260ms cubic-bezier(0.16,1,0.3,1) both",
+                width: `min(${WORKBENCH_WIDTH_PX}px, calc(100vw - 20px))`,
               }}
             >
               <DialogPrimitive.Title className="sr-only">
-                パネル
+                検証ワークベンチ
               </DialogPrimitive.Title>
-              <RightRail
-                defaultTab={railDefaultTab}
-                onClose={() => setRailOpen(false)}
-              />
+              <RightRail onClose={() => setRailOpen(false)} />
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
         </DialogPrimitive.Root>

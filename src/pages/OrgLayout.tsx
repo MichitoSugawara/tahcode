@@ -28,7 +28,7 @@ export default function OrgLayout({
   theme: Theme;
   onToggleTheme: () => void;
 }) {
-  const { orgSlug, chatId } = useParams();
+  const { orgSlug } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const me = useQuery(api.users.me) as Me | null | undefined;
@@ -74,12 +74,7 @@ export default function OrgLayout({
 
   return (
     <OrgProvider key={String(org._id)} me={me} orgs={orgs} org={org}>
-      <Shell
-        theme={theme}
-        onToggleTheme={onToggleTheme}
-        rail={!fullWidth}
-        railDefaultTab={chatId ? "Context" : "Runtime"}
-      >
+      <Shell theme={theme} onToggleTheme={onToggleTheme} rail={!fullWidth}>
         <Outlet />
       </Shell>
       <DialogHost onOrgCreated={(id) => setPendingOrg(id)} />
