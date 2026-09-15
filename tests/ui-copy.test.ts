@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -42,5 +42,18 @@ describe("user-facing copy", () => {
     expect(settings).not.toContain("ConnectorsPane");
     expect(settings).not.toContain('id="connectors"');
     expect(connectors).toContain("コネクタを検索");
+  });
+
+  it("keeps connector account delete as a red trash control", () => {
+    const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    const cardPath = "src/harness/connectors/LinearConnectorCard.tsx";
+    const card = existsSync(cardPath) ? readFileSync(cardPath, "utf-8") : "";
+    const haystack = `${pane}\n${card}`;
+    expect(haystack).toContain("Trash2");
+    expect(haystack).toContain("text-red");
+    expect(haystack).toContain(
+      "aria-label={CONNECTOR_CARD_COPY.removeAccount(label)}"
+    );
+    expect(haystack).toContain("setPendingRemove");
   });
 });
