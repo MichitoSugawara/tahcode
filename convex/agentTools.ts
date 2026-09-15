@@ -5,19 +5,23 @@ import {
   optionalString,
   parseAgentToolArgsJson,
 } from "../shared/agentTools.ts";
+import {
+  connectorActionByToolName,
+  connectorProviderLabel,
+  isConnectorActionToolName,
+} from "../shared/connectorActionCatalog.ts";
 import { selectInjectedConnections } from "../shared/connectorMentions.ts";
-import { isLinearAgentToolName } from "../shared/linearAgentTools.ts";
 import { mentionedConnectorsFromText } from "../shared/opsMcp.ts";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, mutation } from "./_generated/server";
 import { getMembership } from "./lib/access";
 import { runAgentTool } from "./lib/agentToolHandlers";
+import { runConnectorAction } from "./lib/connectorActionTools";
 import { isVisibleConnectorConnection } from "./lib/connectors";
 import { listVisibleJobConnectors } from "./lib/jobOps";
-import { runLinearConnectorTool } from "./lib/linearConnectorTools";
 import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
-import { agentToolName, linearAgentToolName } from "./lib/validators";
+import { agentToolName, connectorActionToolName } from "./lib/validators";
 
 /**
  * Runtime-authenticated dispatcher for in-job tahcode tools.
@@ -70,21 +74,21 @@ export const invoke = mutation({
 });
 
 /**
- * Linear issue tools (TAH-54). Same runtime token + job lease as `invoke`.
- * HTTP to the connector backend stays in this action so tokens never enter
- * the prompt or the MCP catalog.
+ * Catalogued connector Actions (TAH-65). Same runtime token + job lease as
+ * `invoke`. HTTP stays in this action so tokens never enter the prompt or
+ * the MCP / `tahcode tool` catalog. Linear is the first catalog slice.
  */
 export const invokeConnector = action({
   args: {
     argsJson: v.string(),
     jobId: v.id("jobs"),
     leaseId: v.string(),
-    name: linearAgentToolName,
+    name: connectorActionToolName,
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
   handler: async (ctx, args) => {
-    if (!isLinearAgentToolName(args.name)) {
+    if (!isConnectorActionToolName(args.name)) {
       throw new Error("Unknown tool");
     }
     const parsed = parseAgentToolArgsJson(args.argsJson);
@@ -95,10 +99,11 @@ export const invokeConnector = action({
       argsJson: args.argsJson,
       jobId: args.jobId,
       leaseId: args.leaseId,
+      name: args.name,
       runtimeId: args.runtimeId,
       token: args.token,
     });
-    const result = await runLinearConnectorTool({
+    const result = await runConnectorAction({
       args: parsed,
       connectedAccountId: prepared.connectedAccountId,
       name: args.name,
@@ -114,7 +119,7 @@ export const invokeConnector = action({
     };
   },
   returns: v.object({
-    name: linearAgentToolName,
+    name: connectorActionToolName,
     resultJson: v.string(),
   }),
 });
@@ -124,6 +129,7 @@ export const prepareConnectorInvoke = internalMutation({
     argsJson: v.string(),
     jobId: v.id("jobs"),
     leaseId: v.string(),
+    name: connectorActionToolName,
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
@@ -141,10 +147,14 @@ export const prepareConnectorInvoke = internalMutation({
     if (!user) {
       throw new Error("Acting user not found");
     }
+    const action = connectorActionByToolName(args.name);
+    if (!action) {
+      throw new Error("Unknown tool");
+    }
     const parsed = parseAgentToolArgsJson(args.argsJson);
     const visible = await listVisibleJobConnectors(ctx, {
       orgId: job.orgId,
-      provider: "linear",
+      provider: action.provider,
       userId: user._id,
     });
     const requestedId = optionalString(parsed, "connectionId");
@@ -154,17 +164,18 @@ export const prepareConnectorInvoke = internalMutation({
           visible,
           mentionedConnectorsFromText(job.prompt)
         );
+    const label = connectorProviderLabel(action.provider);
     if (requestedId && selected.length < 1) {
       throw new Error("Connection not found");
     }
     if (!requestedId && selected.length > 1) {
       throw new Error(
-        "connectionId is required when multiple Linear accounts are mentioned"
+        `connectionId is required when multiple ${label} accounts are mentioned`
       );
     }
     const snapshot = selected[0];
     if (!snapshot) {
-      throw new Error("No connected Linear account is mentioned in this job");
+      throw new Error(`No connected ${label} account is mentioned in this job`);
     }
     const row = await ctx.db.get(
       "connectorConnections",
@@ -184,7 +195,9 @@ export const prepareConnectorInvoke = internalMutation({
       throw new Error("Connection not found");
     }
     if (row.status !== "connected") {
-      throw new Error("Linear is not connected. Reconnect it from Connectors.");
+      throw new Error(
+        `${label} is not connected. Reconnect it from Connectors.`
+      );
     }
     return {
       connectedAccountId: row.connectedAccountId,
@@ -200,7 +213,7 @@ export const prepareConnectorInvoke = internalMutation({
 export const finishConnectorInvoke = internalMutation({
   args: {
     jobId: v.id("jobs"),
-    name: linearAgentToolName,
+    name: connectorActionToolName,
   },
   handler: async (ctx, args) => {
     await ctx.db.patch("jobs", args.jobId, { lastHeartbeatAt: Date.now() });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   LINEAR_CREATE_ISSUE_ACTION,
   LINEAR_LIST_ISSUES_ACTION,
+  LINEAR_LIST_TEAMS_ACTION,
   LINEAR_SEARCH_ISSUES_ACTION,
   LINEAR_UPDATE_ISSUE_ACTION,
   linearActionInput,
@@ -40,6 +41,10 @@ describe(linearActionInput, () => {
     ).toStrictEqual({
       actionId: LINEAR_UPDATE_ISSUE_ACTION,
       input: { issueId: "TAH-1", title: "Renamed" },
+    });
+    expect(linearActionInput("list_linear_teams", {})).toStrictEqual({
+      actionId: LINEAR_LIST_TEAMS_ACTION,
+      input: {},
     });
   });
 });

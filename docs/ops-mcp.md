@@ -40,7 +40,7 @@
 1. `resolveConnectorMcpServer` は `provider === "linear"` かつ `status === "connected"` のときだけ MCP サーバ仕様を返す（ホストは `tahcode tool-mcp`）。
 2. 実際にファイルへ入れる対象は `mentionedConnectors ∩ connectors`（connected のみ）。`buildJobMcpConfig` が tahcode ops と同じ `mcpServers` にマージする。
 3. Claude は既存の `--mcp-config` で両方を読む。`jobMcpCliFlags` は `mcp__tahcode__*` に加え、注入名ごとに `mcp__<name>__*` をカンマ連結する。
-4. Cursor / Codex / ほかは `--mcp-config` が無いあいだ `tahcode tool` カタログに同じ Linear ツールを出す。実行は Convex `agentTools:invokeConnector`（ops の `invoke` と同じランタイムトークン + ジョブリース）。
+4. Cursor / Codex / ほかは `--mcp-config` が無いあいだ、**同じカタログ**を `tahcode tool` に出す。実行は Convex `agentTools:invokeConnector`（ops の `invoke` と同じランタイムトークン + ジョブリース）。Claude の MCP `tools/list` と名前が一致する。
 5. トークン・ゲートウェイ URL・OpenConnector / OOMOL / workers.dev はプロンプト・UI・ツール応答に出さない。
 
 ### `@linear`（slug なし）の既定アカウント
@@ -53,7 +53,7 @@
 
 `@linear/<slug>` は displayLabel の slug、または `connectionId` そのもの。切断済み・未メンションは注入しない。
 
-Linear ツール（最低限の issue 面）: `list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue`。実体は OpenConnector Action（`linear.list_linear_issues` など）だが、エージェントから見える名前と説明は Linear だけ。
+Linear ツールは `shared/connectorActionCatalog.ts` から materialize する（[TAH-65](connector-action-tools.md)）。Phase 1 の Linear 面: `list_linear_issues` / `search_linear_issues` / `create_linear_issue` / `update_linear_issue` / `list_linear_teams`。実体はコネクタ Action（`linear.list_linear_issues` など）だが、エージェントから見える名前と説明は Linear だけ。新しい Linear Action はカタログ行を足す（サービス専用ツールファイルは増やさない）。
 
 ## Preview での確認
 

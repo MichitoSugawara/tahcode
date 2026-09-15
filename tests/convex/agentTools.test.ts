@@ -549,6 +549,19 @@ describe("agent Linear connector tools", () => {
       first: true,
       leaked: [],
     });
+
+    const teams = await t.action(api.agentTools.invokeConnector, {
+      argsJson: "{}",
+      jobId: claimed._id,
+      leaseId: claimed.leaseId,
+      name: "list_linear_teams",
+      runtimeId,
+      token: TOKEN,
+    });
+    expect(calls.at(-1)?.url).toBe(
+      "https://oc.test/v1/actions/linear.list_linear_teams"
+    );
+    expect(teams.name).toBe("list_linear_teams");
   });
 
   it("refuses a disconnected Linear mapping", async () => {

@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 
+import { CONNECTOR_ACTION_CATALOG } from "../../shared/connectorActionCatalog.ts";
+
 export const orgRole = v.union(
   v.literal("owner"),
   v.literal("admin"),
@@ -98,12 +100,23 @@ export const agentToolName = v.union(
   v.literal("suggest_connector")
 );
 
-export const linearAgentToolName = v.union(
-  v.literal("list_linear_issues"),
-  v.literal("search_linear_issues"),
-  v.literal("create_linear_issue"),
-  v.literal("update_linear_issue")
-);
+function connectorActionToolNameValidator() {
+  const names = CONNECTOR_ACTION_CATALOG.map((row) => row.toolName);
+  const first = names[0];
+  const second = names[1];
+  if (!first || !second) {
+    throw new Error("connector action catalog must list at least two tools");
+  }
+  return v.union(
+    v.literal(first),
+    v.literal(second),
+    ...names.slice(2).map((name) => v.literal(name))
+  );
+}
+
+/** Catalog-derived — adding a connector Action updates this union automatically. */
+export const connectorActionToolName = connectorActionToolNameValidator();
+export const linearAgentToolName = connectorActionToolName;
 
 export const jobStatus = v.union(
   v.literal("queued"),

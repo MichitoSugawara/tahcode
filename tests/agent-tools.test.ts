@@ -68,6 +68,7 @@ describe("agent tool catalog", () => {
       expect(text).toContain(name);
     }
     expect(text).toContain("not Cursor marketplace MCP");
+    expect(text).toContain("list_linear_teams");
     expect(formatAgentToolCatalog()).not.toContain("list_linear_issues");
   });
 

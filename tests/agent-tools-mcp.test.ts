@@ -54,6 +54,7 @@ describe("tahcode MCP host", () => {
       tools: expect.arrayContaining([
         expect.objectContaining({ name: "list_linear_issues" }),
         expect.objectContaining({ name: "search_linear_issues" }),
+        expect.objectContaining({ name: "list_linear_teams" }),
       ]),
     });
     const names = (
