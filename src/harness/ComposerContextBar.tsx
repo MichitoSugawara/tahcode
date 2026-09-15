@@ -42,7 +42,13 @@ export function effectiveComposerRuntime(
   return live.length === 1 ? (live[0] ?? null) : null;
 }
 
-export function ComposerContextBar({ chat }: { chat: Chat | null }) {
+export function ComposerContextBar({
+  chat,
+  tall = false,
+}: {
+  chat: Chat | null;
+  tall?: boolean;
+}) {
   const org = useOrg();
   const { composerProjectId, setComposerProjectId } = org;
   useEffect(() => {
@@ -50,6 +56,135 @@ export function ComposerContextBar({ chat }: { chat: Chat | null }) {
       setComposerProjectId(chat.projectId);
     }
   }, [chat?.projectId, composerProjectId, setComposerProjectId]);
+  const project = effectiveComposerProject(
+    chat,
+    org.projects,
+    org.composerProjectId
+  );
+  const projectLockedToChat = Boolean(chat?.projectId);
+
+  const selectProject = (projectId: Id<"projects"> | null) => {
+    org.setComposerProjectId(projectId);
+    if (!projectId) {
+      return;
+    }
+    if (chat?.projectId && chat.projectId === projectId) {
+      return;
+    }
+    const existing = (org.chats ?? []).find(
+      (item) => item.kind === "project" && item.projectId === projectId
+    );
+    if (existing) {
+      org.goChat(existing._id);
+    }
+  };
+
+  return (
+    <div
+      data-composer-context-bar
+      className={`bg-inset text-ink-2 flex min-h-9 w-full items-center gap-0.5 px-3 py-1.5 ${
+        tall ? "rounded-t-[22px]" : "rounded-t-[14px]"
+      }`}
+    >
+      <ContextMenu
+        ariaLabel="プロジェクトを選択"
+        icon={<Folder size={14} />}
+        label={project?.name ?? "プロジェクトなし"}
+      >
+        {(close) => (
+          <>
+            {!projectLockedToChat && (
+              <ContextRow
+                label="プロジェクトなし"
+                selected={!project}
+                onSelect={() => {
+                  selectProject(null);
+                  close();
+                }}
+              />
+            )}
+            {(org.projects ?? []).map((item) => (
+              <ContextRow
+                key={String(item._id)}
+                label={item.name}
+                selected={project?._id === item._id}
+                onSelect={() => {
+                  selectProject(item._id);
+                  close();
+                }}
+              />
+            ))}
+            <ContextRow
+              icon={<Plus size={13} />}
+              label="新しいプロジェクト"
+              selected={false}
+              onSelect={() => {
+                org.openDialog({ kind: "createProject" });
+                close();
+              }}
+            />
+          </>
+        )}
+      </ContextMenu>
+      <ContextMenu
+        ariaLabel="マシンを選択"
+        icon={<Monitor size={14} />}
+        label={
+          org.runtimeId
+            ? (org.runtimes?.find((item) => item._id === org.runtimeId)?.name ??
+              "指定中")
+            : "自動"
+        }
+      >
+        {(close) => (
+          <>
+            <ContextRow
+              label="自動"
+              tag={
+                (org.runtimes ?? []).some(
+                  (item) => item.canUse && isLive(item, org.now)
+                )
+                  ? "オンライン優先"
+                  : "オフライン"
+              }
+              selected={!org.runtimeId}
+              onSelect={() => {
+                org.setRuntimeId(null);
+                close();
+              }}
+            />
+            {(org.runtimes ?? []).map((item) => {
+              const live = isLive(item, org.now);
+              const disabled = !item.canUse;
+              return (
+                <ContextRow
+                  key={String(item._id)}
+                  disabled={disabled}
+                  label={item.name}
+                  tag={
+                    disabled ? "許可なし" : live ? "オンライン" : "オフライン"
+                  }
+                  selected={org.runtimeId === item._id}
+                  onSelect={() => {
+                    org.setRuntimeId(item._id);
+                    close();
+                  }}
+                />
+              );
+            })}
+          </>
+        )}
+      </ContextMenu>
+      <BranchMenu
+        branch={org.composerBranch}
+        onChange={org.setComposerBranch}
+      />
+    </div>
+  );
+}
+
+export function ComposerFolderNotice({ chat }: { chat: Chat | null }) {
+  const org = useOrg();
   const project = effectiveComposerProject(
     chat,
     org.projects,
@@ -70,151 +205,34 @@ export function ComposerContextBar({ chat }: { chat: Chat | null }) {
     projectCwd: project?.cwd,
     runtimeId: runtime ? String(runtime._id) : null,
   });
-  const projectLockedToChat = Boolean(chat?.projectId);
-
-  const selectProject = (projectId: Id<"projects"> | null) => {
-    org.setComposerProjectId(projectId);
-    if (!projectId) {
-      return;
-    }
-    if (chat?.projectId && chat.projectId === projectId) {
-      return;
-    }
-    const existing = (org.chats ?? []).find(
-      (item) => item.kind === "project" && item.projectId === projectId
-    );
-    if (existing) {
-      org.goChat(existing._id);
-    }
-  };
-
+  if (!needsFolder || !project || !runtime) {
+    return null;
+  }
   return (
-    <div className="flex flex-col gap-2">
-      <div
-        data-composer-context-bar
-        className="bg-canvas text-ink-2 shadow-hairline flex min-h-9 w-full items-center gap-0.5 rounded-full px-2 py-1"
-      >
-        <ContextMenu
-          ariaLabel="プロジェクトを選択"
-          icon={<Folder size={14} />}
-          label={project?.name ?? "プロジェクトなし"}
-        >
-          {(close) => (
-            <>
-              {!projectLockedToChat && (
-                <ContextRow
-                  label="プロジェクトなし"
-                  selected={!project}
-                  onSelect={() => {
-                    selectProject(null);
-                    close();
-                  }}
-                />
-              )}
-              {(org.projects ?? []).map((item) => (
-                <ContextRow
-                  key={String(item._id)}
-                  label={item.name}
-                  selected={project?._id === item._id}
-                  onSelect={() => {
-                    selectProject(item._id);
-                    close();
-                  }}
-                />
-              ))}
-              <ContextRow
-                icon={<Plus size={13} />}
-                label="新しいプロジェクト"
-                selected={false}
-                onSelect={() => {
-                  org.openDialog({ kind: "createProject" });
-                  close();
-                }}
-              />
-            </>
-          )}
-        </ContextMenu>
-        <ContextMenu
-          ariaLabel="マシンを選択"
-          icon={<Monitor size={14} />}
-          label={
-            org.runtimeId
-              ? (org.runtimes?.find((item) => item._id === org.runtimeId)
-                  ?.name ?? "指定中")
-              : "自動"
+    <Notice
+      tone="warn"
+      title="このマシンのフォルダが未設定です"
+      className="py-2"
+      action={
+        <Button
+          type="button"
+          size="xs"
+          variant="accent"
+          onClick={() =>
+            org.openDialog({
+              kind: "mapProjectFolder",
+              projectId: project._id,
+              runtimeId: runtime._id,
+            })
           }
         >
-          {(close) => (
-            <>
-              <ContextRow
-                label="自動"
-                tag={
-                  (org.runtimes ?? []).some(
-                    (item) => item.canUse && isLive(item, org.now)
-                  )
-                    ? "オンライン優先"
-                    : "オフライン"
-                }
-                selected={!org.runtimeId}
-                onSelect={() => {
-                  org.setRuntimeId(null);
-                  close();
-                }}
-              />
-              {(org.runtimes ?? []).map((item) => {
-                const live = isLive(item, org.now);
-                const disabled = !item.canUse;
-                return (
-                  <ContextRow
-                    key={String(item._id)}
-                    disabled={disabled}
-                    label={item.name}
-                    tag={
-                      disabled ? "許可なし" : live ? "オンライン" : "オフライン"
-                    }
-                    selected={org.runtimeId === item._id}
-                    onSelect={() => {
-                      org.setRuntimeId(item._id);
-                      close();
-                    }}
-                  />
-                );
-              })}
-            </>
-          )}
-        </ContextMenu>
-        <BranchMenu
-          branch={org.composerBranch}
-          onChange={org.setComposerBranch}
-        />
-      </div>
-      {needsFolder && project && runtime && (
-        <Notice
-          tone="warn"
-          title="このマシンのフォルダが未設定です"
-          className="py-2"
-          action={
-            <Button
-              type="button"
-              size="xs"
-              variant="accent"
-              onClick={() =>
-                org.openDialog({
-                  kind: "mapProjectFolder",
-                  projectId: project._id,
-                  runtimeId: runtime._id,
-                })
-              }
-            >
-              <Folder size={12} /> フォルダを指定
-            </Button>
-          }
-        >
-          「{project.name}」を「{runtime.name}
-          」で動かすには作業ディレクトリが必要です。指定するまで送信できません。
-        </Notice>
-      )}
-    </div>
+          <Folder size={12} /> フォルダを指定
+        </Button>
+      }
+    >
+      「{project.name}」を「{runtime.name}
+      」で動かすには作業ディレクトリが必要です。指定するまで送信できません。
+    </Notice>
   );
 }
 
