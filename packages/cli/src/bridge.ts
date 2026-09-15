@@ -54,8 +54,6 @@ export interface BridgeState {
 export interface BridgeLaunchOptions {
   cwd: string;
   provider?: string;
-  /** Skip `multica daemon start` inside the bridge process (`--no-daemon`). */
-  noDaemon?: boolean;
 }
 
 export const BRIDGE_STATE_PATH = path.join(CONFIG_DIR, "bridge.json");
@@ -218,7 +216,6 @@ export function bridgeArgs(options: BridgeLaunchOptions): string[] {
   return [
     "start",
     "--foreground",
-    ...(options.noDaemon ? ["--no-daemon"] : []),
     "--cwd",
     options.cwd,
     ...(options.provider ? ["--provider", options.provider] : []),

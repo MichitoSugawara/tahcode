@@ -39,8 +39,6 @@ export interface ClaimedJob {
   leaseId: string;
   /** `@provider/model` slug for the CLI's model flag; absent = CLI default */
   model?: string;
-  /** Multica issue task id when this job was launched that way */
-  multicaTaskId?: string;
   /** t3code option selections (effort / variant) applied as CLI flags */
   options?: ProviderOptionSelection[];
   /** TAH-55/54: tahcode ops + mentioned Linear MCP inject plan. */

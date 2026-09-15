@@ -14,7 +14,6 @@ import {
 } from "@tahcode/core/desktop";
 import type {
   DesktopCliStatus,
-  DesktopDoctorGuidance,
   RegisterLocalRuntimeRequest,
   RegisterLocalRuntimeResult,
   RegisterProgressStep,
@@ -27,7 +26,7 @@ import type {
  * Every child is spawned with an argv array (never a shell):
  *   tahcode link … --no-restart
  *   tahcode restart bridge   (existing bridge)
- *   tahcode start --no-daemon (first start; Multica is not required)
+ *   tahcode start            (first start; tahcode bridge only)
  * The raw token is never logged.
  * ───────────────────────────────────────────────────────── */
 
@@ -37,7 +36,6 @@ const VERSION_TIMEOUT_MS = 8_000;
 const INSTALL_TIMEOUT_MS = 180_000;
 const LINK_TIMEOUT_MS = 30_000;
 const START_TIMEOUT_MS = 60_000;
-const MULTICA_TIMEOUT_MS = 8_000;
 
 let registerInFlight = false;
 
@@ -159,10 +157,8 @@ async function registerLocalRuntimeUnchecked(
     );
   }
 
-  const guidance = await inspectMultica(env);
   return {
     cliPath,
-    guidance,
     installedCli,
     ok: true,
     restartedBridge: bridgeAlreadyRunning,
@@ -259,73 +255,12 @@ function commandFailed(
     guidance: {
       commands: ["tahcode doctor", "tahcode start"],
       detail:
-        "tahcode doctor で Node / Multica / エージェント CLI の状態を確認できます。",
+        "tahcode doctor で Node / エージェント CLI / tahcode 接続の状態を確認できます。",
       title: headline,
     },
     message: `${headline} ${detail}`,
     ok: false,
   };
-}
-
-async function inspectMultica(
-  env: NodeJS.ProcessEnv
-): Promise<DesktopDoctorGuidance | undefined> {
-  const bin = process.env.MULTICA_BIN ?? "multica";
-  const resolved =
-    path.isAbsolute(bin) && isExecutable(bin)
-      ? bin
-      : findOnPath([bin], env.PATH ?? "");
-  if (!resolved) {
-    return {
-      commands: ["tahcode install-multica"],
-      detail:
-        "tahcode のジョブはブリッジだけで動きます。Multica daemon も使う場合はインストールしてください。",
-      title: "Multica CLI が見つかりません",
-    };
-  }
-
-  const auth = await run(resolved, ["auth", "status"], {
-    env,
-    timeoutMs: MULTICA_TIMEOUT_MS,
-  });
-  if (auth.code !== 0) {
-    return {
-      commands: ["tahcode multica login", "tahcode doctor"],
-      detail:
-        "daemon はワークスペースなしで起動します。tahcode のジョブは影響しません。Multica アカウントも使う場合はログインしてください。",
-      title: "Multica にログインしていません",
-    };
-  }
-
-  const health = await run(resolved, ["daemon", "status", "--output", "json"], {
-    env,
-    timeoutMs: MULTICA_TIMEOUT_MS,
-  });
-  if (health.code === 0 && daemonLooksRunning(health.stdout)) {
-    return undefined;
-  }
-  return {
-    commands: ["tahcode doctor", "tahcode start"],
-    detail:
-      "tahcode start をもう一度実行するか、tahcode doctor で原因を確認してください。",
-    title: "Multica daemon が起動していません",
-  };
-}
-
-function daemonLooksRunning(stdout: string): boolean {
-  try {
-    const parsed = JSON.parse(stdout) as {
-      pid?: unknown;
-      status?: unknown;
-    };
-    return (
-      parsed.status === "running" ||
-      parsed.status === "ok" ||
-      typeof parsed.pid === "number"
-    );
-  } catch {
-    return false;
-  }
 }
 
 function userNpmPrefix(): string {

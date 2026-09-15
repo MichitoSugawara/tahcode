@@ -286,13 +286,13 @@ export function RuntimePane() {
         >
           {isDesktopShell() ? (
             <>
-              エージェントはあなたの手元のマシンで Multica daemon
+              エージェントはあなたの手元のマシンで tahcode ブリッジ
               経由で動きます。「{registerRuntimeCtaLabel()}
               」でこの Mac の tahcode CLI を接続します。
             </>
           ) : (
             <>
-              エージェントはあなたの手元のマシンで Multica daemon
+              エージェントはあなたの手元のマシンで tahcode ブリッジ
               経由で動きます。登録すると{" "}
               <code className="bg-field rounded-[4px] px-1 font-mono text-[11px]">
                 npm i -g tahcode

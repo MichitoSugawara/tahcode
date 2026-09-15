@@ -141,13 +141,13 @@ describe("register after re-link", () => {
     expect(linkArgv(valid, false)).not.toContain(LINK_NO_RESTART_FLAG);
   });
 
-  it("restarts a running bridge and starts a missing one without Multica", () => {
+  it("restarts a running bridge and starts a missing one with tahcode start", () => {
     expect(planRegisterAfterLink(true)).toStrictEqual({
       args: ["restart", "bridge"],
       progress: "restarting-bridge",
     });
     expect(planRegisterAfterLink(false)).toStrictEqual({
-      args: ["start", "--no-daemon"],
+      args: ["start"],
       progress: "starting-bridge",
     });
   });
