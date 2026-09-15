@@ -11,13 +11,14 @@ import {
   Plug,
   Plus,
   Search,
+  Settings,
   SquarePen,
   UserPlus,
   UserRound,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { DragEvent, ReactNode } from "react";
+import type { DragEvent, MouseEvent, ReactNode } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ import type {
 import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
 import {
   buildProjectMenuItems,
+  buildSectionMenuItems,
   buildSessionMenuItems,
   buildTabMenuItems,
 } from "@/harness/contextMenus";
@@ -45,10 +47,22 @@ import {
   writeChatDrag,
 } from "@/harness/sessionDrag";
 import {
+  isSidebarMoreTrigger,
+  isSidebarSectionId,
+  menuAnchorPosition,
+  projectPeekPath,
+} from "@/harness/sidebarHover";
+import {
   buildSidebarSections,
   sidebarGroupAddLabel,
+  sidebarSectionAddLabel,
+  sidebarSectionMoreLabel,
 } from "@/harness/sidebarModel";
-import type { SidebarModelGroup } from "@/harness/sidebarModel";
+import type {
+  SidebarModelGroup,
+  SidebarModelSection,
+  SidebarSectionId,
+} from "@/harness/sidebarModel";
 import {
   closeTabsToTheRight,
   isCloseTabShortcut,
@@ -56,6 +70,7 @@ import {
 } from "@/harness/tabActions";
 import { ContextMenu } from "@/harness/ui/ContextMenu";
 import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
+import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
 import { isDesktopShell } from "@/lib/desktop";
 import {
   colorFor,
@@ -79,6 +94,19 @@ function sidebarGroupOnAdd(
   }
   if (group.addKind === "newChat" && group.projectId) {
     return () => org.goNewChat(group.projectId as Id<"projects">);
+  }
+  return undefined;
+}
+
+function sidebarSectionOnAdd(
+  org: ReturnType<typeof useOrg>,
+  section: SidebarModelSection
+): (() => void) | undefined {
+  if (section.addKind === "createProject") {
+    return () => org.openDialog({ kind: "createProject" });
+  }
+  if (section.addKind === "newChat") {
+    return () => org.goNewChat();
   }
   return undefined;
 }
@@ -146,11 +174,16 @@ function useSidebarModel() {
       projects: org.projects,
     });
     return model.map((section) => ({
+      addLabel: sidebarSectionAddLabel(section),
+      moreLabel: sidebarSectionMoreLabel(section.label),
       id: section.id,
       label: section.label,
+      onAdd: sidebarSectionOnAdd(org, section),
       groups: section.groups.map((group) => ({
+        addIcon: group.addKind === "newChat" ? ("compose" as const) : "plus",
         addLabel: sidebarGroupAddLabel(group),
         emptyHint: group.emptyHint,
+        hideHeader: group.hideHeader,
         icon:
           group.kind === "personal" ? undefined : group.privateGroup ? (
             <Lock size={12} />
@@ -172,7 +205,9 @@ function useSidebarModel() {
             ),
         })),
         label: group.label,
+        moreLabel: sidebarSectionMoreLabel(group.label),
         onAdd: sidebarGroupOnAdd(org, group),
+        showMore: group.kind === "project",
       })),
     }));
   }, [org]);
@@ -199,6 +234,11 @@ function Sidebar({
   } | null>(null);
   const [projectMenu, setProjectMenu] = useState<{
     id: Id<"projects">;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [sectionMenu, setSectionMenu] = useState<{
+    id: SidebarSectionId;
     x: number;
     y: number;
   } | null>(null);
@@ -245,9 +285,18 @@ function Sidebar({
         },
       }))
     : [];
+  const projectForMenu = projectMenu
+    ? org.projects?.find((item) => item._id === projectMenu.id)
+    : undefined;
+  const projectChatCount = projectForMenu
+    ? (org.chats ?? []).filter(
+        (chat) => String(chat.projectId) === String(projectForMenu._id)
+      ).length
+    : 0;
   const projectMenuItems: ContextMenuItem[] = projectMenu
     ? buildProjectMenuItems().map((item) => ({
         ...item,
+        icon: item.key === "settings" ? <Settings size={14} /> : undefined,
         onSelect: () => {
           const projectId = projectMenu.id;
           if (item.key === "settings") {
@@ -264,6 +313,50 @@ function Sidebar({
         },
       }))
     : [];
+  const sectionMenuItems: ContextMenuItem[] = sectionMenu
+    ? buildSectionMenuItems(sectionMenu.id).map((item) => ({
+        ...item,
+        onSelect: () => {
+          if (item.key !== "create") {
+            return;
+          }
+          if (sectionMenu.id === "projects") {
+            org.openDialog({ kind: "createProject" });
+            return;
+          }
+          org.goNewChat();
+          onNavigate?.();
+        },
+      }))
+    : [];
+  const openProjectMenu = (id: string, event: MouseEvent): void => {
+    const project = org.projects?.find((item) => String(item._id) === id);
+    if (!project) {
+      return;
+    }
+    const position = menuAnchorPosition(event);
+    setSessionMenu(null);
+    setSectionMenu(null);
+    setProjectMenu((current) =>
+      current?.id === project._id && isSidebarMoreTrigger(event.currentTarget)
+        ? null
+        : { id: project._id, x: position.x, y: position.y }
+    );
+  };
+  const openSectionMenu = (
+    id: string,
+    event: MouseEvent<HTMLButtonElement>
+  ): void => {
+    if (!isSidebarSectionId(id)) {
+      return;
+    }
+    const position = menuAnchorPosition(event);
+    setSessionMenu(null);
+    setProjectMenu(null);
+    setSectionMenu((current) =>
+      current?.id === id ? null : { id, x: position.x, y: position.y }
+    );
+  };
   return (
     <>
       <SidebarNav
@@ -314,26 +407,23 @@ function Sidebar({
         rail={rail.map((item) => ({ ...item, onClick: wrap(item.onClick) }))}
         sections={sections.map((section) => ({
           ...section,
+          onAdd: section.onAdd ? wrap(section.onAdd) : undefined,
+          onMore: (event) => {
+            openSectionMenu(section.id, event);
+          },
           groups: section.groups.map((group) => ({
             ...group,
             onAdd: group.onAdd ? wrap(group.onAdd) : undefined,
           })),
         }))}
         activeId={chatId}
+        actionsOpenId={projectMenu?.id ?? sectionMenu?.id ?? null}
         onPick={(id) => {
           org.goChat(id as Id<"chats">);
           onNavigate?.();
         }}
         onGroupContextMenu={(id, event) => {
-          const project = org.projects?.find((item) => String(item._id) === id);
-          if (!project) {
-            return;
-          }
-          setProjectMenu({
-            id: project._id,
-            x: event.clientX,
-            y: event.clientY,
-          });
+          openProjectMenu(id, event);
         }}
         onItemContextMenu={(id, event) => {
           setSessionMenu({ id, x: event.clientX, y: event.clientY });
@@ -361,10 +451,27 @@ function Sidebar({
       )}
       {projectMenu && (
         <ContextMenu
+          header={
+            projectForMenu ? (
+              <ProjectPeekHeader
+                chatCount={projectChatCount}
+                name={projectForMenu.name}
+                path={projectPeekPath(projectForMenu, org.runtimeId)}
+              />
+            ) : undefined
+          }
           items={projectMenuItems}
           x={projectMenu.x}
           y={projectMenu.y}
           onClose={() => setProjectMenu(null)}
+        />
+      )}
+      {sectionMenu && (
+        <ContextMenu
+          items={sectionMenuItems}
+          x={sectionMenu.x}
+          y={sectionMenu.y}
+          onClose={() => setSectionMenu(null)}
         />
       )}
     </>

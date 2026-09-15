@@ -4,10 +4,12 @@ import {
   ChevronUp,
   LogOut,
   Moon,
+  MoreHorizontal,
   PanelLeft,
   Plus,
   Plug,
   Settings,
+  SquarePen,
   Sun,
   UserPlus,
 } from "lucide-react";
@@ -61,14 +63,22 @@ export interface SidebarGroup {
   icon?: ReactNode;
   items: SidebarItem[];
   emptyHint?: string;
+  addIcon?: "compose" | "plus";
   addLabel?: string;
+  hideHeader?: boolean;
+  moreLabel?: string;
   onAdd?: () => void;
+  showMore?: boolean;
 }
 
 export interface SidebarSection {
   id: string;
   label: string;
   groups: SidebarGroup[];
+  addLabel?: string;
+  moreLabel?: string;
+  onAdd?: () => void;
+  onMore?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
 export interface SidebarUser {
@@ -99,6 +109,7 @@ interface SidebarNavProps {
   sections: SidebarSection[];
   activeId?: string | null;
   onPick?: (id: string) => void;
+  actionsOpenId?: string | null;
   onGroupContextMenu?: (id: string, event: MouseEvent) => void;
   onItemContextMenu?: (id: string, event: MouseEvent) => void;
   onItemDragStart?: (id: string, event: DragEvent) => void;
@@ -117,6 +128,66 @@ const SIDEBAR_MOTION = {
   easing: "cubic-bezier(0.16, 1, 0.3, 1)",
   expandedWidth: 224,
 };
+
+function SidebarHoverActions({
+  addIcon = "plus",
+  addLabel,
+  moreLabel,
+  onAdd,
+  onMore,
+  open = false,
+}: {
+  addIcon?: "compose" | "plus";
+  addLabel?: string;
+  moreLabel?: string;
+  onAdd?: () => void;
+  onMore?: (event: MouseEvent<HTMLButtonElement>) => void;
+  open?: boolean;
+}) {
+  if (!onAdd && !onMore) {
+    return null;
+  }
+  return (
+    <div
+      data-sidebar-hover-actions
+      data-open={open ? "" : undefined}
+      className="sidebar-hover-actions absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center"
+    >
+      {onMore && (
+        <button
+          type="button"
+          data-sidebar-more
+          aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label={moreLabel ?? "メニュー"}
+          title={moreLabel ?? "メニュー"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onMore(event);
+          }}
+          className="text-ink-3 hover:bg-hover-2 hover:text-ink flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      )}
+      {onAdd && (
+        <button
+          type="button"
+          data-sidebar-add
+          aria-label={addLabel ?? "追加"}
+          title={addLabel ?? "追加"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAdd();
+          }}
+          className="text-ink-3 hover:bg-hover-2 hover:text-ink flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+        >
+          {addIcon === "compose" ? <SquarePen size={13} /> : <Plus size={14} />}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function GlideGroup({ children }: { children: ReactNode }) {
   return (
@@ -503,6 +574,7 @@ export default function SidebarNav({
   sections,
   activeId,
   onPick,
+  actionsOpenId,
   onGroupContextMenu,
   onItemContextMenu,
   onItemDragStart,
@@ -711,55 +783,86 @@ export default function SidebarNav({
               className="mb-2"
               aria-label={section.label}
             >
-              <div className="sidebar-copy text-ink-3 mx-2 mb-1 px-2 text-[11px] font-medium tracking-[0.04em]">
-                {section.label}
+              <div
+                className="sidebar-hover-target sidebar-copy relative mx-2 mb-1 flex h-7 items-center rounded-[8px] px-2"
+                data-hover-actions={
+                  actionsOpenId === section.id ? "open" : undefined
+                }
+              >
+                <div
+                  className={`text-ink-3 min-w-0 flex-1 truncate text-[11px] font-medium tracking-[0.04em] ${
+                    section.onAdd || section.onMore ? "pr-12" : ""
+                  }`}
+                >
+                  {section.label}
+                </div>
+                <SidebarHoverActions
+                  addLabel={section.addLabel}
+                  moreLabel={section.moreLabel}
+                  onAdd={section.onAdd}
+                  onMore={section.onMore}
+                  open={actionsOpenId === section.id}
+                />
               </div>
               {section.groups.map((group) => {
                 const open = !collapsedGroups.has(group.id);
+                const showHeader = !group.hideHeader;
+                const groupMore =
+                  group.showMore && onGroupContextMenu
+                    ? (event: MouseEvent<HTMLButtonElement>) => {
+                        onGroupContextMenu(group.id, event);
+                      }
+                    : undefined;
                 return (
                   <div key={group.id} className="mb-1">
-                    <div className="relative">
-                      <button
-                        type="button"
-                        aria-expanded={open}
-                        aria-controls={`sidebar-group-${group.id}`}
-                        onClick={() => toggleGroup(group.id)}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          onGroupContextMenu?.(group.id, event);
-                        }}
-                        className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
+                    {showHeader && (
+                      <div
+                        className="sidebar-hover-target relative"
+                        data-hover-actions={
+                          actionsOpenId === group.id ? "open" : undefined
+                        }
                       >
-                        <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                          <ChevronDown
-                            size={15}
-                            className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
-                          />
-                        </span>
-                        {group.icon && (
-                          <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
-                            {group.icon}
-                          </span>
-                        )}
-                        <span
-                          className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${group.onAdd ? "pr-7" : ""}`}
-                        >
-                          {group.label}
-                        </span>
-                      </button>
-                      {group.onAdd && (
                         <button
                           type="button"
-                          aria-label={group.addLabel ?? "追加"}
-                          title={group.addLabel ?? "追加"}
-                          onClick={group.onAdd}
-                          className="text-ink-3 hover:bg-hover-2 hover:text-ink absolute top-1 right-3 z-20 flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-150 active:scale-[0.94]"
+                          aria-expanded={open}
+                          aria-controls={`sidebar-group-${group.id}`}
+                          onClick={() => toggleGroup(group.id)}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            onGroupContextMenu?.(group.id, event);
+                          }}
+                          className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
                         >
-                          <Plus size={14} />
+                          <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                            <ChevronDown
+                              size={15}
+                              className={`transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
+                            />
+                          </span>
+                          {group.icon && (
+                            <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">
+                              {group.icon}
+                            </span>
+                          )}
+                          <span
+                            className={`sidebar-copy text-ink-2 ml-1.5 min-w-0 flex-1 truncate text-[13.5px] font-medium ${
+                              group.onAdd || groupMore ? "pr-12" : ""
+                            }`}
+                          >
+                            {group.label}
+                          </span>
                         </button>
-                      )}
-                    </div>
-                    {open && (
+                        <SidebarHoverActions
+                          addIcon={group.addIcon}
+                          addLabel={group.addLabel}
+                          moreLabel={group.moreLabel}
+                          onAdd={group.onAdd}
+                          onMore={groupMore}
+                          open={actionsOpenId === group.id}
+                        />
+                      </div>
+                    )}
+                    {(open || !showHeader) && (
                       <div id={`sidebar-group-${group.id}`}>
                         <GlideGroup>
                           {group.items.map((item) => {
