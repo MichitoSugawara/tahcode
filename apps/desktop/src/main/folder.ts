@@ -3,7 +3,7 @@ import type {
   DesktopPickFolderResult,
 } from "@tahcode/core/desktop";
 import { BrowserWindow, dialog } from "electron";
-import type { IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent, OpenDialogOptions } from "electron";
 
 import { readFolderGitRemote } from "./folderList";
 
@@ -14,10 +14,13 @@ export async function pickFolderFromEvent(
   request: DesktopPickFolderRequest
 ): Promise<DesktopPickFolderResult> {
   const owner = BrowserWindow.fromWebContents(event.sender);
-  const picked = await dialog.showOpenDialog(owner ?? undefined, {
+  const options: OpenDialogOptions = {
     defaultPath: request.defaultPath,
     properties: ["openDirectory", "createDirectory"],
-  });
+  };
+  const picked = owner
+    ? await dialog.showOpenDialog(owner, options)
+    : await dialog.showOpenDialog(options);
   const folder = picked.filePaths[0];
   if (picked.canceled || !folder) {
     return { canceled: true };
