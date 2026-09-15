@@ -9,7 +9,7 @@
 | ハーネス | ブリッジの起動 | tahcode ops の渡し方 |
 | --- | --- | --- |
 | Claude | `claude -p --output-format stream-json --verbose` | **`--mcp-config`** + **`--allowedTools mcp__tahcode__*`**（stdio: `tahcode tool-mcp`。`-p` の既定 permission だと MCP が権限未承認になる） |
-| Cursor | `agent -p --trust --output-format stream-json` | **未配線。** `agent -p` に `--mcp-config` 相当はない。`tahcode tool` + プロンプトカタログ。CLI が 0.1.0 だと `tool` 自体が 「不明なコマンド」になり `@linear` が届かない（0.1.1+ が必要） |
+| Cursor | `agent -p --trust --force --output-format stream-json` | **未配線。** `agent -p` に `--mcp-config` 相当はない。`tahcode tool` + プロンプトカタログ。`--force` が無いと headless のシェルが拒否され `tahcode tool` に届かない（TAH-63）。CLI が 0.1.0 だと `tool` 自体が 「不明なコマンド」になり `@linear` が届かない（0.1.1+）。`--force` 付きランタイムは **0.1.2+** |
 | Codex | `codex exec --json` | `tahcode tool` + プロンプトカタログ |
 | OpenCode | `opencode run` | 同上 |
 | Grok | `grok --prompt` | 同上 |
@@ -60,7 +60,7 @@ Linear ツール（最低限の issue 面）: `list_linear_issues` / `search_lin
 1. preview / staging にログイン（`test@test.com` / `test1234`）。
 2. `/o/preview/connectors` で Linear を接続（未接続でも claim の `opsBundle.connectors` は空配列で返る）。
 3. Claude が検出されているマシンで `@claude` ジョブを流す。思考トレースに `tahcode ops MCP attached (--mcp-config)` が出る。起動 argv に `--allowedTools mcp__tahcode__*` が付き、MCP の `list_connectors` は権限未承認にならない（`bypassPermissions` は使わない）。
-4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` / `--allowedTools` は付かず、`tahcode tool` 案内になる。
-5. Linear を接続したうえで `@claude @linear 課題を一覧` を流す。思考トレースの injected が 1 以上、起動 argv に `mcp__tahcode-linear-<last8>__*` が付き、課題一覧は tahcode コネクタ経由（Cursor 内蔵 Linear MCP ではない）。Cursor ジョブでは `tahcode tool list_linear_issues` がカタログに出る。
+4. 同じジョブ中に `tahcode tool list_connectors` がカタログに出ること。Cursor ジョブでは `--mcp-config` / `--allowedTools` は付かず、起動 argv に `--trust --force` が付き、`tahcode tool` 案内になる。
+5. Linear を接続したうえで `@claude @linear 課題を一覧` を流す。思考トレースの injected が 1 以上、起動 argv に `mcp__tahcode-linear-<last8>__*` が付き、課題一覧は tahcode コネクタ経由（Cursor 内蔵 Linear MCP ではない）。Cursor ジョブでは `tahcode tool list_linear_issues` がカタログに出る（`--force` が無いとシェルが拒否され呼べない）。
 
 Cloudflare の preview Worker は `pr-<number>` で分かれている。Convex も同じ `pr-<number>` 識別子に載せる。チームの deployment 上限（40）で新規作成できないときは、閉じた PR の残りプレビューを 1 件消してから `pr-<number>` を取り直す。マージ済みブランチ名へ関数だけ載せて他 PR と共有すると、後から来た preview が `agentTools:invoke` のバリデータを上書きする。

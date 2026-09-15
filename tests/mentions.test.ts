@@ -221,6 +221,7 @@ describe(headlessArgs, () => {
     expect(headlessArgs("cursor", "hi")).toStrictEqual([
       "-p",
       "--trust",
+      "--force",
       "--output-format",
       "stream-json",
       "hi",
@@ -228,6 +229,7 @@ describe(headlessArgs, () => {
     expect(headlessArgs("cursor", "hi", "muse-spark-1.3")).toStrictEqual([
       "-p",
       "--trust",
+      "--force",
       "--model",
       "muse-spark-1.3",
       "--output-format",
@@ -319,12 +321,21 @@ describe(headlessArgs, () => {
     ).toStrictEqual([
       "-p",
       "--trust",
+      "--force",
       "--model",
       "muse-spark-1.3",
       "--output-format",
       "stream-json",
       "hi",
     ]);
+  });
+
+  it("forces Cursor headless shell so tahcode tool is not rejected", () => {
+    const argv = headlessArgs("cursor", "list issues");
+    expect(argv).toContain("--trust");
+    expect(argv).toContain("--force");
+    expect(argv.indexOf("--force")).toBeGreaterThan(argv.indexOf("--trust"));
+    expect(argv).not.toContain("--sandbox");
   });
 
   it("injects Claude ultrathink into the prompt and maps ultracode to --effort xhigh", () => {

@@ -93,6 +93,7 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  * tahcode (ターコード, "team agent harness") is the renamed successor of the
  * `dalecode` npm package (last release 0.1.1). tahcode started at 0.1.0;
  * 0.1.1 adds `tahcode tool` / `tool-mcp` and leaseId on job events.
+ * 0.1.2 adds Cursor headless `--force` so `tahcode tool` is not rejected.
  * ───────────────────────────────────────────────────────── */
 
 type Flags = Record<string, string | boolean>;

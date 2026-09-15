@@ -127,7 +127,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     binaryNames: ["agent", "cursor-agent"],
     displayName: "Cursor",
     headlessSummary:
-      "agent -p --output-format stream-json (t3code CursorDriver / ACP)",
+      "agent -p --trust --force --output-format stream-json (t3code CursorDriver / ACP)",
     kind: "cursor",
     mentionHandles: ["cursor", "agent"],
     modelFlag: "--model",
