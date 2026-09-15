@@ -26,7 +26,7 @@ export const WORKBENCH_PANELS: Record<WorkbenchPanelId, WorkbenchPanelDef> = {
     blurb: "ローカルプレビューを本線チャットの横で見る面",
     id: "browser",
     label: "プレビュー",
-    next: "iframe / webcontents の実プレビューは次のフェーズです。",
+    next: "URL を開くと接続中マシンが取得し、この面に描画します。",
     title: "ブラウザ",
   },
   chat: {
@@ -47,7 +47,7 @@ export const WORKBENCH_PANELS: Record<WorkbenchPanelId, WorkbenchPanelDef> = {
     blurb: "接続中マシンのターミナル",
     id: "terminal",
     label: "端末",
-    next: "PTY ブリッジは次のフェーズです。",
+    next: "Ghostty で描画し、入出力はブリッジの PTY に載せます。",
     title: "ターミナル",
   },
 };

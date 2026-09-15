@@ -7,11 +7,13 @@ export function WorkbenchEmpty({
   title,
   children,
   action,
+  badge = "次のフェーズで接続",
 }: {
+  action?: ReactNode;
+  badge?: string;
+  children: ReactNode;
   icon: ReactNode;
   title: string;
-  children: ReactNode;
-  action?: ReactNode;
 }) {
   return (
     <div
@@ -20,7 +22,7 @@ export function WorkbenchEmpty({
     >
       <div className="text-ink-3 mb-3">{icon}</div>
       <StatusPill tone="neutral" dot={false} className="mb-2.5">
-        次のフェーズで接続
+        {badge}
       </StatusPill>
       <h3 className="text-ink text-[13.5px] font-medium">{title}</h3>
       <p className="text-ink-2 mt-1.5 max-w-[260px] text-[12.5px] leading-relaxed">

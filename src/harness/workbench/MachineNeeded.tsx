@@ -29,3 +29,20 @@ export function MachineNeededAction() {
     </Button>
   );
 }
+
+export function BridgeUpdateAction() {
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant="accent"
+      onClick={() => {
+        void navigator.clipboard.writeText(
+          "npm i -g tahcode@latest && tahcode restart"
+        );
+      }}
+    >
+      更新コマンドをコピー
+    </Button>
+  );
+}

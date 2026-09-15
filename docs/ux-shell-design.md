@@ -113,7 +113,7 @@ Org 切替
 
 ## TAH-34 — 右サイド workbench（Phase 1）
 
-詳細エビデンスと後続は [`docs/workbench-phase1.md`](workbench-phase1.md)。TAH-69 の本番配線は [`docs/new-chat-t3code.md`](new-chat-t3code.md) §8。
+詳細エビデンスと後続は [`docs/workbench-phase1.md`](workbench-phase1.md)。TAH-69 の Terminal / Browser 実配線は [`docs/workbench-tah69.md`](workbench-tah69.md)。
 
 旧 Context / Runtime / Team は設定寄り。#33 で隠した判断と整合するので **再表示しない**。Settings が Runtime / Team をフル幅で持つ。
 
@@ -122,7 +122,7 @@ Codex side panel（[#41406](https://github.com/openai/codex/issues/41406) / [in-
 ### Phase
 
 1. **Phase 1（このスライス）**: タブ切替 + 開閉 + 幅。4 面は意図した empty / ローカル下書き。Remote の停止は TAH-13 `jobs.cancel`。ヘッダー固定トグルは TAH-39 を常設化。
-2. **後続**: 実 PTY、実プレビュー、RDP/VNC、サイドチャットの別 `kind`。Files / Diff は構造化データが来るまで出さない。
+2. **後続**: RDP/VNC、サイドチャットの別 `kind`。Files / Diff は構造化データが来るまで出さない。Terminal / Browser の実配線は TAH-69。
 
 ## TAH-45 — モジュール枠（実装しない）
 

@@ -92,7 +92,7 @@ tahcode は `projects.cwd` を既に持つが、入力が手打ちだけ（TAH-6
 
 この製品ではこうできていた: ワークスペースはフォルダ選択ダイアログか最近使ったパス。サイドパネルで Terminal / Browser / Chat を切替。
 
-TAH-67 / TAH-69 の到達点。Phase 1 は意図した empty（偽物の PTY / iframe は出さない）。詳細は [`docs/workbench-phase1.md`](workbench-phase1.md)。
+TAH-67 の到達点。Phase 1 は意図した empty。Terminal / Browser の実配線は [TAH-69](https://linear.app/tahcode/issue/TAH-69/) / [`docs/workbench-tah69.md`](workbench-tah69.md)。
 
 ---
 
@@ -199,34 +199,25 @@ Composer 上のプロジェクト / マシン / ブランチと、作成時の�
 
 ---
 
-## 8. TAH-69 — 右サイド（後続）
+## 8. TAH-69 — 右サイド（Terminal / Browser 実配線）
 
-### 症状
+詳細と対応表は [`docs/workbench-tah69.md`](workbench-tah69.md)。枠は TAH-34 Phase 1。
 
-Phase 1 の枠（タブ切替・開閉・empty）は TAH-34 で ship。実 PTY / プレビュー / 画面 / 副チャット backend は未配線。
+### このスライスでやること
 
-### 期待（Linear）の 4 面
+1. Terminal — t3code Ghostty + ブリッジ PTY（python3 `pty.fork`）。ゼロからのエミュレータは書かない
+2. Browser — URL をマシンが fetch し、面に描画（`iframe src` / `srcdoc` / text）
+3. オフライン / 旧ブリッジは empty + CTA（プラグイン表記。禁則コピーは TAH-68 と同じ）
 
-1. Terminal — マシン上のターミナル
-2. Browser — 組み込み / 連携ブラウザ
-3. リモートデスクトップ — マシン画面
-4. サイドチャット — 本線横の副チャット
+### このスライスで薄く残すもの
 
-未接続時は「オンラインのマシンが必要」などの empty / CTA。幽霊ランタイム禁止。禁則コピーは TAH-68 と同じ。
-
-### フェーズ（TAH-34 Phase 1 が枠を ship）
-
-1. **シェル（TAH-34 Phase 1）** — タブ切替 + 開閉。ヘッダー固定トグルは TAH-39 を常設化。旧 Context / Runtime / Team は再表示しない。
-2. **後続** — 実 PTY、実プレビュー、RDP/VNC、サイドチャット `kind`。
+- リモートデスクトップ — #71 の枠 + ジョブ停止。RDP / VNC は後続
+- サイドチャット — localStorage 下書き。Convex の別 `kind` は後続
 
 ### 後続チケット案
 
-- TAH-69b: Terminal（PTY または tool ログ）
-- TAH-69c: Browser
-- TAH-69d: リモートデスクトップ（画面。停止は Phase 1 で Composer と共有）
+- TAH-69d: リモートデスクトップ（画面）
 - TAH-69e: サイドチャット（`kind` 決定後）
-
-枠の empty は [`docs/workbench-phase1.md`](workbench-phase1.md)。
 
 ---
 

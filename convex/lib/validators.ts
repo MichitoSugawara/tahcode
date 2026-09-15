@@ -218,6 +218,21 @@ export const fsBrowseStatus = v.union(
   v.literal("failed")
 );
 
+export const ptySessionStatus = v.union(
+  v.literal("starting"),
+  v.literal("running"),
+  v.literal("exited"),
+  v.literal("error"),
+  v.literal("closed")
+);
+
+export const previewNavStatus = v.union(
+  v.literal("idle"),
+  v.literal("loading"),
+  v.literal("success"),
+  v.literal("failed")
+);
+
 export const projectSummary = v.object({
   _id: v.id("projects"),
   cwd: v.optional(v.string()),
