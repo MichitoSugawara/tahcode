@@ -10,6 +10,7 @@
 /** ipcMain.handle / ipcRenderer.invoke channel names. */
 export const DESKTOP_IPC = {
   applyUpdate: "tahcode:desktop:applyUpdate",
+  browseFolder: "tahcode:desktop:browseFolder",
   checkForUpdates: "tahcode:desktop:checkForUpdates",
   downloadUpdate: "tahcode:desktop:downloadUpdate",
   getCliStatus: "tahcode:desktop:getCliStatus",
@@ -17,6 +18,7 @@ export const DESKTOP_IPC = {
   getUpdateState: "tahcode:desktop:getUpdateState",
   openLatestRelease: "tahcode:desktop:openLatestRelease",
   openUpdateUi: "tahcode:desktop:openUpdateUi",
+  pickFolder: "tahcode:desktop:pickFolder",
   registerLocalRuntime: "tahcode:desktop:registerLocalRuntime",
   registerProgress: "tahcode:desktop:registerProgress",
   setAutoUpdate: "tahcode:desktop:setAutoUpdate",

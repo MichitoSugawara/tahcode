@@ -6,7 +6,11 @@ import {
   isRegisterProgressStep,
 } from "@tahcode/core/desktop";
 import type {
+  DesktopBrowseFolderRequest,
+  DesktopBrowseFolderResult,
   DesktopCliStatus,
+  DesktopPickFolderRequest,
+  DesktopPickFolderResult,
   DesktopUpdateState,
   OAuthStrategy,
   RegisterLocalRuntimeRequest,
@@ -26,7 +30,8 @@ import { contextBridge, ipcRenderer } from "electron";
  *
  * IPC is allow-listed: hostname, CLI status, the fixed
  * registerLocalRuntime sequence, progress events for that
- * sequence, and desktop update invoke/events. No arbitrary shell.
+ * sequence, folder pick/browse, and desktop update invoke/events.
+ * No arbitrary shell.
  * ───────────────────────────────────────────────────────── */
 
 function argValue(name: string): string | undefined {
@@ -44,6 +49,16 @@ const bridge: TahcodeDesktopBridge = {
     ipcRenderer.invoke(DESKTOP_IPC.getCliStatus) as Promise<DesktopCliStatus>,
   getHostname: () =>
     ipcRenderer.invoke(DESKTOP_IPC.getHostname) as Promise<string>,
+  browseFolder: (request?: DesktopBrowseFolderRequest) =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.browseFolder,
+      request
+    ) as Promise<DesktopBrowseFolderResult>,
+  pickFolder: (request?: DesktopPickFolderRequest) =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.pickFolder,
+      request
+    ) as Promise<DesktopPickFolderResult>,
   oauthRedirectTo: (next) =>
     oauthStrategy === "system-browser" ? desktopOAuthRedirectTo(next) : null,
   oauthStrategy,

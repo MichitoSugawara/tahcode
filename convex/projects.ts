@@ -16,6 +16,7 @@ import { slugify } from "./lib/ids";
 import type { ProjectFolderRow } from "./lib/projectFolders";
 import {
   assertRuntimeInOrg,
+  deleteProjectRuntimeFolder,
   foldersByProject,
   listFoldersForOrg,
   listFoldersForProject,
@@ -286,6 +287,88 @@ export const setRuntimeFolder = authedMutation({
     return { cwd };
   },
   returns: v.object({ cwd: v.string() }),
+});
+
+export const clearRuntimeFolder = authedMutation({
+  args: {
+    projectId: v.id("projects"),
+    runtimeId: v.id("runtimes"),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    await assertRuntimeInOrg(ctx, args.runtimeId, project.orgId);
+    const removed = await deleteProjectRuntimeFolder(ctx, {
+      projectId: args.projectId,
+      runtimeId: args.runtimeId,
+    });
+    const remaining = await listFoldersForProject(ctx, args.projectId);
+    if (remaining.length === 0) {
+      await ctx.db.patch("projects", args.projectId, { cwd: undefined });
+    }
+    return { removed };
+  },
+  returns: v.object({ removed: v.boolean() }),
+});
+
+export const setRuntimeFolders = authedMutation({
+  args: {
+    folders: v.array(projectRuntimeFolder),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    if (args.folders.length > 50) {
+      throw new Error("Too many machine folders");
+    }
+    for (const folder of args.folders) {
+      await assertRuntimeInOrg(ctx, folder.runtimeId, project.orgId);
+    }
+    const current = await listFoldersForProject(ctx, args.projectId);
+    const nextIds = new Set(
+      args.folders.map((folder) => String(folder.runtimeId))
+    );
+    for (const row of current) {
+      if (!nextIds.has(String(row.runtimeId))) {
+        await deleteProjectRuntimeFolder(ctx, {
+          projectId: args.projectId,
+          runtimeId: row.runtimeId,
+        });
+      }
+    }
+    const mapped: string[] = [];
+    for (const folder of args.folders) {
+      mapped.push(
+        await upsertProjectRuntimeFolder(ctx, {
+          cwd: folder.cwd,
+          mappedBy: ctx.user._id,
+          orgId: project.orgId,
+          projectId: args.projectId,
+          runtimeId: folder.runtimeId,
+        })
+      );
+    }
+    await ctx.db.patch("projects", args.projectId, {
+      cwd: mapped[0],
+    });
+    return null;
+  },
+  returns: v.null(),
 });
 
 export const update = authedMutation({

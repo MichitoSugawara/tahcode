@@ -8,6 +8,8 @@ import {
   connectorCardAttachment,
   connectorScope,
   connectorStatus,
+  fsBrowseResult,
+  fsBrowseStatus,
   grantTarget,
   installMethod,
   jobStatus,
@@ -295,6 +297,22 @@ export default defineSchema({
     error: v.optional(v.string()),
     versionBefore: v.optional(v.string()),
     versionAfter: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"]),
+
+  /* Interactive directory listing on a machine (TAH-67). The bridge
+   * claims queued rows and writes `result` — no command string. */
+  runtimeFsRequests: defineTable({
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    requestedBy: v.id("users"),
+    path: v.string(),
+    status: fsBrowseStatus,
+    result: v.optional(fsBrowseResult),
+    error: v.optional(v.string()),
     claimedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
   })
