@@ -94,6 +94,7 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  * `dalecode` npm package (last release 0.1.1). tahcode started at 0.1.0;
  * 0.1.1 adds `tahcode tool` / `tool-mcp` and leaseId on job events.
  * 0.1.2 adds Cursor headless `--force` so `tahcode tool` is not rejected.
+ * 0.1.3 adds workbench pty / preview capabilities on the bridge.
  * ───────────────────────────────────────────────────────── */
 
 type Flags = Record<string, string | boolean>;

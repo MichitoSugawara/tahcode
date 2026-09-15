@@ -80,7 +80,7 @@ localhost HTML は `srcdoc` + `<base href>`。公開 https は `iframe src`。�
 
 ## 5. 手動確認（Mac・ブリッジ online）
 
-前提: `tahcode@latest` を入れ直し、`tahcode restart`。設定のランタイムがオンライン。Preview デプロイまたは `npm run dev` の Web。
+前提: `tahcode@0.1.3`（`npm i -g tahcode@latest`）を入れ直し、`tahcode restart`。設定のランタイムがオンライン。Preview デプロイまたは `npm run dev` の Web。能力 `pty` / `preview` は **CLI 0.1.3+**。
 
 1. 右レールを開き **端末**。プロンプトが出る。`pwd` → プロジェクト cwd。`ls` → 実ファイル。
 2. Ghostty が落ちたらフォールバック `<pre>` でも同じキーが届く（Enter / Ctrl-C）。
