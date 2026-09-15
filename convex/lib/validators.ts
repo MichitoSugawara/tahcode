@@ -94,7 +94,8 @@ export const agentToolName = v.union(
   v.literal("list_runtimes"),
   v.literal("get_runtime_status"),
   v.literal("list_connectors"),
-  v.literal("get_connector_status")
+  v.literal("get_connector_status"),
+  v.literal("suggest_connector")
 );
 
 export const linearAgentToolName = v.union(
@@ -201,6 +202,12 @@ export const chatSummary = v.object({
 
 export const connectorScope = v.union(v.literal("org"), v.literal("user"));
 
+export const connectorCardAttachment = v.object({
+  kind: v.literal("connector"),
+  provider: v.string(),
+  scope: connectorScope,
+});
+
 export const connectorStatus = v.union(
   v.literal("connected"),
   v.literal("needsAuth"),
@@ -264,6 +271,7 @@ export const jobOpsBundle = v.object({
 export const messageDoc = v.object({
   _creationTime: v.number(),
   _id: v.id("messages"),
+  attachments: v.optional(v.array(connectorCardAttachment)),
   authorHandle: v.optional(v.string()),
   authorId: v.optional(v.id("users")),
   authorName: v.optional(v.string()),

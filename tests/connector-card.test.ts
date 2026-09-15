@@ -197,14 +197,17 @@ describe("connector card copy", () => {
       retry: "再試行",
       searchLabel: "コネクタを検索",
       team: "Team",
+      chatMemberHint: "Team 連携の認証は Owner / Admin が行います。",
     });
     expect(JSON.stringify(CONNECTOR_CARD_COPY)).not.toContain(
       "認可の開始は準備中です"
     );
     expect({
+      intro: CONNECTOR_CARD_COPY.chatIntro("Linear"),
       retry: CONNECTOR_CARD_COPY.retryHint("Linear"),
       waiting: CONNECTOR_CARD_COPY.waiting("Linear"),
     }).toStrictEqual({
+      intro: expect.stringContaining("この org"),
       retry: expect.stringContaining("認証が完了しませんでした"),
       waiting: expect.stringContaining("認証を待っています"),
     });
@@ -220,6 +223,9 @@ describe("connector card copy", () => {
       CONNECTOR_CARD_COPY.removeAccount("pottos"),
       CONNECTOR_CARD_COPY.removeDetail,
       CONNECTOR_CARD_COPY.searchLabel,
+      CONNECTOR_CARD_COPY.chatIntro("Linear"),
+      CONNECTOR_CARD_COPY.chatIntroUser("Linear"),
+      CONNECTOR_CARD_COPY.chatMemberHint,
     ].join(" ");
     expect(haystack).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
@@ -270,26 +276,32 @@ describe("connector card copy", () => {
 
 describe("connector marketplace layout", () => {
   it("uses compact rows with a vertically centered CTA", () => {
+    const card = readFileSync(
+      "src/harness/connectors/LinearConnectorCard.tsx",
+      "utf-8"
+    );
     const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
     const page = readFileSync("src/pages/ConnectorsPage.tsx", "utf-8");
+    const haystack = `${card}\n${pane}`;
     expect({
-      actions: pane.includes("connector-card-actions"),
-      assign: pane.includes("location.assign"),
-      centered: pane.includes("flex items-center gap-3"),
-      complete: pane.includes("completeLinearConnect"),
-      accounts: pane.includes("connector-detail-accounts"),
-      addAnother: pane.includes("shouldShowAddAnotherAccount"),
-      firstOauth: pane.includes("shouldStartOauthFromMarketplace"),
-      rename: pane.includes("connectorConnections.rename"),
-      remove: pane.includes("connectorConnections.remove"),
-      pencil: pane.includes("Pencil"),
+      actions: haystack.includes("connector-card-actions"),
+      assign: haystack.includes("location.assign"),
+      centered: haystack.includes("flex items-center gap-3"),
+      complete: haystack.includes("completeLinearConnect"),
+      accounts: haystack.includes("connector-detail-accounts"),
+      addAnother: haystack.includes("shouldShowAddAnotherAccount"),
+      firstOauth: haystack.includes("shouldStartOauthFromMarketplace"),
+      rename: haystack.includes("connectorConnections.rename"),
+      remove: haystack.includes("connectorConnections.remove"),
+      pencil: haystack.includes("Pencil"),
+      trash: haystack.includes("Trash2"),
       grok:
-        pane.includes("sand-connector-card__header") ||
-        pane.includes("connector-detail-accounts"),
-      icon: pane.includes("providerIconSource"),
-      row: pane.includes("connector-marketplace-row"),
+        haystack.includes("sand-connector-card__header") ||
+        haystack.includes("connector-detail-accounts"),
+      icon: haystack.includes("providerIconSource"),
+      row: haystack.includes("connector-marketplace-row"),
       search: page.includes(CONNECTOR_CARD_COPY.searchLabel),
-      text: pane.includes("connector-card-text"),
+      text: haystack.includes("connector-card-text"),
     }).toStrictEqual({
       accounts: true,
       actions: true,
@@ -298,6 +310,7 @@ describe("connector marketplace layout", () => {
       assign: true,
       pencil: true,
       remove: true,
+      trash: true,
       rename: true,
       centered: true,
       complete: true,
@@ -307,13 +320,13 @@ describe("connector marketplace layout", () => {
       search: true,
       text: true,
     });
-    expect(pane).not.toContain("extras.map");
-    expect(pane).not.toContain("partitionConnectorConnections");
+    expect(haystack).not.toContain("extras.map");
+    expect(haystack).not.toContain("partitionConnectorConnections");
     expect({
-      banned: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(pane),
-      homemade: /M1\.22541|#5E6AD2|LINEAR_MARK_PATH|LinearMark/.test(pane),
-      paddedCard: /rounded-card bg-surface shadow-card/.test(pane),
-      stackedCta: /flex flex-col gap-2 px-3 py-2\.5/.test(pane),
+      banned: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(haystack),
+      homemade: /M1\.22541|#5E6AD2|LINEAR_MARK_PATH|LinearMark/.test(haystack),
+      paddedCard: /rounded-card bg-surface shadow-card/.test(haystack),
+      stackedCta: /flex flex-col gap-2 px-3 py-2\.5/.test(haystack),
     }).toStrictEqual({
       banned: false,
       homemade: false,
@@ -323,17 +336,44 @@ describe("connector marketplace layout", () => {
   });
 
   it("uses a red trash control for one-row account delete", () => {
-    const pane = readFileSync("src/harness/rail/ConnectorsPane.tsx", "utf-8");
+    const card = readFileSync(
+      "src/harness/connectors/LinearConnectorCard.tsx",
+      "utf-8"
+    );
     expect({
-      confirmRemove: pane.includes("CONNECTOR_CARD_COPY.remove"),
+      confirmRemove: card.includes("CONNECTOR_CARD_COPY.remove"),
       label: CONNECTOR_CARD_COPY.removeAccount("pottos"),
-      redTrash: pane.includes("text-red") && pane.includes("Trash2"),
-      removeAccount: pane.includes("CONNECTOR_CARD_COPY.removeAccount"),
+      redTrash: card.includes("text-red") && card.includes("Trash2"),
+      removeAccount: card.includes("CONNECTOR_CARD_COPY.removeAccount"),
     }).toStrictEqual({
       confirmRemove: true,
       label: "pottos を削除",
       redTrash: true,
       removeAccount: true,
+    });
+  });
+});
+
+describe("chat-inline connector card", () => {
+  it("mounts the shared Linear card from a structured message attachment", () => {
+    const thread = readFileSync("src/harness/thread/Thread.tsx", "utf-8");
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const card = readFileSync(
+      "src/harness/connectors/LinearConnectorCard.tsx",
+      "utf-8"
+    );
+    expect({
+      attachment: thread.includes("firstConnectorCardAttachment"),
+      chatRow: card.includes("connector-chat-card"),
+      mount: thread.includes('variant="chat"'),
+      slash: composer.includes('name: "/connect"'),
+      tool: composer.includes("suggestConnector"),
+    }).toStrictEqual({
+      attachment: true,
+      chatRow: true,
+      mount: true,
+      slash: true,
+      tool: true,
     });
   });
 });

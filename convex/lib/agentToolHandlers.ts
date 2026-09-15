@@ -24,6 +24,7 @@ import {
   listRuntimeGrants,
 } from "./access";
 import type { OrgRole } from "./access";
+import { postConnectorCardMessage } from "./connectorCards";
 import { isVisibleConnectorConnection } from "./connectors";
 import {
   agentConnectorView,
@@ -68,6 +69,8 @@ export async function runAgentTool(
       return await listConnectors(ctx, scope, args);
     case "get_connector_status":
       return await getConnectorStatus(ctx, scope, args);
+    case "suggest_connector":
+      return await suggestConnector(ctx, scope, args);
     default: {
       const _exhaustive: never = name;
       return _exhaustive;
@@ -354,6 +357,21 @@ async function getConnectorStatus(
   return { connections: connections.map(agentConnectorView), orgId };
 }
 
+async function suggestConnector(
+  ctx: MutationCtx,
+  scope: AgentToolScope,
+  args: Record<string, unknown>
+) {
+  const chatId = optionalString(args, "chatId") ?? activeChatId(scope.job);
+  await loadVisibleChat(ctx, scope, chatId);
+  return await postConnectorCardMessage(ctx, {
+    chatId: asId<"chats">(chatId),
+    provider: optionalString(args, "provider"),
+    scope: optionalString(args, "scope"),
+    userId: scope.user._id,
+  });
+}
+
 async function getRuntimeStatus(
   ctx: MutationCtx,
   scope: AgentToolScope,
@@ -522,6 +540,7 @@ async function enrichMessage(ctx: MutationCtx, row: Doc<"messages">) {
     authorHandle,
     authorId: row.authorId,
     authorName,
+    attachments: row.attachments,
     authorType: row.authorType,
     body: row.body,
     chatId: row.chatId,

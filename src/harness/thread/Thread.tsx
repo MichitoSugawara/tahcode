@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
 import { Composer, useChatAgent, useSendMessage } from "@/harness/Composer";
+import { LinearConnectorCard } from "@/harness/connectors/LinearConnectorCard";
 import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
+import { firstConnectorCardAttachment } from "@/lib/connectorCard";
 import { displayName } from "@/lib/format";
 import { agentMention, isProviderKind } from "@/lib/providers";
 
@@ -15,6 +17,11 @@ import { UserBubble } from "./UserBubble";
 export interface ThreadMessage {
   _id: Id<"messages">;
   _creationTime: number;
+  attachments?: {
+    kind: "connector";
+    provider: string;
+    scope: "org" | "user";
+  }[];
   authorType: "user" | "agent" | "system";
   authorId?: Id<"users">;
   body: string;
@@ -175,6 +182,25 @@ export function Thread({
           )}
           {messages.map((message, index) => {
             const previous = messages[index - 1];
+            const connector = firstConnectorCardAttachment(message.attachments);
+            if (connector) {
+              return (
+                <div
+                  key={String(message._id)}
+                  className="mx-auto w-full max-w-[720px]"
+                >
+                  {message.body.trim().length > 0 ? (
+                    <p className="text-ink-2 mb-2 text-[13px] leading-relaxed">
+                      {message.body}
+                    </p>
+                  ) : null}
+                  <LinearConnectorCard
+                    preferredScope={connector.scope}
+                    variant="chat"
+                  />
+                </div>
+              );
+            }
             if (message.authorType === "user") {
               const mine = String(message.authorId) === String(org.me._id);
               const sameAuthor =

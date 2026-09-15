@@ -95,7 +95,8 @@ async function invoke(
     | "list_runtimes"
     | "get_runtime_status"
     | "list_connectors"
-    | "get_connector_status",
+    | "get_connector_status"
+    | "suggest_connector",
   args: Record<string, unknown> = {},
   token = TOKEN
 ) {

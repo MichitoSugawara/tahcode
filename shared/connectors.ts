@@ -24,6 +24,94 @@ export const MAX_CONNECTOR_DISPLAY_LABEL = 120;
 export const MAX_CONNECTOR_OAUTH_REQUEST_ID = 64;
 export const MAX_CONNECTOR_OAUTH_ALIAS = 128;
 export const LINEAR_CONNECT_QUERY = "linear";
+export const CONNECTOR_CARD_KIND = "connector" as const;
+
+export type ConnectorCardAttachment = {
+  kind: typeof CONNECTOR_CARD_KIND;
+  provider: string;
+  scope: ConnectorScope;
+};
+
+export function isKnownConnectorProvider(
+  value: string
+): value is ConnectorProvider {
+  return (CONNECTOR_PROVIDERS as readonly string[]).includes(value);
+}
+
+export function normalizeConnectorScope(
+  value: string | undefined
+): ConnectorScope {
+  if (value === undefined || value === "org") {
+    return "org";
+  }
+  if (value === "user") {
+    return "user";
+  }
+  throw new Error("scope must be org or user");
+}
+
+export function normalizeConnectorCardAttachment(input: {
+  provider?: string;
+  scope?: string;
+}): ConnectorCardAttachment {
+  const provider = normalizeConnectorProvider(input.provider ?? "linear");
+  if (!isKnownConnectorProvider(provider)) {
+    throw new Error("Unknown connector");
+  }
+  return {
+    kind: CONNECTOR_CARD_KIND,
+    provider,
+    scope: normalizeConnectorScope(input.scope),
+  };
+}
+
+export function firstConnectorCardAttachment(
+  attachments:
+    | readonly { kind: string; provider: string; scope: string }[]
+    | undefined
+): ConnectorCardAttachment | undefined {
+  if (!attachments) {
+    return;
+  }
+  for (const item of attachments) {
+    if (item.kind !== CONNECTOR_CARD_KIND) {
+      continue;
+    }
+    try {
+      return normalizeConnectorCardAttachment(item);
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
+/** Same-origin org path only. Defaults to the dedicated connectors surface. */
+export function sanitizeLinearReturnPath(
+  returnPath: string | undefined,
+  orgSlug: string
+): string {
+  const fallback = `/o/${encodeURIComponent(orgSlug)}/connectors`;
+  if (returnPath === undefined) {
+    return fallback;
+  }
+  const trimmed = returnPath.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return fallback;
+  }
+  const pathname = (trimmed.split("?")[0] ?? "").split("#")[0] ?? "";
+  if (pathname.includes("\\") || pathname.includes("//")) {
+    return fallback;
+  }
+  const prefix = `/o/${orgSlug}`;
+  if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) {
+    return fallback;
+  }
+  if (!/^\/o\/[a-z0-9-]+(?:\/[A-Za-z0-9._-]+)*$/.test(pathname)) {
+    return fallback;
+  }
+  return pathname;
+}
 
 export function linearConnectReturnScope(
   search: string

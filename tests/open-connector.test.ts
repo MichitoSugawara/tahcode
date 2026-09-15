@@ -95,6 +95,32 @@ describe(buildLinearReturnUri, () => {
     );
   });
 
+  it("can return to a chat path in the same org", () => {
+    expect(
+      buildLinearReturnUri({
+        orgSlug: "preview",
+        returnPath: "/o/preview/c/k17chat1",
+        scope: "org",
+        siteUrl: "https://app.example",
+      })
+    ).toBe(
+      "https://app.example/o/preview/c/k17chat1?connector=linear&scope=org"
+    );
+  });
+
+  it("rejects a return path that leaves the org", () => {
+    expect(
+      buildLinearReturnUri({
+        orgSlug: "preview",
+        returnPath: "https://evil.example/phish",
+        scope: "org",
+        siteUrl: "https://app.example",
+      })
+    ).toBe(
+      "https://app.example/o/preview/connectors?connector=linear&scope=org"
+    );
+  });
+
   it("includes connectionId so the 2nd+ account can complete", () => {
     expect(
       buildLinearReturnUri({

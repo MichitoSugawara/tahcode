@@ -15,6 +15,7 @@ import {
   Image as ImageIcon,
   MessageSquarePlus,
   Paperclip,
+  Plug,
   Sparkles,
   UnfoldHorizontal,
   UserPlus,
@@ -39,7 +40,13 @@ import { NoRuntimeChrome } from "@/harness/ui/NoRuntimeChrome";
 import { LINEAR_CONNECTOR, providerIconSource } from "@/lib/connectorCard";
 import { connectorMentionSuggestItems } from "@/lib/connectorMentions";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
-import { colorFor, displayName, formatBytes, monogram } from "@/lib/format";
+import {
+  colorFor,
+  displayName,
+  errorSummary,
+  formatBytes,
+  monogram,
+} from "@/lib/format";
 import {
   MENTION_BOUNDARY,
   MENTION_HANDLE,
@@ -412,6 +419,7 @@ export function Composer({
   }) => void;
 }) {
   const org = useOrg();
+  const suggestConnector = useMutation(api.messages.suggestConnector);
   const { send: sendWithRules, busy } = useSendMessage(chat);
   const { agent, setAgent } = useChatAgent(chat);
   const { cancel, stopping } = useCancelJob();
@@ -613,6 +621,27 @@ export function Composer({
       icon: <UserRound size={14} />,
       key: "dm",
       name: "/dm",
+    },
+    {
+      action: () => {
+        if (!serverChatId) {
+          toast.error("チャットの準備ができていません");
+          return;
+        }
+        void suggestConnector({
+          chatId: serverChatId,
+          provider: "linear",
+          scope: "org",
+        }).catch((error: unknown) => {
+          toast.error("コネクタカードを表示できませんでした", {
+            description: errorSummary(error),
+          });
+        });
+      },
+      desc: "Linear を接続",
+      icon: <Plug size={14} />,
+      key: "connect",
+      name: "/connect",
     },
     ...(org.isAdmin
       ? [

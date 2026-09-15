@@ -35,6 +35,7 @@ export const AGENT_TOOL_NAMES = [
   "get_runtime_status",
   "list_connectors",
   "get_connector_status",
+  "suggest_connector",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
@@ -205,6 +206,20 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
       type: "object",
     },
     name: "get_connector_status",
+  },
+  {
+    description:
+      "Show a Linear connector card in the chat so the user can Add / Authorize / wait / see Connected. Use when the user asks to connect Linear, or Linear is required. Defaults to the active session and the org-scoped Team connection.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {
+        chatId: STRING,
+        provider: STRING,
+        scope: { enum: ["org", "user"], type: "string" },
+      },
+      type: "object",
+    },
+    name: "suggest_connector",
   },
 ] as const;
 
