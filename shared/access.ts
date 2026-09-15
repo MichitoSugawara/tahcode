@@ -93,3 +93,37 @@ export function canSeeChat(input: {
   }
   return true;
 }
+
+/** Personal DM is a singleton; threads and project chats may be renamed. */
+export function canRenameChat(kind: ChatKind): boolean {
+  return kind !== "dm";
+}
+
+export function canDeleteOwnedEntity(input: {
+  actorUserId: string;
+  createdBy: string;
+  isAdmin: boolean;
+}): boolean {
+  return input.isAdmin || input.actorUserId === input.createdBy;
+}
+
+/** DM stays; threads are owner-only; project chats need creator or admin. */
+export function canDeleteChat(input: {
+  actorUserId: string;
+  chatKind: ChatKind;
+  createdBy: string;
+  isAdmin: boolean;
+  ownerId?: string;
+}): boolean {
+  if (input.chatKind === "dm") {
+    return false;
+  }
+  if (input.chatKind === "thread") {
+    return input.ownerId === input.actorUserId;
+  }
+  return canDeleteOwnedEntity({
+    actorUserId: input.actorUserId,
+    createdBy: input.createdBy,
+    isAdmin: input.isAdmin,
+  });
+}

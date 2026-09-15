@@ -288,6 +288,28 @@ describe("shell source contracts", () => {
     expect(create).toContain("マシン別フォルダ");
   });
 
+  it("opens rename and delete from the shared context-menu dialogs", () => {
+    const host = readFileSync("src/harness/dialogs/DialogHost.tsx", "utf-8");
+    expect(host).toContain("api.chats.rename");
+    expect(host).toContain("api.chats.remove");
+    expect(host).toContain("api.projects.update");
+    expect(host).toContain("api.projects.remove");
+  });
+
+  it("confirms destructive deletes in Japanese", () => {
+    const confirm = readFileSync(
+      "src/harness/dialogs/ConfirmDialog.tsx",
+      "utf-8"
+    );
+    const settings = readFileSync(
+      "src/harness/dialogs/ProjectSettingsDialog.tsx",
+      "utf-8"
+    );
+    expect(confirm).toContain("この操作は取り消せません");
+    expect(settings).toContain("プロジェクト設定");
+    expect(settings).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
   it("builds chat and home paths used by copy-link", () => {
     expect(orgHomePath("acme")).toBe("/o/acme");
     expect(orgChatPath("acme", "chat1")).toBe("/o/acme/c/chat1");

@@ -16,3 +16,11 @@ export function chatDisplayTitle(chat: {
 }): string {
   return chat.kind === "dm" ? "Personal DM" : chat.title;
 }
+
+export function normalizeChatTitle(title: string): string {
+  return title.trim().slice(0, 80) || "Untitled chat";
+}
+
+export function normalizeProjectName(name: string): string {
+  return name.trim().slice(0, 80);
+}

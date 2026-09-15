@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 
+import { canDeleteChat, canRenameChat } from "../shared/access.ts";
+import { normalizeChatTitle } from "../shared/chatKind.ts";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import {
@@ -9,6 +11,7 @@ import {
   requireRole,
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
+import { deleteChatTree } from "./lib/entityCleanup";
 import type { ProviderOptionSelection } from "./lib/modelOptions";
 import { sanitizeOptionSelections } from "./lib/modelOptions";
 import type { ProviderDriverKind } from "./lib/providers";
@@ -134,7 +137,7 @@ export async function createProjectChatForUser(
       throw new Error("All chat members must belong to this organization");
     }
   }
-  const title = args.title.trim().slice(0, 80) || "Untitled chat";
+  const title = normalizeChatTitle(args.title);
   const agent = normalizeAgentBinding(args);
   const requestedProfile = args.profileId ?? project.profileId;
   if (requestedProfile) {
@@ -194,7 +197,7 @@ export async function createThreadChatForUser(
   if (!membership) {
     throw new Error("Not a member of this organization");
   }
-  const title = args.title.trim().slice(0, 80) || "Untitled chat";
+  const title = normalizeChatTitle(args.title);
   const agent = normalizeAgentBinding(args);
   if (args.profileId) {
     await requireOrgProfile(ctx, args.orgId, args.profileId);
@@ -407,6 +410,65 @@ export const addMember = authedMutation({
         userId: args.userId,
       });
     }
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const rename = authedMutation({
+  args: {
+    chatId: v.id("chats"),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get("chats", args.chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
+    if (!canRenameChat(chat.kind)) {
+      throw new Error("Personal DMs cannot be renamed");
+    }
+    const title = normalizeChatTitle(args.title);
+    await ctx.db.patch("chats", args.chatId, { title });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const remove = authedMutation({
+  args: { chatId: v.id("chats") },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get("chats", args.chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    const membership = await getMembership(ctx, chat.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertChatVisible(ctx, chat, ctx.user._id, membership.role);
+    const isAdmin = membership.role === "owner" || membership.role === "admin";
+    if (
+      !canDeleteChat({
+        actorUserId: ctx.user._id,
+        chatKind: chat.kind,
+        createdBy: chat.createdBy,
+        isAdmin,
+        ownerId: chat.ownerId,
+      })
+    ) {
+      throw new Error(
+        chat.kind === "dm"
+          ? "Personal DMs cannot be deleted"
+          : "Only the creator or an admin can delete this chat"
+      );
+    }
+    await deleteChatTree(ctx, args.chatId);
     return null;
   },
   returns: v.null(),

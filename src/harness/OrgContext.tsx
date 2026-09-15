@@ -147,6 +147,11 @@ export type DialogState =
       projectId: Id<"projects">;
       runtimeId: Id<"runtimes">;
     }
+  | { kind: "renameChat"; chatId: Id<"chats"> }
+  | { kind: "renameProject"; projectId: Id<"projects"> }
+  | { kind: "projectSettings"; projectId: Id<"projects"> }
+  | { kind: "deleteChat"; chatId: Id<"chats"> }
+  | { kind: "deleteProject"; projectId: Id<"projects"> }
   | null;
 
 /** A runtime is "live" when its heartbeat is fresh (server treats >90s as dead). */
