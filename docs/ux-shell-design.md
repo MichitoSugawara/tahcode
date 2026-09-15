@@ -13,7 +13,7 @@ GitHub PR #33 / #34 / #35 は **別チケット** を運んだ。TAH-32–39 は
 | （背景）右レール Context / Runtime / Team を隠す | 一時オフ。再表示ではない | **#33** | TAH-34 の前提 |
 | TAH-32 | タブ: ミドルクリック閉じ + 右クリック | 未着手 | **実装**（右クリックは TAH-77 / #67。ミドルクリックはタブピル全体） |
 | TAH-33 | セッション右クリック | 未着手 | **実装**（開く / バックグラウンドタブ / リンクコピー） |
-| TAH-34 | 右レールを workbench に再定義 | 未着手 | **設計のみ**（下） |
+| TAH-34 | 右レールを workbench に再定義 | 未着手 | **Phase 1 実装**（下 / [`docs/workbench-phase1.md`](workbench-phase1.md)） |
 | TAH-35 | 左サイドを Projects→Chats | 未着手 | **実装** |
 | TAH-36 | 招待を 1 モーダルでメール+ロール | 未着手 | **実装**（メールは任意） |
 | TAH-37 | セッション DnD でタブ/チャットへ | 未着手 | **実装**（Phase1: サイドバー → タブ条 / メイン面。text/plain フォールバック） |
@@ -62,7 +62,7 @@ Org 切替
 
 - タブ列: `flex-1 min-w-0 overflow-x-auto`（Chrome / VS Code / Cursor と同じ）。ヘッダー行自体も `min-w-0`。
 - 右端: `flex-none` の検索（⌘K）と（フラグオン時）右レールトグル。タブ増減で押し出さない。`data-shell-header-tools` はスクロール行の兄弟。
-- 右レールトグル: `RIGHT_RAIL_SECTION_ENABLED` がオンのときだけ。xl ではドック開閉、未満ではシート。TAH-34 実装後に常設化する前提。
+- 右レールトグル: 検証ワークベンチを常設（TAH-34 Phase 1）。xl ではドック開閉、未満ではシート。開閉は `th:workbench:docked`。旧 `RIGHT_RAIL_SECTION_ENABLED` は設定タブ用でオフのまま。
 
 ### TAH-32 — タブ操作
 
@@ -111,25 +111,18 @@ Org 切替
 - 1 行の `connectorConnections.remove` のみ。OpenConnector / OOMOL は出さない。
 - 根拠: Grok Bot / Settings アカウント一覧は破壊操作をアイコンか赤で区別。Codex / IDE も危険アクションを主 CTA と並べない。
 
-## TAH-34 — 右サイド workbench（実装しない）
+## TAH-34 — 右サイド workbench（Phase 1）
 
-TAH-69 の段階 ship と後続チケットは [`docs/new-chat-t3code.md`](new-chat-t3code.md) §7。
+詳細エビデンスと後続は [`docs/workbench-phase1.md`](workbench-phase1.md)。TAH-69 の本番配線は [`docs/new-chat-t3code.md`](new-chat-t3code.md) §8。
 
-旧 Context / Runtime / Team は設定寄り。#33 で隠した判断と整合するので **再表示しない**。
+旧 Context / Runtime / Team は設定寄り。#33 で隠した判断と整合するので **再表示しない**。Settings が Runtime / Team をフル幅で持つ。
 
-Codex side panel（Unlock AI / in-app browser docs）: Files / Side chat / Review / Terminal / Browser = 「話す場所」と「検証する場所」の分離。t3code も preview / terminal が chat 外。
+Codex side panel（[#41406](https://github.com/openai/codex/issues/41406) / [in-app browser](https://developers.openai.com/codex/app/browser)）: Files / Side chat / Review / Terminal / Browser = 「話す場所」と「検証する場所」の分離。t3code も `rightPanelStore` + preview / terminal が chat 外。
 
-### Phase 案
+### Phase
 
-1. **Phase 1（シェル）**: タブ切替 + 開閉。ヘッダー固定トグルは TAH-39 で受け皿だけ用意。
-2. **Phase 2**: Remote stop（既存 TAH-13 interrupt と Composer 停止を集約表示）。Terminal stub（ランタイムの tool ログ）。
-3. **Phase 3**: Browser / Files / Diff。ランタイムが構造化 preview / diff を返すまで stub 以上は出さない。
-4. Side chat は本線スレッドと履歴を分けないとメンション規則が壊れる。別 `kind` が必要 → プロダクト決定待ち。
-
-### 今やらない理由
-
-- Files / Terminal / Browser の実データがない。空パネルを出すと偽物の workbench になる。
-- Side chat の ACL / メンション / タブモデルが未決。
+1. **Phase 1（このスライス）**: タブ切替 + 開閉 + 幅。4 面は意図した empty / ローカル下書き。Remote の停止は TAH-13 `jobs.cancel`。ヘッダー固定トグルは TAH-39 を常設化。
+2. **後続**: 実 PTY、実プレビュー、RDP/VNC、サイドチャットの別 `kind`。Files / Diff は構造化データが来るまで出さない。
 
 ## TAH-45 — モジュール枠（実装しない）
 

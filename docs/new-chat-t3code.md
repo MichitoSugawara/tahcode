@@ -27,8 +27,8 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。
 | フォルダ | プロジェクト作成時の **手入力** `cwd` だけ。ディレクトリピッカーなし | `src/harness/dialogs/CreateProjectDialog.tsx` · `convex/projects.ts` · `convex/schema.ts` `projects.cwd` |
 | チェックアウト表示 | Context ペインに `cwd:` を出すだけ（右レールはオフ） | `src/harness/rail/ContextPane.tsx` |
 | Git ブランチ | スキーマも bridge 契約もない | — |
-| 右レール | Context / Runtime / Team をフラグで全隠し | `src/harness/rail/flags.ts` · `src/harness/rail/RightRail.tsx` |
-| Terminal / Browser / リモートデスクトップ / サイドチャット | コンポーネントなし。幽霊パネルも出していない | TAH-34 メモと同じ |
+| 右レール | 検証ワークベンチ（サイド / 端末 / プレビュー / リモート）。旧設定タブはオフのまま | `src/harness/workbench/` · `src/harness/rail/RightRail.tsx` |
+| Terminal / Browser / リモートデスクトップ / サイドチャット | Phase 1 シェル + empty / ローカル下書き | [`docs/workbench-phase1.md`](workbench-phase1.md) |
 
 ---
 
@@ -92,7 +92,7 @@ tahcode は `projects.cwd` を既に持つが、入力が手打ちだけ（TAH-6
 
 この製品ではこうできていた: ワークスペースはフォルダ選択ダイアログか最近使ったパス。サイドパネルで Terminal / Browser / Chat を切替。
 
-TAH-67 / TAH-69 の到達点。今は空の workbench を出さない（`ux-shell-design.md` と同じ）。
+TAH-67 / TAH-69 の到達点。Phase 1 は意図した empty（偽物の PTY / iframe は出さない）。詳細は [`docs/workbench-phase1.md`](workbench-phase1.md)。
 
 ---
 
@@ -203,7 +203,7 @@ Composer 上のプロジェクト / マシン / ブランチと、作成時の�
 
 ### 症状
 
-Terminal / Browser / リモートデスクトップ / サイドチャットが使えない。導線もオフ。
+Phase 1 の枠（タブ切替・開閉・empty）は TAH-34 で ship。実 PTY / プレビュー / 画面 / 副チャット backend は未配線。
 
 ### 期待（Linear）の 4 面
 
@@ -214,28 +214,19 @@ Terminal / Browser / リモートデスクトップ / サイドチャットが�
 
 未接続時は「オンラインのマシンが必要」などの empty / CTA。幽霊ランタイム禁止。禁則コピーは TAH-68 と同じ。
 
-### フェーズ（`ux-shell-design.md` TAH-34 を具体化）
+### フェーズ（TAH-34 Phase 1 が枠を ship）
 
-1. **シェル** — タブ切替 + 開閉。ヘッダー固定トグルは TAH-39 の受け皿を常設化。旧 Context / Runtime / Team は再表示しない。
-2. **Terminal stub** — ランタイムの tool ログ / 将来 PTY。オンラインマシンが無いときは CTA のみ。
-3. **Browser / リモートデスクトップ** — ランタイムが構造化 preview / 画面を返すまで stub 以上は出さない。
-4. **サイドチャット** — 本線と履歴を分けないとメンション規則が壊れる。別 `kind` が必要。プロダクト決定待ち。
-
-### 今やらない理由
-
-- Files / Terminal / Browser の実データが無い
-- サイドチャットの ACL / メンション / タブモデルが未決
-- 空パネルは偽物の workbench になる（TAH-34 と同じ判断）
+1. **シェル（TAH-34 Phase 1）** — タブ切替 + 開閉。ヘッダー固定トグルは TAH-39 を常設化。旧 Context / Runtime / Team は再表示しない。
+2. **後続** — 実 PTY、実プレビュー、RDP/VNC、サイドチャット `kind`。
 
 ### 後続チケット案
 
-- TAH-69a: 右レール枠（4 タブ + empty CTA）。中身は未接続メッセージのみ
 - TAH-69b: Terminal（PTY または tool ログ）
 - TAH-69c: Browser
-- TAH-69d: リモートデスクトップ
+- TAH-69d: リモートデスクトップ（画面。停止は Phase 1 で Composer と共有）
 - TAH-69e: サイドチャット（`kind` 決定後）
 
-本 issue は設計承認後に上へ分割してリンクする。
+枠の empty は [`docs/workbench-phase1.md`](workbench-phase1.md)。
 
 ---
 

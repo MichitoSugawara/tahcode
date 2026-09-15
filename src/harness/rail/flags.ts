@@ -1,8 +1,9 @@
 /**
- * Chat right-rail sections (Context / Runtime / Team).
+ * Legacy Context / Runtime / Team sections.
  *
- * Temporarily off — the panes stay in the tree (settings still uses
- * Runtime + Team) so we can flip these back without a rewrite.
+ * Kept off the chat right rail (PR #33). Settings still mounts
+ * RuntimePane + TeamPane directly. The chat rail is the workbench
+ * in `src/harness/workbench/` — do not flip these back on.
  */
 export const RIGHT_RAIL_TABS = ["Context", "Runtime", "Team"] as const;
 
@@ -16,10 +17,6 @@ export const RIGHT_RAIL_SECTION_ENABLED: Record<RailTab, boolean> = {
 
 export function visibleRightRailTabs(): RailTab[] {
   return RIGHT_RAIL_TABS.filter((tab) => RIGHT_RAIL_SECTION_ENABLED[tab]);
-}
-
-export function isRightRailVisible(): boolean {
-  return visibleRightRailTabs().length > 0;
 }
 
 export function resolveRailTab(preferred: RailTab | undefined): RailTab | null {
