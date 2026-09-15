@@ -218,10 +218,10 @@ npm install --legacy-peer-deps   # ルートで 1 回（workspaces が apps/desk
 npm run desktop:dev              # electron-vite dev。production の Web を読み込む（TAHCODE_DESKTOP_ENV=staging|local で切替）
 npm run desktop:pack             # 未署名 .app（apps/desktop/release/mac-arm64/tahcode.app）— deep link の検証はこちら
 npm run desktop:build            # Apple Silicon 向け .dmg / .zip（未署名。apps/desktop/release/）
-npm run desktop:build:signed     # Developer ID + 公証（CSC_* / APPLE_* が必要。手順は apps/desktop/README.md）
+npm run desktop:build:signed     # Developer ID + 公証（証明書の作り方は apps/desktop/README.md「署名と公証」）
 ```
 
-Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `electron-vite build` → xvfb で起動 → スクリーンショット → `electron-builder --linux dir` まで、macOS の `.dmg` は `workflow_dispatch` / `desktop-v*` タグで `macos-latest` が作る。GitHub secrets（`CSC_LINK` / `CSC_KEY_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`）が揃っていれば署名 + 公証、欠けていれば未署名のまま成功する。`desktop-v*` タグは GitHub Releases にも載り、デスクトップの「アップデートを確認」がそれを見る。スクリーンショットは `docs/desktop-screenshots/`。詳細は [`apps/desktop/README.md`](apps/desktop/README.md) の「アップデート」と「署名と公証」。
+Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `electron-vite build` → xvfb で起動 → スクリーンショット → `electron-builder --linux dir` まで、macOS の `.dmg` は `workflow_dispatch` / `desktop-v*` タグで `macos-latest` が作る。GitHub secrets（`CSC_LINK` / `CSC_KEY_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`）が揃っていれば署名 + 公証、**Developer ID 証明書がまだ無く secrets が空でも未署名のまま成功する**。証明書の作成（キーチェーンの CSR → developer.apple.com の Developer ID Application → .p12 → アプリ用パスワード）は [`apps/desktop/README.md`](apps/desktop/README.md) の「署名と公証」。`desktop-v*` タグは GitHub Releases にも載り、デスクトップの「アップデートを確認」がそれを見る。スクリーンショットは `docs/desktop-screenshots/`。
 
 ## 受け入れ基準の対応
 

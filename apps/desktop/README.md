@@ -182,59 +182,115 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 
 Gatekeeper を通す配布と、アプリ内差し替え（`quitAndInstall`）は **Developer ID Application 署名 + Apple 公証（notarize）+ staple** が揃ってから有効になる。electron-builder 26 は `@electron/notarize` を内蔵しており、`mac.notarize` は Apple の資格情報が環境にあるときだけ実際に公証する（[Code signing](https://www.electron.build/code-signing)、[mac.notarize](https://www.electron.build/mac)）。
 
-証明書・.p12・Apple ID パスワードは **リポジトリに入れない**。GitHub Actions の repository secrets か、手元の環境変数だけに置く。
+**Apple Developer Program に入っていれば、Developer ID Application 証明書がまだ無くてもコードはそのままでよい。** GitHub secrets が揃うまで `mac-dmg` は未署名の `.dmg` を出し、ジョブは成功する。証明書は下の Mac 手順で作る。
 
-### 必要なもの
+証明書・CSR・.p12・Apple ID パスワードは **リポジトリに入れない**。GitHub Actions の repository secrets か、手元の環境変数だけに置く。
 
-| 項目 | 用途 | GitHub secret / 環境変数 |
+選ぶ証明書は **Developer ID Application** だけ。次は使わない。
+
+| 種類 | 使う？ | 理由 |
 | --- | --- | --- |
-| Apple Developer Program 加入 | Developer ID を発行する | — |
-| **Developer ID Application** 証明書 | `.app` / `.zip` の署名 | キーチェーン、または .p12 |
-| 証明書の .p12 | CI に渡す | `CSC_LINK`（base64 または `file://` パス） |
-| .p12 のパスワード | 証明書の復号 | `CSC_KEY_PASSWORD` |
-| Apple ID | `notarytool` ログイン | `APPLE_ID` |
-| アプリ用パスワード | Apple ID のログインパスワードではない | `APPLE_APP_SPECIFIC_PASSWORD` |
-| Team ID（10 文字） | 公証のチーム指定 | `APPLE_TEAM_ID` |
+| **Developer ID Application** | 使う | Mac App Store 外の `.app` / `.dmg` / `.zip` の署名 |
+| Developer ID Installer | 使わない | `.pkg` 用。このシェルは dmg/zip |
+| Apple Development / Apple Distribution | 使わない | 開発用 / Mac App Store 用 |
 
-5 つ揃ったときだけ CI は署名 + 公証する。1 つでも欠けると未署名のまま成功する。
+Developer ID を新規発行できるのはチームの **Account Holder**（[Apple の説明](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)）。Admin だけではポータルから作れないことがある。
 
-### チェックリスト
+### Mac チェックリスト 1 — Developer ID Application を作る
 
-1. [developer.apple.com](https://developer.apple.com/account) で **Certificates, Identifiers & Profiles** → **Developer ID Application** を作成する（Mac をキーチェーンに紐づけ、Xcode の Accounts から作ってもよい）。
-2. キーチェーンアクセスでその証明書を選び、**書き出す**。.p12 に秘密鍵を含め、書き出しパスワードを付ける。中間証明書まで入れるかは任意（CI では短い base64 のほうが扱いやすい）。
-3. Apple ID の [アプリ用パスワード](https://appleid.apple.com/)（Sign-In and Security → App-Specific Passwords）を発行する。ラベル例: `tahcode-notarize`。
-4. Team ID を Membership の詳細から控える（10 文字）。
-5. 手元で試す場合:
+秘密鍵は **CSR を作ったその Mac のキーチェーンに残る**。別のマシンで `.cer` だけ入れると秘密鍵が無く、`.p12` を書けない。
 
-   ```bash
-   export CSC_LINK="file://${HOME}/certs/DeveloperID.p12"   # または base64 文字列
-   export CSC_KEY_PASSWORD="…"
-   export APPLE_ID="you@example.com"
-   export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-   export APPLE_TEAM_ID="ABCD123456"
-   npm run desktop:build:signed
-   ```
+#### キーチェーンアクセスで CSR を作る
 
-   `dist:mac:signed` は上記 5 変数が無いと失敗する。未署名のローカル確認は従来どおり `npm run desktop:build` / `dist:mac`（`mac.identity=null`）。
+1. `/Applications/Utilities/Keychain Access.app`（キーチェーンアクセス）を開く。
+2. メニュー **Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority…**（証明書アシスタント → 認証局に証明書を要求）。
+3. User Email Address に Apple ID のメール、Common Name に分かりやすい名前（例: `tahcode Developer ID`）。**CA Email Address は空**。
+4. **Saved to disk**（ディスクに保存）を選び、Continue。`CertificateSigningRequest.certSigningRequest` を保存する。
 
-6. GitHub リポジトリの **Settings → Secrets and variables → Actions** に同じ 5 つを登録する。`CSC_LINK` は次のように base64 化してよい（値はコミットしない）:
+#### developer.apple.com で証明書を発行する
 
-   ```bash
-   base64 -i DeveloperID.p12 | pbcopy
-   ```
+1. [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list) を開く。
+2. 左の **Certificates** → 左上の **+**。
+3. Software の **Developer ID** を選び Continue。種類は **Developer ID Application**（Installer ではない）。Continue。
+4. **Choose File** でさっきの `.certSigningRequest` を上げ、Continue → **Download**。`Downloads` に `.cer` が落ちる。
+5. `.cer` をダブルクリックしてログインキーチェーンに入れる。
 
-7. `apps/desktop/package.json` の version を上げ、`desktop-v<その version>` タグを push する。`mac-dmg` が secrets を見て署名 + 公証し、Releases に `.dmg` / `.zip` / `latest-mac.yml` を載せる。`workflow_dispatch` でも同じ分岐（artifact のみ、Release はタグ時）。
-8. 成果物の検証（署名済み Mac で）:
+#### 秘密鍵が付いているか確認する
 
-   ```bash
-   codesign -dv --verbose=4 /Applications/tahcode.app
-   xcrun stapler validate /Applications/tahcode.app
-   spctl --assess --type execute -v /Applications/tahcode.app
-   ```
+キーチェーンアクセス左の **My Certificates**（自分の証明書）に `Developer ID Application: <名前> (<Team ID>)` があること。行を開くと **private key（秘密鍵）** が入れ子になっていること。無い場合は、CSR を作った Mac ではないか、別のキーチェーンを見ている。
 
-   公証済みなら `spctl` は `source=Notarized Developer ID` を返す。Finder でダブルクリックして開き、**右クリック → 開くは不要**なこと。
+ターミナルでも確認できる。
 
-9. アプリ内更新: 署名ビルドを Applications に入れ、次の `desktop-v*` を出したあと「アップデートを確認」→ ダウンロード → **再起動して適用**。未署名ビルドでは従来どおり「ディスクイメージを開く」。
+```bash
+security find-identity -v -p codesigning
+# 例: 1) … "Developer ID Application: Your Name (ABCD123456)"
+```
+
+#### Xcode から作る（任意）
+
+Xcode が入っているなら **Xcode → Settings → Accounts** → Apple ID → チーム → **Manage Certificates…** → **+** → **Developer ID Application** でも同じ証明書を作れる。できたあとの確認と `.p12` 書き出しは上と同じ。
+
+### Mac チェックリスト 2 — .p12 を書き出す
+
+1. キーチェーンアクセス → **My Certificates** → `Developer ID Application: …` を選ぶ（秘密鍵が付いている行）。
+2. 右クリック → **Export "Developer ID Application: …"**（書き出す）。
+3. ファイル形式は **Personal Information Exchange (.p12)**。場所はリポジトリの外（例: `~/certs/tahcode-DeveloperID.p12`）。
+4. 書き出しパスワードを付ける。これが後の `CSC_KEY_PASSWORD`。ログインパスワードとは別でよい。
+5. 「Include all certificates in the certification path」はオフのままでよい（CI の secret が短くなる）。
+6. `.p12` を git に入れない。紛失したら同じ CSR からは戻せないので、暗号化して別保管する。
+
+GitHub に載せるときは base64 にする（値はコミットしない）。
+
+```bash
+base64 -i ~/certs/tahcode-DeveloperID.p12 | pbcopy
+```
+
+### Mac チェックリスト 3 — アプリ用パスワード
+
+公証（`notarytool`）は Apple ID のログインパスワードを使えない。[appleid.apple.com](https://appleid.apple.com/) → **Sign-In and Security** → **App-Specific Passwords**（アプリ用パスワード）→ Generate。ラベル例: `tahcode-notarize`。表示される `xxxx-xxxx-xxxx-xxxx` が `APPLE_APP_SPECIFIC_PASSWORD`。
+
+### Mac チェックリスト 4 — Team ID
+
+[developer.apple.com/account](https://developer.apple.com/account) の **Membership details** にある 10 文字が `APPLE_TEAM_ID`。証明書名の括弧内と同じ。
+
+### GitHub secrets（5 つ。揃うまで CI は未署名）
+
+リポジトリ **Settings → Secrets and variables → Actions → New repository secret**。名前は次の通り（大文字）。1 つでも欠けると `mac-dmg` は未署名のまま成功する。
+
+| Secret 名 | 入れる値 |
+| --- | --- |
+| `CSC_LINK` | `.p12` の base64（上の `pbcopy`）または手元検証用の `file:///Users/…/tahcode-DeveloperID.p12` |
+| `CSC_KEY_PASSWORD` | `.p12` を書き出したときのパスワード |
+| `APPLE_ID` | Apple ID のメール |
+| `APPLE_APP_SPECIFIC_PASSWORD` | アプリ用パスワード（ログインパスワードではない） |
+| `APPLE_TEAM_ID` | 10 文字の Team ID |
+
+### 手元の署名ビルドとタグ
+
+5 変数が揃ったら:
+
+```bash
+export CSC_LINK="file://${HOME}/certs/tahcode-DeveloperID.p12"   # または base64
+export CSC_KEY_PASSWORD="…"
+export APPLE_ID="you@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="ABCD123456"
+npm run desktop:build:signed
+```
+
+`dist:mac:signed` は 5 変数が無いと失敗する。証明書前の確認は従来どおり `npm run desktop:build` / `dist:mac`（`mac.identity=null`）。
+
+`apps/desktop/package.json` の version を上げ、`desktop-v<その version>` を push すると `mac-dmg` が secrets を見て署名 + 公証し、Releases に `.dmg` / `.zip` / `latest-mac.yml` を載せる。`workflow_dispatch` も同じ分岐（artifact のみ、Release はタグ時）。
+
+### 検証（署名済み .app を Applications に入れたあと）
+
+```bash
+codesign -dv --verbose=4 /Applications/tahcode.app
+xcrun stapler validate /Applications/tahcode.app
+spctl --assess --type execute -v /Applications/tahcode.app
+```
+
+公証済みなら `spctl` は `source=Notarized Developer ID`。Finder でダブルクリックして開き、**右クリック → 開くは不要**なこと。次の `desktop-v*` のあと、署名ビルドでは「アップデートを確認」→ **再起動して適用**。未署名ビルドでは「ディスクイメージを開く」。
 
 `hardenedRuntime: true` と `build/entitlements.mac.plist`（JIT / unsigned-executable-memory / disable-library-validation / network.client）は公証要件に合わせて既にある。`TAHCODE_DESKTOP_SIGNED=1` は `electron-vite` の `define` で main に埋め込まれる（CI の環境変数をユーザの Mac に持ち越せないため）。
 

@@ -109,7 +109,9 @@ jobs:
       #   APPLE_ID                     Apple ID email used for notarytool
       #   APPLE_APP_SPECIFIC_PASSWORD  app-specific password (not the Apple ID password)
       #   APPLE_TEAM_ID                10-character Team ID
-      # See apps/desktop/README.md 「署名と公証」and
+      # Full Mac checklist (CSR → Developer ID Application → .p12 →
+      # app-specific password → these five secrets):
+      # apps/desktop/README.md 「署名と公証」
       # https://www.electron.build/code-signing / https://www.electron.build/mac
       - name: Detect Developer ID + notarization secrets
         id: signing
