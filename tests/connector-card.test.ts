@@ -294,6 +294,7 @@ describe("connector marketplace layout", () => {
       rename: haystack.includes("connectorConnections.rename"),
       remove: haystack.includes("connectorConnections.remove"),
       pencil: haystack.includes("Pencil"),
+      trash: haystack.includes("Trash2"),
       grok:
         haystack.includes("sand-connector-card__header") ||
         haystack.includes("connector-detail-accounts"),
@@ -309,6 +310,7 @@ describe("connector marketplace layout", () => {
       assign: true,
       pencil: true,
       remove: true,
+      trash: true,
       rename: true,
       centered: true,
       complete: true,
