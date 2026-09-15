@@ -1,0 +1,65 @@
+name: Preview prune
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Delete stale preview resources (default is dry-run)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prune:
+    name: Prune stale Convex / Cloudflare previews
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTENV_PRIVATE_KEY_PREVIEW: ${{ secrets.DOTENV_PRIVATE_KEY_PREVIEW }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Skip when Actions cannot decrypt preview env
+        id: keys
+        run: |
+          if [ -z "${DOTENV_PRIVATE_KEY_PREVIEW}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "DOTENV_PRIVATE_KEY_PREVIEW is missing. Actions billing/secrets may be unavailable."
+            echo "Fallback: export the decrypt key and run node scripts/preview-prune.mjs --apply --decrypt"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/setup
+        if: steps.keys.outputs.skip != 'true'
+
+      - name: Decrypt preview env
+        if: steps.keys.outputs.skip != 'true'
+        run: node scripts/env.mjs decrypt preview
+
+      - name: Mask decrypted secrets
+        if: steps.keys.outputs.skip != 'true'
+        run: node scripts/mask-env.mjs .env.preview
+
+      - name: Prune stale preview resources
+        if: steps.keys.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apply_flag="--dry-run"
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.event_name }}" = "schedule" ]; then
+            apply_flag="--apply"
+          elif [ "${{ inputs.apply }}" = "true" ]; then
+            apply_flag="--apply"
+          fi
+          node scripts/preview-prune.mjs \
+            "${apply_flag}" \
+            --dotenv .env.preview \
+            --sweep-unmapped
