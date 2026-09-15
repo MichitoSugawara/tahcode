@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 
+import { canDeleteOwnedEntity } from "../shared/access.ts";
+import { normalizeProjectName } from "../shared/chatKind.ts";
 import type { Doc } from "./_generated/dataModel";
 import {
   assertProjectVisible,
@@ -9,6 +11,7 @@ import {
   requireRole,
 } from "./lib/access";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
+import { deleteProjectTree } from "./lib/entityCleanup";
 import { slugify } from "./lib/ids";
 import type { ProjectFolderRow } from "./lib/projectFolders";
 import {
@@ -57,7 +60,7 @@ export const create = authedMutation({
     if (!membership) {
       throw new Error("Not a member of this organization");
     }
-    const name = args.name.trim().slice(0, 80);
+    const name = normalizeProjectName(args.name);
     if (name.length < 1) {
       throw new Error("Project name is required");
     }
@@ -283,4 +286,82 @@ export const setRuntimeFolder = authedMutation({
     return { cwd };
   },
   returns: v.object({ cwd: v.string() }),
+});
+
+export const update = authedMutation({
+  args: {
+    cwd: v.optional(v.union(v.string(), v.null())),
+    name: v.optional(v.string()),
+    projectId: v.id("projects"),
+    repoUrl: v.optional(v.union(v.string(), v.null())),
+    visibility: v.optional(visibility),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    const name = normalizeProjectName(args.name ?? project.name);
+    if (name.length < 1) {
+      throw new Error("Project name is required");
+    }
+    const optionalText = (value: string | null | undefined) => {
+      const trimmed = value?.trim();
+      return trimmed || undefined;
+    };
+    const nextOrKeep = (
+      next: string | null | undefined,
+      current: string | undefined
+    ) => {
+      if (next === undefined) {
+        return current;
+      }
+      return optionalText(next);
+    };
+    await ctx.db.replace("projects", args.projectId, {
+      createdBy: project.createdBy,
+      cwd: nextOrKeep(args.cwd, project.cwd),
+      name,
+      orgId: project.orgId,
+      profileId: project.profileId,
+      repoUrl: nextOrKeep(args.repoUrl, project.repoUrl),
+      slug: project.slug,
+      visibility: args.visibility ?? project.visibility,
+    });
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const remove = authedMutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get("projects", args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    const membership = await getMembership(ctx, project.orgId, ctx.user._id);
+    if (!membership) {
+      throw new Error("Not a member of this organization");
+    }
+    await assertProjectVisible(ctx, project, ctx.user._id, membership.role);
+    const isAdmin = membership.role === "owner" || membership.role === "admin";
+    if (
+      !canDeleteOwnedEntity({
+        actorUserId: ctx.user._id,
+        createdBy: project.createdBy,
+        isAdmin,
+      })
+    ) {
+      throw new Error("Only the creator or an admin can delete this project");
+    }
+    await deleteProjectTree(ctx, args.projectId);
+    return null;
+  },
+  returns: v.null(),
 });

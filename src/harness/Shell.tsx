@@ -1,4 +1,5 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { chatDisplayTitle } from "@shared/chatKind.ts";
 import {
   ArrowUpCircle,
   Folder,
@@ -26,6 +27,11 @@ import type {
   SidebarSection,
 } from "@/components/primitives/SidebarNav";
 import { CommandPalette, useCommandPalette } from "@/harness/CommandPalette";
+import {
+  buildProjectMenuItems,
+  buildSessionMenuItems,
+  buildTabMenuItems,
+} from "@/harness/contextMenus";
 import { useOrg } from "@/harness/OrgContext";
 import { isRightRailVisible } from "@/harness/rail/flags";
 import type { RailTab } from "@/harness/rail/flags";
@@ -191,32 +197,34 @@ function Sidebar({
     x: number;
     y: number;
   } | null>(null);
+  const [projectMenu, setProjectMenu] = useState<{
+    id: Id<"projects">;
+    x: number;
+    y: number;
+  } | null>(null);
   const wrap = (fn?: () => void) => () => {
     fn?.();
     onNavigate?.();
   };
   const meName = displayName(org.me);
+  const sessionChat = sessionMenu
+    ? org.chats?.find((chat) => String(chat._id) === sessionMenu.id)
+    : undefined;
   const sessionMenuItems: ContextMenuItem[] = sessionMenu
-    ? [
-        {
-          key: "open",
-          label: "開く",
-          onSelect: () => {
-            org.goChat(sessionMenu.id as Id<"chats">);
+    ? buildSessionMenuItems(sessionChat?.kind ?? "project").map((item) => ({
+        ...item,
+        onSelect: () => {
+          const chatId = sessionMenu.id as Id<"chats">;
+          if (item.key === "open") {
+            org.goChat(chatId);
             onNavigate?.();
-          },
-        },
-        {
-          key: "background",
-          label: "バックグラウンドでタブを開く",
-          onSelect: () => {
-            org.openTab(sessionMenu.id as Id<"chats">);
-          },
-        },
-        {
-          key: "copy",
-          label: "リンクをコピー",
-          onSelect: () => {
+            return;
+          }
+          if (item.key === "background") {
+            org.openTab(chatId);
+            return;
+          }
+          if (item.key === "copy") {
             const href = `${window.location.origin}${orgChatPath(org.org.slug, sessionMenu.id)}`;
             void copyText(href).then((ok) => {
               if (ok) {
@@ -225,9 +233,36 @@ function Sidebar({
               }
               toast.error("コピーできませんでした");
             });
-          },
+            return;
+          }
+          if (item.key === "rename") {
+            org.openDialog({ chatId, kind: "renameChat" });
+            return;
+          }
+          if (item.key === "delete") {
+            org.openDialog({ chatId, kind: "deleteChat" });
+          }
         },
-      ]
+      }))
+    : [];
+  const projectMenuItems: ContextMenuItem[] = projectMenu
+    ? buildProjectMenuItems().map((item) => ({
+        ...item,
+        onSelect: () => {
+          const projectId = projectMenu.id;
+          if (item.key === "settings") {
+            org.openDialog({ kind: "projectSettings", projectId });
+            return;
+          }
+          if (item.key === "rename") {
+            org.openDialog({ kind: "renameProject", projectId });
+            return;
+          }
+          if (item.key === "delete") {
+            org.openDialog({ kind: "deleteProject", projectId });
+          }
+        },
+      }))
     : [];
   return (
     <>
@@ -289,6 +324,17 @@ function Sidebar({
           org.goChat(id as Id<"chats">);
           onNavigate?.();
         }}
+        onGroupContextMenu={(id, event) => {
+          const project = org.projects?.find((item) => String(item._id) === id);
+          if (!project) {
+            return;
+          }
+          setProjectMenu({
+            id: project._id,
+            x: event.clientX,
+            y: event.clientY,
+          });
+        }}
         onItemContextMenu={(id, event) => {
           setSessionMenu({ id, x: event.clientX, y: event.clientY });
         }}
@@ -311,6 +357,14 @@ function Sidebar({
           x={sessionMenu.x}
           y={sessionMenu.y}
           onClose={() => setSessionMenu(null)}
+        />
+      )}
+      {projectMenu && (
+        <ContextMenu
+          items={projectMenuItems}
+          x={projectMenu.x}
+          y={projectMenu.y}
+          onClose={() => setProjectMenu(null)}
         />
       )}
     </>
@@ -402,38 +456,39 @@ export function TabBar({
     return () => window.removeEventListener("keydown", onKey);
   }, [chatId, org]);
 
+  const tabChat = tabMenu
+    ? tabs.find((chat) => chat._id === tabMenu.id)
+    : undefined;
   const tabMenuItems: ContextMenuItem[] = tabMenu
-    ? [
-        {
-          key: "close",
-          label: "閉じる",
-          onSelect: () => {
+    ? buildTabMenuItems({
+        canCloseOthers: tabs.length > 1,
+        canCloseRight:
+          tabs.findIndex((chat) => chat._id === tabMenu.id) !== tabs.length - 1,
+        kind: tabChat?.kind ?? "project",
+      }).map((item) => ({
+        ...item,
+        onSelect: () => {
+          if (item.key === "close") {
             closeChatTab(tabMenu.id);
-          },
-        },
-        {
-          disabled: tabs.length < 2,
-          key: "close-others",
-          label: "他を閉じる",
-          onSelect: () => {
+            return;
+          }
+          if (item.key === "close-others") {
             org.closeOtherTabs(tabMenu.id);
-          },
-        },
-        {
-          disabled:
-            tabs.findIndex((chat) => chat._id === tabMenu.id) ===
-            tabs.length - 1,
-          key: "close-right",
-          label: "右側を閉じる",
-          onSelect: () => {
+            return;
+          }
+          if (item.key === "close-right") {
             const next = closeTabsToTheRight(org.tabs, tabMenu.id);
             org.closeTabsToTheRight(tabMenu.id);
             if (activeChatId && !next.includes(activeChatId)) {
               org.goHome();
             }
-          },
+            return;
+          }
+          if (item.key === "rename") {
+            org.openDialog({ chatId: tabMenu.id, kind: "renameChat" });
+          }
         },
-      ]
+      }))
     : [];
 
   return (
@@ -469,7 +524,7 @@ export function TabBar({
           const project = chat.projectId
             ? org.projects?.find((item) => item._id === chat.projectId)
             : undefined;
-          const title = chat.kind === "dm" ? "Personal DM" : chat.title;
+          const title = chatDisplayTitle(chat);
           return (
             <div
               key={String(chat._id)}

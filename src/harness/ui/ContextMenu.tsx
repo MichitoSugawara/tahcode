@@ -2,10 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import GlideMenu from "@/components/primitives/GlideMenu";
+import {
+  firstEnabledMenuIndex,
+  nextEnabledMenuIndex,
+  shouldDismissContextMenu,
+} from "@/harness/contextMenus";
 
 export interface ContextMenuItem {
   danger?: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   key: string;
   label: string;
   onSelect: () => void;
@@ -40,6 +46,9 @@ export function ContextMenu({
   y: number;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(() =>
+    firstEnabledMenuIndex(items)
+  );
   const [position, setPosition] = useState(() =>
     clampPosition(x, y, 220, items.length * ESTIMATED_ITEM_HEIGHT + 12)
   );
@@ -51,19 +60,50 @@ export function ContextMenu({
     }
     const rect = node.getBoundingClientRect();
     setPosition(clampPosition(x, y, rect.width, rect.height));
+    node.focus();
   }, [x, y]);
 
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      const target = event.target as Element | null;
-      if (target?.closest("[data-context-menu]")) {
+      if (!shouldDismissContextMenu(event.target)) {
         return;
       }
       onClose();
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         onClose();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveIndex((current) =>
+          nextEnabledMenuIndex(
+            items,
+            current,
+            event.key === "ArrowDown" ? 1 : -1
+          )
+        );
+        return;
+      }
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        setActiveIndex(
+          event.key === "Home"
+            ? firstEnabledMenuIndex(items)
+            : nextEnabledMenuIndex(items, 0, -1)
+        );
+        return;
+      }
+      if (event.key === "Enter") {
+        const item = items[activeIndex];
+        if (!item || item.disabled) {
+          return;
+        }
+        event.preventDefault();
+        onClose();
+        item.onSelect();
       }
     };
     document.addEventListener("pointerdown", close);
@@ -72,14 +112,21 @@ export function ContextMenu({
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [activeIndex, items, onClose]);
 
   return createPortal(
     <div
       ref={menuRef}
       data-context-menu
       role="menu"
-      className="bg-surface shadow-overlay fixed z-50 min-w-44 rounded-[14px] p-1.5"
+      tabIndex={-1}
+      aria-activedescendant={
+        items[activeIndex]
+          ? `context-menu-${items[activeIndex].key}`
+          : undefined
+      }
+      onContextMenu={(event) => event.preventDefault()}
+      className="bg-surface shadow-overlay fixed z-50 min-w-44 rounded-[14px] p-1.5 outline-none"
       style={{
         animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both",
         left: position.left,
@@ -90,13 +137,21 @@ export function ContextMenu({
         className="flex flex-col gap-px"
         highlightClassName="inset-x-0 rounded-[8px] bg-hover-2"
       >
-        {items.map((item) => (
+        {items.map((item, index) => (
           <button
             key={item.key}
+            id={`context-menu-${item.key}`}
             data-menu-row
             type="button"
             role="menuitem"
             disabled={item.disabled}
+            title={item.disabledReason}
+            aria-disabled={item.disabled || undefined}
+            onMouseEnter={() => {
+              if (!item.disabled) {
+                setActiveIndex(index);
+              }
+            }}
             onClick={() => {
               if (item.disabled) {
                 return;
@@ -106,7 +161,7 @@ export function ContextMenu({
             }}
             className={`relative z-10 flex h-9 w-full items-center rounded-[8px] px-2.5 text-left text-[13.5px] disabled:opacity-45 ${
               item.danger ? "text-red" : "text-ink"
-            }`}
+            } ${index === activeIndex && !item.disabled ? "bg-hover-2" : ""}`}
           >
             {item.label}
           </button>

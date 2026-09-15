@@ -99,6 +99,7 @@ interface SidebarNavProps {
   sections: SidebarSection[];
   activeId?: string | null;
   onPick?: (id: string) => void;
+  onGroupContextMenu?: (id: string, event: MouseEvent) => void;
   onItemContextMenu?: (id: string, event: MouseEvent) => void;
   onItemDragStart?: (id: string, event: DragEvent) => void;
   onItemDragEnd?: () => void;
@@ -502,6 +503,7 @@ export default function SidebarNav({
   sections,
   activeId,
   onPick,
+  onGroupContextMenu,
   onItemContextMenu,
   onItemDragStart,
   onItemDragEnd,
@@ -722,6 +724,10 @@ export default function SidebarNav({
                         aria-expanded={open}
                         aria-controls={`sidebar-group-${group.id}`}
                         onClick={() => toggleGroup(group.id)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          onGroupContextMenu?.(group.id, event);
+                        }}
                         className="sidebar-row hover:bg-hover-2 relative z-10 mx-2 flex h-8 items-center rounded-[8px] px-2 text-left transition-[width,background-color,color,transform] duration-150 active:scale-[0.98]"
                       >
                         <span className="text-ink-3 flex size-5 shrink-0 items-center justify-center">

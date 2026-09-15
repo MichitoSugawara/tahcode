@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { canSeeChat, canSeeProject, canUseRuntime } from "../shared/access.ts";
+import {
+  canDeleteChat,
+  canDeleteOwnedEntity,
+  canRenameChat,
+  canSeeChat,
+  canSeeProject,
+  canUseRuntime,
+} from "../shared/access.ts";
 
 describe(canUseRuntime, () => {
   it("is default-deny except for the machine owner", () => {
@@ -117,6 +124,78 @@ describe("visibility", () => {
         chatVisibility: "inherit",
         isChatMember: false,
         projectVisible: false,
+      })
+    ).toBeTruthy();
+  });
+});
+
+describe("entity lifecycle", () => {
+  it("lets threads and project chats be renamed, but not Personal DM", () => {
+    expect(canRenameChat("dm")).toBeFalsy();
+    expect(canRenameChat("thread")).toBeTruthy();
+    expect(canRenameChat("project")).toBeTruthy();
+  });
+
+  it("keeps Personal DM undeletable and threads owner-only", () => {
+    expect(
+      canDeleteChat({
+        actorUserId: "u1",
+        chatKind: "dm",
+        createdBy: "u1",
+        isAdmin: true,
+        ownerId: "u1",
+      })
+    ).toBeFalsy();
+    expect(
+      canDeleteChat({
+        actorUserId: "u1",
+        chatKind: "thread",
+        createdBy: "u1",
+        isAdmin: false,
+        ownerId: "u1",
+      })
+    ).toBeTruthy();
+    expect(
+      canDeleteChat({
+        actorUserId: "u2",
+        chatKind: "thread",
+        createdBy: "u1",
+        isAdmin: true,
+        ownerId: "u1",
+      })
+    ).toBeFalsy();
+  });
+
+  it("lets the creator or an admin delete a project chat", () => {
+    expect(
+      canDeleteChat({
+        actorUserId: "member",
+        chatKind: "project",
+        createdBy: "member",
+        isAdmin: false,
+      })
+    ).toBeTruthy();
+    expect(
+      canDeleteChat({
+        actorUserId: "admin",
+        chatKind: "project",
+        createdBy: "member",
+        isAdmin: true,
+      })
+    ).toBeTruthy();
+    expect(
+      canDeleteChat({
+        actorUserId: "other",
+        chatKind: "project",
+        createdBy: "member",
+        isAdmin: false,
+      })
+    ).toBeFalsy();
+    expect(
+      canDeleteOwnedEntity({
+        actorUserId: "owner",
+        createdBy: "other",
+        isAdmin: true,
       })
     ).toBeTruthy();
   });
