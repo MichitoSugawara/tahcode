@@ -61,6 +61,7 @@ describe("sidebar IA", () => {
       "chats",
     ]);
     expect(sections[0]?.label).toBe("プロジェクト");
+    expect(sections[1]?.label).toBe("DM");
     expect(sections[0]?.groups[0]?.items.map((item) => item.id)).toStrictEqual([
       "c1",
     ]);
@@ -112,15 +113,16 @@ describe("sidebar IA", () => {
     });
   });
 
-  it("shows an empty-project create row when there are no projects", () => {
+  it("shows an empty-project hint and section-level create when there are no projects", () => {
     const sections = buildSidebarSections({
       chats: [],
       isAdmin: true,
       meId: "me",
       projects: [],
     });
+    expect(sections[0]?.addKind).toBe("createProject");
     expect(sections[0]?.groups[0]).toMatchObject({
-      addKind: "createProject",
+      hideHeader: true,
       kind: "empty-projects",
     });
   });

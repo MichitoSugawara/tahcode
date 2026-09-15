@@ -1,9 +1,15 @@
 import { canRenameChat } from "@shared/access.ts";
 import type { ChatKind } from "@shared/chatKind.ts";
 
+import { SIDEBAR_MORE_TRIGGER } from "@/harness/sidebarHover";
+import type { SidebarSectionId } from "@/harness/sidebarModel";
 import { shouldDismissComposerMenu } from "@/lib/composerMenu";
 
 export const CONTEXT_MENU_ROOT = "[data-context-menu]";
+export const CONTEXT_MENU_KEEP_OPEN = [
+  CONTEXT_MENU_ROOT,
+  SIDEBAR_MORE_TRIGGER,
+] as const;
 
 export interface ContextMenuSpec {
   danger?: boolean;
@@ -14,7 +20,7 @@ export interface ContextMenuSpec {
 }
 
 export function shouldDismissContextMenu(target: unknown): boolean {
-  return shouldDismissComposerMenu(target, [CONTEXT_MENU_ROOT]);
+  return shouldDismissComposerMenu(target, CONTEXT_MENU_KEEP_OPEN);
 }
 
 export function firstEnabledMenuIndex(
@@ -43,10 +49,19 @@ export function nextEnabledMenuIndex(
 
 export function buildProjectMenuItems(): ContextMenuSpec[] {
   return [
-    { key: "settings", label: "プロジェクト設定" },
+    { key: "settings", label: "プロジェクトを編集" },
     { key: "rename", label: "名前を変更" },
     { danger: true, key: "delete", label: "削除" },
   ];
+}
+
+export function buildSectionMenuItems(
+  sectionId: SidebarSectionId
+): ContextMenuSpec[] {
+  if (sectionId === "projects") {
+    return [{ key: "create", label: "新しいプロジェクト" }];
+  }
+  return [{ key: "create", label: "新しいチャット" }];
 }
 
 export function buildSessionMenuItems(kind: ChatKind): ContextMenuSpec[] {

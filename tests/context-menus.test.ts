@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildProjectMenuItems,
+  buildSectionMenuItems,
   buildSessionMenuItems,
   buildTabMenuItems,
   firstEnabledMenuIndex,
@@ -22,6 +23,10 @@ describe("context menu specs", () => {
       danger: true,
       key: "delete",
     });
+    expect(buildProjectMenuItems()[0]?.label).toBe("プロジェクトを編集");
+    expect(
+      buildSectionMenuItems("projects").map((item) => item.key)
+    ).toStrictEqual(["create"]);
   });
 
   it("disables rename and delete on Personal DM with a reason", () => {

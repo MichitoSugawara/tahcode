@@ -20,6 +20,7 @@ export interface SidebarModelItem {
 export interface SidebarModelGroup {
   addKind?: "createProject" | "newChat";
   emptyHint?: string;
+  hideHeader?: boolean;
   id: string;
   items: SidebarModelItem[];
   kind: "empty-projects" | "personal" | "project";
@@ -29,6 +30,7 @@ export interface SidebarModelGroup {
 }
 
 export interface SidebarModelSection {
+  addKind?: "createProject" | "newChat";
   groups: SidebarModelGroup[];
   id: SidebarSectionId;
   label: string;
@@ -89,6 +91,22 @@ export function sidebarGroupAddLabel(
   return undefined;
 }
 
+export function sidebarSectionAddLabel(
+  section: Pick<SidebarModelSection, "addKind">
+): string | undefined {
+  if (section.addKind === "createProject") {
+    return "新しいプロジェクト";
+  }
+  if (section.addKind === "newChat") {
+    return "新しいチャット";
+  }
+  return undefined;
+}
+
+export function sidebarSectionMoreLabel(label: string): string {
+  return `${label}のメニュー`;
+}
+
 export function buildSidebarSections({
   chats,
   isAdmin,
@@ -103,7 +121,7 @@ export function buildSidebarSections({
   const projectGroups: SidebarModelGroup[] = (projects ?? []).map(
     (project) => ({
       addKind: "newChat" as const,
-      emptyHint: "チャットはまだありません。＋ で作成",
+      emptyHint: "チャットはまだありません。ホバーの作成ボタンで追加",
       id: String(project._id),
       items: projectChats(chats ?? [], String(project._id)).map((chat) => ({
         id: String(chat._id),
@@ -120,10 +138,10 @@ export function buildSidebarSections({
 
   if (projectGroups.length === 0) {
     projectGroups.push({
-      addKind: "createProject",
       emptyHint: isAdmin
-        ? "まだプロジェクトがありません。＋ で最初のプロジェクトを作成"
+        ? "まだプロジェクトがありません。見出しの ＋ で最初のプロジェクトを作成"
         : "参加しているプロジェクトのみ表示されます。Owner / Admin に追加を依頼するか、自分で作成できます",
+      hideHeader: true,
       id: "no-projects",
       items: [],
       kind: "empty-projects",
@@ -155,6 +173,7 @@ export function buildSidebarSections({
   }
   const personal: SidebarModelGroup = {
     emptyHint: "DM を準備しています…",
+    hideHeader: true,
     id: "personal",
     items: personalItems,
     kind: "personal",
@@ -163,7 +182,17 @@ export function buildSidebarSections({
   };
 
   return [
-    { groups: projectGroups, id: "projects", label: "プロジェクト" },
-    { groups: [personal], id: "chats", label: "チャット" },
+    {
+      addKind: "createProject",
+      groups: projectGroups,
+      id: "projects",
+      label: "プロジェクト",
+    },
+    {
+      addKind: "newChat",
+      groups: [personal],
+      id: "chats",
+      label: "DM",
+    },
   ];
 }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import GlideMenu from "@/components/primitives/GlideMenu";
@@ -12,6 +13,7 @@ export interface ContextMenuItem {
   danger?: boolean;
   disabled?: boolean;
   disabledReason?: string;
+  icon?: ReactNode;
   key: string;
   label: string;
   onSelect: () => void;
@@ -35,11 +37,13 @@ function clampPosition(
 }
 
 export function ContextMenu({
+  header,
   items,
   onClose,
   x,
   y,
 }: {
+  header?: ReactNode;
   items: ContextMenuItem[];
   onClose: () => void;
   x: number;
@@ -133,6 +137,7 @@ export function ContextMenu({
         top: position.top,
       }}
     >
+      {header}
       <GlideMenu
         className="flex flex-col gap-px"
         highlightClassName="inset-x-0 rounded-[8px] bg-hover-2"
@@ -159,10 +164,15 @@ export function ContextMenu({
               onClose();
               item.onSelect();
             }}
-            className={`relative z-10 flex h-9 w-full items-center rounded-[8px] px-2.5 text-left text-[13.5px] disabled:opacity-45 ${
+            className={`relative z-10 flex h-9 w-full items-center gap-1.5 rounded-[8px] px-2.5 text-left text-[13.5px] disabled:opacity-45 ${
               item.danger ? "text-red" : "text-ink"
             } ${index === activeIndex && !item.disabled ? "bg-hover-2" : ""}`}
           >
+            {item.icon && (
+              <span className="flex size-5 shrink-0 items-center justify-center">
+                {item.icon}
+              </span>
+            )}
             {item.label}
           </button>
         ))}
