@@ -72,6 +72,7 @@ import {
 import { ContextMenu } from "@/harness/ui/ContextMenu";
 import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
+import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 import { isDesktopShell } from "@/lib/desktop";
 import {
   colorFor,
@@ -162,7 +163,7 @@ function useSidebarModel() {
       active: onConnectors,
       icon: <Plug size={17} />,
       key: "connectors",
-      label: "コネクタ",
+      label: CONNECTOR_CARD_COPY.surface,
       onClick: org.goConnectors,
     },
   ];

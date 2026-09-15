@@ -48,7 +48,11 @@ import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
 import { NoRuntimeChrome } from "@/harness/ui/NoRuntimeChrome";
-import { LINEAR_CONNECTOR, providerIconSource } from "@/lib/connectorCard";
+import {
+  CONNECTOR_CARD_COPY,
+  LINEAR_CONNECTOR,
+  providerIconSource,
+} from "@/lib/connectorCard";
 import { connectorMentionSuggestItems } from "@/lib/connectorMentions";
 import { isDesktopShell, registerRuntimeCtaLabel } from "@/lib/desktop";
 import {
@@ -647,7 +651,7 @@ export function Composer({
           provider: "linear",
           scope: "org",
         }).catch((error: unknown) => {
-          toast.error("コネクタカードを表示できませんでした", {
+          toast.error(CONNECTOR_CARD_COPY.cardError, {
             description: errorSummary(error),
           });
         });

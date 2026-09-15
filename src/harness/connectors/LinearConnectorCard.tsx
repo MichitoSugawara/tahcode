@@ -894,7 +894,7 @@ export function LinearConnectorCard({
     <div className="flex flex-col gap-2">
       {connections === undefined ? (
         <div className="px-0 py-2 text-[13px]">
-          <Shimmer>コネクタを読み込んでいます</Shimmer>
+          <Shimmer>{CONNECTOR_CARD_COPY.loading}</Shimmer>
         </div>
       ) : null}
 

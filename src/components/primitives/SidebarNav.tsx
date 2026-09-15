@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 
 import { Monogram } from "@/components/atoms/EntityChip";
 import GlideMenu from "@/components/primitives/GlideMenu";
+import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 
 /* ─────────────────────────────────────────────────────────
  * SIDEBAR NAV — ported from Beautiful UI (beautifului.dev/r/sidebar-nav)
@@ -317,7 +318,7 @@ function UserMenu({
     items.push({
       icon: <Plug size={16} />,
       key: "connectors",
-      label: "コネクタ",
+      label: CONNECTOR_CARD_COPY.surface,
       onClick: onConnectors,
     });
   }
@@ -431,7 +432,7 @@ function WorkspaceMenu({
     },
     onConnectors && {
       icon: <Plug size={16} />,
-      label: "コネクタ",
+      label: CONNECTOR_CARD_COPY.surface,
       onClick: onConnectors,
     },
     onInvite && {

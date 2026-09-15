@@ -160,7 +160,7 @@ ${bold("使い方")}
   ${code("tahcode models [provider]")}   各 CLI が使えるモデル（agent models / opencode models / grok models をその場で実行。ない CLI は静的カタログ）
   ${code("tahcode update <provider|all> [--yes]")}   エージェント CLI を更新（Web UI の「CLI を更新」と同じ許可リストのコマンドだけ実行）
   ${code("tahcode unlink")}     このマシンのリンクを削除
-  ${code("tahcode tool [name] [--args JSON]")}  実行中ジョブから Org / プロジェクト / チャット / ランタイム / コネクタ / Linear 課題を操作する（引数なしで一覧）
+  ${code("tahcode tool [name] [--args JSON]")}  実行中ジョブから Org / プロジェクト / チャット / ランタイム / プラグイン / Linear 課題を操作する（引数なしで一覧）
   ${code("tahcode tool-mcp")}   ハーネスが stdio で同じツールを呼ぶためのホスト（ジョブ中）
 
 ${bold("オプション")}

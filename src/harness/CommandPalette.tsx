@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import SearchList from "@/components/primitives/SearchList";
 import type { SearchItem } from "@/components/primitives/SearchList";
 import { useOrg } from "@/harness/OrgContext";
+import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 import {
   isDesktopShell,
   registerRuntimeCtaLabel,
@@ -156,8 +157,8 @@ export function CommandPalette({
         hint: "/connectors",
         icon: <Plug size={14} />,
         key: "connectors",
-        keywords: "connectors linear コネクタ 連携 oauth",
-        label: "コネクタ",
+        keywords: "connectors plugins linear コネクタ プラグイン 連携 oauth",
+        label: CONNECTOR_CARD_COPY.surface,
         onSelect: run(org.goConnectors),
       },
       {

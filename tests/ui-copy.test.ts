@@ -33,15 +33,39 @@ describe("user-facing copy", () => {
     expect(offenders).toStrictEqual([]);
   });
 
+  it("uses プラグイン as the visible product surface label", () => {
+    const offenders: string[] = [];
+    for (const file of walk("src")) {
+      const text = readFileSync(file, "utf-8").replaceAll(
+        /keywords:\s*"[^"]*"/g,
+        ""
+      );
+      if (text.includes("コネクタ")) {
+        offenders.push(file);
+      }
+    }
+    expect(offenders).toStrictEqual([]);
+  });
+
   it("opens connectors from the command palette on the dedicated route", () => {
     const palette = readFileSync("src/harness/CommandPalette.tsx", "utf-8");
     const settings = readFileSync("src/pages/SettingsPage.tsx", "utf-8");
     const connectors = readFileSync("src/pages/ConnectorsPage.tsx", "utf-8");
-    expect(palette).toContain("org.goConnectors");
-    expect(palette).not.toContain('goSettings("connectors")');
-    expect(settings).not.toContain("ConnectorsPane");
-    expect(settings).not.toContain('id="connectors"');
-    expect(connectors).toContain("コネクタを検索");
+    expect({
+      paletteOpensRoute: palette.includes("org.goConnectors"),
+      paletteNotSettings: !palette.includes('goSettings("connectors")'),
+      settingsHasPane: settings.includes("ConnectorsPane"),
+      settingsHasSection: settings.includes('id="connectors"'),
+      pageUsesCopy:
+        connectors.includes("CONNECTOR_CARD_COPY.surface") &&
+        connectors.includes("CONNECTOR_CARD_COPY.searchLabel"),
+    }).toStrictEqual({
+      paletteOpensRoute: true,
+      paletteNotSettings: true,
+      settingsHasPane: false,
+      settingsHasSection: false,
+      pageUsesCopy: true,
+    });
   });
 
   it("keeps connector account delete as a red trash control", () => {

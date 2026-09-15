@@ -310,7 +310,7 @@ export function connectorProviderLabel(provider: string): string {
   if (provider === "linear") {
     return "Linear";
   }
-  return "Connector";
+  return "Plugin";
 }
 
 function readActionField(

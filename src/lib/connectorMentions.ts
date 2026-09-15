@@ -1,6 +1,9 @@
 import { connectorMentionHandle } from "@shared/connectorMentions.ts";
 
-import { connectorAccountTitle } from "@/lib/connectorCard";
+import {
+  CONNECTOR_CARD_COPY,
+  connectorAccountTitle,
+} from "@/lib/connectorCard";
 
 export {
   connectorMentionHandle,
@@ -8,7 +11,7 @@ export {
 } from "@shared/connectorMentions.ts";
 
 export const CONNECTOR_MENTION_HINT = "接続済み";
-export const CONNECTOR_MENTION_TRAILING = "コネクタ";
+export const CONNECTOR_MENTION_TRAILING = CONNECTOR_CARD_COPY.surface;
 
 export type ConnectorMentionAccount = {
   _id: string;
