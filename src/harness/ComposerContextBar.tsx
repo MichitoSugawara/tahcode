@@ -92,7 +92,7 @@ export function ComposerContextBar({ chat }: { chat: Chat | null }) {
     <div className="flex flex-col gap-2">
       <div
         data-composer-context-bar
-        className="bg-inset text-ink-2 flex min-h-9 items-center gap-0.5 rounded-full px-1.5 py-1"
+        className="bg-canvas text-ink-2 shadow-hairline flex min-h-9 w-full items-center gap-0.5 rounded-full px-2 py-1"
       >
         <ContextMenu
           ariaLabel="プロジェクトを選択"
@@ -296,7 +296,7 @@ function ContextMenu({
           aria-expanded={open}
           className="text-ink hover:bg-hover flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-left text-[12.5px] transition-colors duration-100"
         >
-          <span className="text-ink-3 flex shrink-0">{icon}</span>
+          <span className="text-ink-2 flex shrink-0">{icon}</span>
           <span className="min-w-0 truncate font-medium">{label}</span>
         </button>
       </Popover.Trigger>

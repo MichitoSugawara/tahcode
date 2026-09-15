@@ -192,8 +192,11 @@ describe("shell source contracts", () => {
 
   it("mounts the composer context bar instead of a runtime picker", () => {
     const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const bar = readFileSync("src/harness/ComposerContextBar.tsx", "utf-8");
     expect(composer).toContain("ComposerContextBar");
     expect(composer).not.toContain('id: "runtime"');
+    expect(bar).toContain("w-full");
+    expect(bar).toContain("rounded-full");
   });
 
   it("exposes project, machine, and branch on the context bar", () => {
