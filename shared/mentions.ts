@@ -1,3 +1,5 @@
+import { chatAlwaysDispatchesAgent } from "./chatKind.ts";
+import type { ChatKind } from "./chatKind.ts";
 import { CONNECTOR_PROVIDERS } from "./connectors.ts";
 import { cursorEffortChoiceId, parseCursorModel } from "./cursorModels.ts";
 import type { ProviderOptionSelection } from "./modelOptions.ts";
@@ -8,6 +10,8 @@ import {
   resolveModelSlug,
 } from "./providers.ts";
 import type { ProviderDriverKind } from "./providers.ts";
+
+export type { ChatKind } from "./chatKind.ts";
 
 export type MentionKind =
   | "user"
@@ -103,18 +107,16 @@ export function classifyMention(
   return { handle: key, kind: "user", raw };
 }
 
-export type ChatKind = "dm" | "project";
-
 /**
  * Phase 1 reaction rule (Multica-like, no Focus):
- * - Personal DMs: agents always respond
- * - Every other chat: only when @mentioned (agent / provider / runtime)
+ * - Personal DMs and no-project threads: agents always respond
+ * - Project chats: only when @mentioned (agent / provider / runtime)
  */
 export function shouldDispatchAgent(input: {
   chatKind: ChatKind;
   mentions: readonly ParsedMention[];
 }): boolean {
-  if (input.chatKind === "dm") {
+  if (chatAlwaysDispatchesAgent(input.chatKind)) {
     return true;
   }
   return input.mentions.some(

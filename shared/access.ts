@@ -1,3 +1,6 @@
+import { isOwnerScopedChat } from "./chatKind.ts";
+import type { ChatKind } from "./chatKind.ts";
+
 export const ORG_ROLES = ["owner", "admin", "member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
@@ -72,14 +75,14 @@ export function canSeeProject(input: {
 }
 
 export function canSeeChat(input: {
-  chatKind: "dm" | "project";
+  chatKind: ChatKind;
   chatOwnerId?: string;
   actorUserId: string;
   chatVisibility: ChatVisibility;
   projectVisible: boolean;
   isChatMember: boolean;
 }): boolean {
-  if (input.chatKind === "dm") {
+  if (isOwnerScopedChat(input.chatKind)) {
     return input.chatOwnerId === input.actorUserId;
   }
   if (!input.projectVisible) {

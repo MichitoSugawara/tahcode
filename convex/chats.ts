@@ -174,6 +174,59 @@ export const createProjectChat = authedMutation({
   returns: v.id("chats"),
 });
 
+/**
+ * No-project session from `/new` (TAH-75 / TAH-68).
+ * Distinct from the singleton Personal DM (`ensureDm`).
+ */
+export async function createThreadChatForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    driverKind?: ProviderDriverKind;
+    model?: string;
+    options?: ProviderOptionSelection[];
+    orgId: Id<"orgs">;
+    profileId?: Id<"skillProfiles">;
+    title: string;
+  }
+): Promise<Id<"chats">> {
+  const membership = await getMembership(ctx, args.orgId, user._id);
+  if (!membership) {
+    throw new Error("Not a member of this organization");
+  }
+  const title = args.title.trim().slice(0, 80) || "Untitled chat";
+  const agent = normalizeAgentBinding(args);
+  if (args.profileId) {
+    await requireOrgProfile(ctx, args.orgId, args.profileId);
+  }
+  return await ctx.db.insert("chats", {
+    createdBy: user._id,
+    driverKind: agent.driverKind,
+    kind: "thread",
+    model: agent.model,
+    options: agent.options,
+    orgId: args.orgId,
+    ownerId: user._id,
+    profileId: args.profileId,
+    title,
+    visibility: "inherit",
+  });
+}
+
+export const createThreadChat = authedMutation({
+  args: {
+    driverKind: v.optional(providerKind),
+    model: v.optional(v.string()),
+    orgId: v.id("orgs"),
+    options: v.optional(v.array(optionSelection)),
+    profileId: v.optional(v.id("skillProfiles")),
+    title: v.string(),
+  },
+  handler: async (ctx, args) =>
+    await createThreadChatForUser(ctx, ctx.user, args),
+  returns: v.id("chats"),
+});
+
 export const list = authedQuery({
   args: {
     kind: v.optional(chatKind),
@@ -334,7 +387,7 @@ export const addMember = authedMutation({
     if (!chat) {
       throw new Error("Chat not found");
     }
-    if (chat.kind === "dm") {
+    if (chat.kind === "dm" || chat.kind === "thread") {
       throw new Error("DMs stay owner-only in Phase 1");
     }
     await requireRole(ctx, chat.orgId, ctx.user._id, "admin");

@@ -223,8 +223,8 @@ export function ContextPane({ chatId }: { chatId?: string }) {
       body:
         lastMentions.length > 0
           ? `直近のあなたの投稿: ${lastMentions.join(" ")}`
-          : chat.kind === "dm"
-            ? "DM ではメンション不要です。"
+          : chat.kind === "dm" || chat.kind === "thread"
+            ? "このチャットではメンション不要です。"
             : "@codex や @cursor/muse-spark-1.3 を付けるとその provider / model で実行します。",
       chars: `${lastMentions.length} 件`,
       source: "last user message",
@@ -250,7 +250,7 @@ export function ContextPane({ chatId }: { chatId?: string }) {
           <span className="text-ink text-[13px] font-medium">
             {chat.kind === "dm" ? "Personal DM" : chat.title}
           </span>
-          {chat.kind === "dm" ? (
+          {chat.kind === "dm" || chat.kind === "thread" ? (
             <StatusPill tone="green">常時応答</StatusPill>
           ) : (
             <StatusPill tone="accent">@mention で応答</StatusPill>

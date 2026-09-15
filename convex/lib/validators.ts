@@ -10,7 +10,11 @@ export const orgRole = v.union(
 
 export const visibility = v.union(v.literal("org"), v.literal("private"));
 
-export const chatKind = v.union(v.literal("dm"), v.literal("project"));
+export const chatKind = v.union(
+  v.literal("dm"),
+  v.literal("project"),
+  v.literal("thread")
+);
 
 export const chatVisibility = v.union(
   v.literal("inherit"),

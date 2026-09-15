@@ -97,4 +97,27 @@ describe("visibility", () => {
       })
     ).toBeFalsy();
   });
+
+  it("keeps no-project threads owner-only", () => {
+    expect(
+      canSeeChat({
+        actorUserId: "u2",
+        chatKind: "thread",
+        chatOwnerId: "u1",
+        chatVisibility: "inherit",
+        isChatMember: true,
+        projectVisible: true,
+      })
+    ).toBeFalsy();
+    expect(
+      canSeeChat({
+        actorUserId: "u1",
+        chatKind: "thread",
+        chatOwnerId: "u1",
+        chatVisibility: "inherit",
+        isChatMember: false,
+        projectVisible: false,
+      })
+    ).toBeTruthy();
+  });
 });

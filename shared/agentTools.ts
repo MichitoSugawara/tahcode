@@ -101,7 +101,7 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
     inputSchema: {
       additionalProperties: false,
       properties: {
-        kind: { enum: ["dm", "project"], type: "string" },
+        kind: { enum: ["dm", "project", "thread"], type: "string" },
         orgId: STRING,
         projectId: STRING,
       },
@@ -121,12 +121,12 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
   },
   {
     description:
-      "Create a project chat or ensure the acting user's personal DM in an org.",
+      "Create a project chat, a no-project thread, or ensure the acting user's personal DM in an org.",
     inputSchema: {
       additionalProperties: false,
       properties: {
         driverKind: STRING,
-        kind: { enum: ["dm", "project"], type: "string" },
+        kind: { enum: ["dm", "project", "thread"], type: "string" },
         model: STRING,
         orgId: STRING,
         projectId: STRING,

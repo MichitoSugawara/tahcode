@@ -7,6 +7,7 @@ import {
   NO_PROJECT_LABEL,
   readNewChatProjectParam,
   resolveNewChatProjectId,
+  resolveNewChatSendKind,
   titleFromFirstMessage,
 } from "../src/lib/newChat.ts";
 import {
@@ -28,6 +29,11 @@ describe("new chat defaults", () => {
     expect(resolveNewChatProjectId(null, new Set(["p1"]))).toBeNull();
     expect(newChatHeroName(null)).toBe(NO_PROJECT_LABEL);
     expect(newChatHeroName("Alpha")).toBe("Alpha");
+  });
+
+  it("sends No project to a new thread, never the singleton DM", () => {
+    expect(resolveNewChatSendKind(null)).toBe("thread");
+    expect(resolveNewChatSendKind("p1")).toBe("project");
   });
 
   it("titles a project chat from the first line, else 新しいチャット", () => {
@@ -61,5 +67,21 @@ describe("new chat source contracts", () => {
     expect(existsSync("src/harness/NewChatCheckoutBar.tsx")).toBeFalsy();
     expect(page).not.toContain("NewChatCheckoutBar");
     expect(page).not.toContain("afterComposer");
+  });
+
+  it("creates a thread on send instead of binding Personal DM", () => {
+    const page = readFileSync("src/pages/NewChatPage.tsx", "utf-8");
+    expect({
+      bindsExistingDm: page.includes("chat={project ? null : dm}"),
+      createsThread:
+        page.includes("useCreateThreadChat") && page.includes('kind: "thread"'),
+      startsEmpty:
+        page.includes("chat={null}") &&
+        page.includes("ensureChat={ensureChat}"),
+    }).toStrictEqual({
+      bindsExistingDm: false,
+      createsThread: true,
+      startsEmpty: true,
+    });
   });
 });

@@ -270,7 +270,7 @@ export function Thread({
             chat={chat}
             tall
             placeholder={
-              chat.kind === "dm"
+              chat.kind === "dm" || chat.kind === "thread"
                 ? "返信…"
                 : `返信（${agentMention(agent.driverKind, agent.model)} などで指名）…`
             }

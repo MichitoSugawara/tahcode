@@ -74,6 +74,11 @@ export type CreateChatArgs = {
   visibility: "inherit" | "private";
 } & ChatAgentArgs;
 
+export type CreateThreadChatArgs = {
+  profileId?: Id<"skillProfiles">;
+  title: string;
+} & ChatAgentArgs;
+
 /** Create a project chat; the placeholder shows up in the sidebar immediately. */
 export function useCreateProjectChat() {
   const { org } = useOrg();
@@ -101,6 +106,39 @@ export function useCreateProjectChat() {
       return { created: optimistic(args), placeholder };
     },
     [mutate, org._id]
+  );
+}
+
+/** Create a no-project thread; never reuses the singleton Personal DM (TAH-75). */
+export function useCreateThreadChat() {
+  const { me, org } = useOrg();
+  const mutate = useMutation(api.chats.createThreadChat);
+  return useCallback(
+    (
+      args: CreateThreadChatArgs,
+      placeholder: Id<"chats"> = placeholderId("chats")
+    ) => {
+      const optimistic = mutate.withOptimisticUpdate((store, input) =>
+        appendChat(store, {
+          _id: placeholder,
+          driverKind: input.driverKind,
+          kind: "thread",
+          model: input.driverKind ? input.model : undefined,
+          orgId: org._id,
+          ownerId: me._id,
+          profileId: input.profileId,
+          projectId: undefined,
+          options: input.driverKind ? input.options : undefined,
+          title: chatTitle(input.title),
+          visibility: "inherit",
+        })
+      );
+      return {
+        created: optimistic({ orgId: org._id, ...args }),
+        placeholder,
+      };
+    },
+    [mutate, me._id, org._id]
   );
 }
 
