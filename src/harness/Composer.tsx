@@ -849,9 +849,8 @@ export function Composer({
 
   return (
     <>
-      <ComposerContextBar chat={chat} />
       {shouldShowNoRuntimeChrome(org.runtimes, org.now) && (
-        <div className="mt-2">
+        <div className="mb-3">
           <NoRuntimeChrome
             registered={(org.runtimes ?? []).length > 0}
             onRegister={() => org.openDialog({ kind: "registerRuntime" })}
@@ -859,7 +858,8 @@ export function Composer({
           />
         </div>
       )}
-      <div className="mt-2">
+      <div className="flex flex-col gap-1.5">
+        <ComposerContextBar chat={chat} />
         <PromptBar
           tall={tall}
           disabled={disabled}

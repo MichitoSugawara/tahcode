@@ -744,7 +744,7 @@ export default function PromptBar({
               />
             </div>
 
-            {/* pickers — provider · runtime */}
+            {/* pickers — provider · model · options */}
             <div
               ref={pickersRef}
               className={`flex max-w-full items-center gap-0.5 overflow-x-auto ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
