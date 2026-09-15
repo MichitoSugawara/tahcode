@@ -17,10 +17,10 @@ import { applyImagegenDraft } from "../../shared/harnessFeatures.ts";
 import { BRIDGE_CAPABILITY_JOB_CANCEL } from "../../shared/jobs.ts";
 import type { ProviderOptionSelection } from "../../shared/modelOptions.ts";
 import {
-  formatJobMcpAttachNote,
   formatJobOpsPromptSuffix,
   injectedConnectorConnections,
   injectedMcpServerNames,
+  jobNeedsMcpAttachment,
 } from "../../shared/opsMcp.ts";
 import type { JobOpsBundle } from "../../shared/opsMcp.ts";
 import {
@@ -503,9 +503,13 @@ async function executeJob(
   }
 
   const contextSummary = summarizeContext(job.contextJson);
-  const opsSuffix = job.opsBundle
-    ? `\n\n---\n${formatJobOpsPromptSuffix(job.opsBundle)}`
-    : "";
+  const needsMcp = Boolean(
+    job.opsBundle && jobNeedsMcpAttachment(job.opsBundle)
+  );
+  const opsSuffix =
+    needsMcp && job.opsBundle
+      ? `\n\n---\n${formatJobOpsPromptSuffix(job.opsBundle)}`
+      : "";
   const injectedConnections = injectedConnectorConnections(
     job.opsBundle?.connectors ?? [],
     job.opsBundle?.mentionedConnectors ?? []
@@ -517,7 +521,10 @@ async function executeJob(
   const injectedProviders = [
     ...new Set(injectedConnections.map((row) => row.provider)),
   ];
-  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${agentToolsPromptSuffix(false, injectedProviders)}${opsSuffix}`;
+  const toolsCatalog = needsMcp
+    ? agentToolsPromptSuffix(false, injectedProviders)
+    : "";
+  const prompt = `${applyImagegenDraft(wanted, job.prompt)}\n\n---\nTeam context (history + mentions + project link):\n${contextSummary}\n\n---\n${toolsCatalog}${opsSuffix}`;
   const toolAuth = {
     jobId: job._id,
     leaseId: job.leaseId,
@@ -535,14 +542,16 @@ async function executeJob(
       dir: jobDir,
       nodePath: process.execPath,
     });
-    mcpConfigPath = await writeAgentToolsMcpConfig({
-      auth: toolAuth,
-      cliEntry,
-      connections: job.opsBundle?.connectors ?? [],
-      dir: jobDir,
-      mentionedConnectors: job.opsBundle?.mentionedConnectors ?? [],
-      nodePath: process.execPath,
-    });
+    if (needsMcp) {
+      mcpConfigPath = await writeAgentToolsMcpConfig({
+        auth: toolAuth,
+        cliEntry,
+        connections: job.opsBundle?.connectors ?? [],
+        dir: jobDir,
+        mentionedConnectors: job.opsBundle?.mentionedConnectors ?? [],
+        nodePath: process.execPath,
+      });
+    }
     jobEnv = {
       ...jobEnv,
       PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
@@ -551,14 +560,13 @@ async function executeJob(
       jobEnv[AGENT_TOOL_ENV.INJECTED_CONNECTORS] =
         formatInjectedConnectorsEnv(injectedConnections);
     }
-    if (job.opsBundle) {
-      await send("thinking", formatJobMcpAttachNote(job.opsBundle));
-    }
   } catch (error) {
-    await send(
-      "thinking",
-      `tahcode tools host skipped: ${error instanceof Error ? error.message : String(error)}`
-    );
+    if (needsMcp) {
+      await send(
+        "thinking",
+        `tahcode tools host skipped: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
   const effortTag = jobOptions?.find(
     (item) => typeof item.value === "string"

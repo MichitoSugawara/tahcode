@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 
-import { resolveCompletedMessageBody } from "../shared/jobs.ts";
+import {
+  resolveCompletedMessageBody,
+  shouldWriteJobEventToMessageBody,
+} from "../shared/jobs.ts";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -264,11 +267,7 @@ export const appendEvent = mutation({
       type: args.type,
       text,
     });
-    if (
-      args.type === "text" ||
-      args.type === "tool" ||
-      args.type === "thinking"
-    ) {
+    if (shouldWriteJobEventToMessageBody(args.type)) {
       const message = await ctx.db.get("messages", job.assistantMessageId);
       if (message) {
         const next = `${message.body}${text}`.slice(-100_000);

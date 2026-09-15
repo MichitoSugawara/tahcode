@@ -10,6 +10,8 @@ import {
   connectorMcpServerName,
   formatJobMcpAttachNote,
   formatJobOpsPromptSuffix,
+  isJobMcpAttachNote,
+  jobNeedsMcpAttachment,
   injectedConnectorConnections,
   jobMcpAttachmentMode,
   jobMcpCliFlags,
@@ -239,6 +241,22 @@ describe("job MCP attachment", () => {
         bundle.mentionedConnectors
       )
     ).toStrictEqual([linear]);
+  });
+
+  it("skips MCP attach on tool-free greetings (TAH-76)", () => {
+    const greeting = buildJobOpsBundle({
+      connections: [linear],
+      driverKind: "claudeAgent",
+      prompt: "こんに血は",
+    });
+    expect(jobNeedsMcpAttachment(greeting)).toBeFalsy();
+    expect(isJobMcpAttachNote(formatJobMcpAttachNote(greeting))).toBeTruthy();
+    const mentioned = buildJobOpsBundle({
+      connections: [linear],
+      driverKind: "claudeAgent",
+      prompt: "@claude @linear 課題を一覧",
+    });
+    expect(jobNeedsMcpAttachment(mentioned)).toBeTruthy();
   });
 
   it("does not inject when Linear is disconnected or unmentioned", () => {

@@ -391,3 +391,25 @@ export function formatJobMcpAttachNote(bundle: JobOpsBundle): string {
   }
   return `tahcode ops tools unavailable for this provider. connectors: ${listed} listed.`;
 }
+
+/**
+ * Tool-free turns (greetings, no `@linear`) skip MCP file / `--mcp-config`
+ * and the connector prompt suffix. Mention ∩ connected still attaches.
+ */
+export function jobNeedsMcpAttachment(bundle: JobOpsBundle): boolean {
+  if (bundle.mentionedConnectors.length > 0) {
+    return true;
+  }
+  return bundle.mcp.servers.some(
+    (server) => server.kind === "connector" && server.inject
+  );
+}
+
+export function isJobMcpAttachNote(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    trimmed.startsWith("tahcode ops MCP attached") ||
+    trimmed.startsWith("tahcode ops tools via") ||
+    trimmed.startsWith("tahcode ops tools unavailable")
+  );
+}
