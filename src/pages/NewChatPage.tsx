@@ -4,7 +4,6 @@ import { toast } from "sonner";
 
 import { Composer, useChatAgent } from "@/harness/Composer";
 import { EmptyHero, useHeroComposerMenu } from "@/harness/EmptyHero";
-import { NewChatCheckoutBar } from "@/harness/NewChatCheckoutBar";
 import { NewChatProjectSwitch } from "@/harness/NewChatProjectSwitch";
 import { useCreateProjectChat } from "@/harness/optimisticMutations";
 import { useOrg } from "@/harness/OrgContext";
@@ -26,7 +25,8 @@ import type { Id } from "../../convex/_generated/dataModel";
  * NEW CHAT — t3code New thread as a full page (TAH-68).
  * Default is No project (Personal DM). A project is optional;
  * first send creates that project's chat. Agent pickers live
- * inside the composer. Folder picking stays TAH-67.
+ * inside the composer. Project / machine / branch context bar
+ * is TAH-71 (do not add a second strip here).
  * ───────────────────────────────────────────────────────── */
 export default function NewChatPage() {
   const org = useOrg();
@@ -123,12 +123,6 @@ export default function NewChatPage() {
               org.goChat(chat._id);
             }}
             onSuggestMenuOpenChange={onSuggestMenuOpenChange}
-          />
-        }
-        afterComposer={
-          <NewChatCheckoutBar
-            cwd={project?.cwd}
-            hasProject={Boolean(project)}
           />
         }
         composerMenuOpen={composerMenuOpen}

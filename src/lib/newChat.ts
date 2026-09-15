@@ -30,14 +30,3 @@ export function titleFromFirstMessage(text: string): string {
   const line = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
   return line.slice(0, 80) || NEW_CHAT_TITLE;
 }
-
-export function checkoutPathLabel(
-  cwd: string | undefined,
-  hasProject: boolean
-): string {
-  if (!hasProject) {
-    return "プロジェクト未選択";
-  }
-  const path = cwd?.trim();
-  return path && path.length > 0 ? path : "未設定";
-}

@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  checkoutPathLabel,
   newChatHeroName,
   NO_PROJECT_LABEL,
   readNewChatProjectParam,
@@ -37,12 +36,6 @@ describe("new chat defaults", () => {
     expect(titleFromFirstMessage("x".repeat(90))).toHaveLength(80);
   });
 
-  it("shows checkout as display-only path, not a fake branch", () => {
-    expect(checkoutPathLabel(undefined, false)).toBe("プロジェクト未選択");
-    expect(checkoutPathLabel("  ", true)).toBe("未設定");
-    expect(checkoutPathLabel("~/code/web", true)).toBe("~/code/web");
-  });
-
   it("builds /new as a page path, not a dialog", () => {
     expect(orgNewChatPath("acme")).toBe("/o/acme/new");
     expect(orgNewChatPath("acme", "p1")).toBe("/o/acme/new?project=p1");
@@ -61,5 +54,12 @@ describe("new chat source contracts", () => {
     expect(shell).not.toContain('kind: "newChat"');
     expect(host).not.toContain("NewChatDialog");
     expect(existsSync("src/harness/dialogs/NewChatDialog.tsx")).toBeFalsy();
+  });
+
+  it("does not ship a composer context bar (TAH-71 owns it)", () => {
+    const page = readFileSync("src/pages/NewChatPage.tsx", "utf-8");
+    expect(existsSync("src/harness/NewChatCheckoutBar.tsx")).toBeFalsy();
+    expect(page).not.toContain("NewChatCheckoutBar");
+    expect(page).not.toContain("afterComposer");
   });
 });

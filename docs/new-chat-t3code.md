@@ -1,14 +1,15 @@
-# 新しいチャット / フォルダ / 右サイド（TAH-68 / 67 / 69）
+# 新しいチャット / フォルダ / 右サイド（TAH-68 / 67 / 69、バーは TAH-71）
 
-Status: TAH-68 実装（この PR） / TAH-67・69 は設計と後続  
+Status: TAH-68 実装（この PR） / TAH-67・69 は設計と後続 / **TAH-71 は別エージェント**  
 Date: 2026-09-15  
 Issues:
 
 - [TAH-68](https://linear.app/tahcode/issue/TAH-68/新しいチャットを-t3code-型フルページにするデフォルト-no-project)（今 ship）
 - [TAH-67](https://linear.app/tahcode/issue/TAH-67/プロジェクトのフォルダ選択を使えるようにする)
 - [TAH-69](https://linear.app/tahcode/issue/TAH-69/右サイドバー-terminal-browser-リモートデスクトップ-サイドチャット)
+- [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意)（Composer コンテキストバー。**この PR では実装しない**）
 
-シェル全体の在庫は [`docs/ux-shell-design.md`](ux-shell-design.md)。ここは New thread 面と、それに続くフォルダ / 右レールだけを切る。
+シェル全体の在庫は [`docs/ux-shell-design.md`](ux-shell-design.md)。ここは New thread 面と、それに続くフォルダ / 右レールを切る。Composer コンテキストバーは TAH-71。
 
 UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。
 
@@ -46,7 +47,7 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。
 
 Composer 下段: 既存のプロバイダ / モデル / 推論 / ランタイム（スクショの Muse / Max / access に相当する tahcode の実コントロール。無い「Max」「Full access」は作らない）。
 
-Composer の下: 作業ディレクトリの **表示**。フォルダ選択 UI は TAH-67。ブランチピッカーはデータが無いので置かない。
+**Composer 周辺のコンテキストバー（プロジェクト / マシン / ブランチ、作成時のマシン別フォルダ）は [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意)。この PR では置かない。** 見出しの点線は TAH-68 の New thread 切替であり、バーのセレクタと二重にしない。
 
 ---
 
@@ -70,7 +71,7 @@ Composer の下: 作業ディレクトリの **表示**。フォルダ選択 UI 
 - [PR #4411](https://github.com/pingdotgg/t3code/pull/4411)
 - Deep dive の “A project points to a directory” / “A workspace is the checkout used by a thread” / “Current checkout or new worktree”
 
-tahcode への写し方: 新しいチャット面に作業ディレクトリ行を置く。**選べるようにする実装は TAH-67**（bridge 上の実パスが要る）。ブランチは未契約なのでフェイク UI を出さない。
+tahcode への写し方: checkout / machine / branch の **選択 UI は TAH-71**（別エージェント）。この PR の New chat 面にはコンテキストバーも偽の checkout 行も置かない。フォルダが実際に選べて永続する契約は TAH-67。
 
 ### t3code — プロジェクト追加 = ディレクトリ
 
@@ -99,16 +100,19 @@ TAH-67 / TAH-69 の到達点。今は空の workbench を出さない（`ux-shel
 
 ```
 TAH-68 フルページ New chat（この PR）
+        │  コンテキストバーは置かない
         │
-        ├─ TAH-67 フォルダ選択 ── チェックアウト行を入力にする
-        │         │
-        │         └─ （任意）branch / worktree。ランタイムが git を返すまで stub 禁止
+        ├─ TAH-71 Composer コンテキストバー（別エージェント）
+        │         プロジェクト / マシン / ブランチ + 作成時マシン別フォルダ任意
+        │
+        ├─ TAH-67 フォルダ選択が完了する（bridge / 永続）
+        │         バーの入力は TAH-71 に載せる。ここで第二の checkout 行を足さない
         │
         └─ TAH-69 右レール 4 面
                   依存: オンラインマシン、構造化 preview / PTY / 画面、サイドチャットの kind
 ```
 
-TAH-68 は 67 / 69 をブロックしない。67 は 68 の表示行を入力に替える。69 はチャット作成と独立。
+TAH-68 は 67 / 69 / 71 をブロックしない。69 はチャット作成と独立。71 は 68 のページにバーを足す。
 
 ---
 
@@ -135,19 +139,32 @@ TAH-68 は 67 / 69 をブロックしない。67 は 68 の表示行を入力に
 | 見出し切替 | `NewChatProjectSwitch`。`?project=` を replace |
 | 禁則コピー | 新規文言にインフラ名を入れない |
 
-再利用: `EmptyHero`（greeting なし / 中央揃え / `afterComposer`）、`Composer`（`ensureChat` / `hideHint`）、`Shell` レール。
+再利用: `EmptyHero`（greeting なし / 中央揃え）、`Composer`（`ensureChat` / `hideHint`）、`Shell` レール。`afterComposer` は EmptyHero に残してある（TAH-71 用。この PR の New chat では未使用）。
 
-やらない（Linear + スクショの外）:
+やらない（Linear + スクショの外 / 他チケット）:
 
 - タイトル / 公開範囲フォーム（旧モーダル。スクショに無い）
 - 「Max」「Full access」の偽物
-- 動くブランチピッカー
-- フォルダダイアログ（TAH-67）
+- **Composer コンテキストバー**（プロジェクト / マシン / ブランチセレクタ、偽の checkout 行）→ [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意)
+- フォルダダイアログ / マシン別フォルダマッピング → TAH-67 + TAH-71
 - 右レール 4 面（TAH-69）
 
 ---
 
-## 6. TAH-67 — フォルダ選択（後続）
+## 6. TAH-71 — Composer コンテキストバー（この PR 外）
+
+[TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意) が別エージェントで所有する。
+
+- Composer 上（または直上）で **プロジェクト / マシン / ブランチ** を選ぶ
+- プロジェクト作成時、マシンごとにフォルダを **任意** 設定
+- 未マップのマシンではフォルダ選択を促す
+- 置き場は灰色のコンテキストバー + 下の入力（TAH-71 添付）。t3code `BranchToolbar` と同じ周辺
+
+この PR はフルページ New chat と見出しの No project 切替だけ。バーのセレクタを先回りして置かない。TAH-71 は `EmptyHero` / `Composer` / `NewChatPage` に載せる想定。
+
+---
+
+## 7. TAH-67 — フォルダ選択（後続）
 
 ### 症状
 
@@ -163,7 +180,7 @@ TAH-68 は 67 / 69 をブロックしない。67 は 68 の表示行を入力に
 
 1. **契約** — bridge がディレクトリ列挙（またはデスクトップの native picker）を返す。Web の `showDirectoryPicker` は bridge のパスに届かないので主経路にしない。
 2. **永続** — 選んだパスを `projects.cwd` に書く。No project のときはチャット / ランタイムに付けない（プロジェクトを作るか、後で選ぶ）。
-3. **New chat 行** — TAH-68 の「作業ディレクトリ」を入力にする。未設定は「未設定」、未接続は「オンラインのマシンが必要」。
+3. **UI の置き場** — 選択バーは TAH-71。この PR / TAH-67 で New chat に第二の「作業ディレクトリ」行を足さない。
 4. **最近使ったパス** — Cursor / Codex 慣習。任意。
 
 ### 今やらない理由
@@ -175,12 +192,14 @@ TAH-68 は 67 / 69 をブロックしない。67 は 68 の表示行を入力に
 ### 後続チケット案
 
 - TAH-67a: bridge / desktop のディレクトリ列挙契約
-- TAH-67b: プロジェクト設定と New chat 行を同じピッカーに接続
-- TAH-67c: git branch（ランタイムが返してから）
+- TAH-67b: 永続（プロジェクト / マシン別パス）を TAH-71 のバーに接続
+- TAH-67c: git branch（ランタイムが返してから。セレクタ UI は TAH-71）
+
+Composer 上のプロジェクト / マシン / ブランチと、作成時のマシン別フォルダ任意は **TAH-71**。重複実装しない。
 
 ---
 
-## 7. TAH-69 — 右サイド（後続）
+## 8. TAH-69 — 右サイド（後続）
 
 ### 症状
 
@@ -220,7 +239,7 @@ Terminal / Browser / リモートデスクトップ / サイドチャットが�
 
 ---
 
-## 8. リスク / 未決
+## 9. リスク / 未決
 
 | 項目 | 判断（この PR） | 開き |
 | --- | --- | --- |
@@ -228,12 +247,12 @@ Terminal / Browser / リモートデスクトップ / サイドチャットが�
 | プロジェクトチャットのタイトル | 本文先頭行。空なら「新しいチャット」 | 旧モーダルの手入力タイトルは捨てた |
 | 公開範囲 | `inherit` 固定 | プライベート作成 UI はスクショに無い |
 | スキルプロファイル | プロジェクトの `profileId` を継承 | ページ上の ProfilePicker は置かない |
-| checkout 行 | 表示のみ | TAH-67 で入力化 |
-| ブランチ | 出さない | git 契約が来てから |
+| Composer コンテキストバー | **置かない** | [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意) |
+| ブランチ / マシン選択 | 出さない | TAH-71 |
 
 ---
 
-## 9. 検証
+## 10. 検証
 
 Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は preview では使えない。
 
@@ -241,7 +260,7 @@ Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は p
 2. レール「新しいチャット」→ `/o/preview/new`（モーダルが無い）
 3. 見出しが「**プロジェクトなし** で何を作りますか？」
 4. composer 下段にプロバイダ / モデル（と推論があればそれ）がある
-5. 下に「作業ディレクトリ · プロジェクト未選択」
+5. **プロジェクト / マシン / ブランチのコンテキストバーが無い**（TAH-71）
 6. 送信 → Personal DM が開く
 7. 見出しでプロジェクトを選んで送信 → そのプロジェクトにチャットができる
 8. プロジェクト行の ＋ → `?project=` 付き。レールから入ったときと違い初期選択がある
@@ -257,8 +276,9 @@ Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は p
 
 ---
 
-## 10. 後続（PR に残す）
+## 11. 後続（PR に残す）
 
-- TAH-67: フォルダ選択。この PR のチェックアウト行を入力にする
+- [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意): Composer コンテキストバー（別エージェント）
+- TAH-67: フォルダ選択が完了する。バー UI は TAH-71
 - TAH-69: 右レール 4 面。子 issue に分割して本 issue にリンク
 - （任意）プロジェクトなしの複数スレッド。Linear が要求したら kind を足す
