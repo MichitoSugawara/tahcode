@@ -14,16 +14,25 @@ import { LINEAR_AGENT_TOOL_NAMES } from "../shared/linearAgentTools.ts";
 describe("agent tool catalog", () => {
   it("lists the Phase 1 tools without skill bodies", () => {
     const text = formatAgentToolCatalog();
-    for (const name of AGENT_TOOL_NAMES) {
-      expect(text).toContain(name);
-    }
-    expect(text).not.toMatch(/---\nname:/);
-    expect(text).toContain("不明なコマンド: tool");
-    expect(text).toContain("tahcode CLI is older than 0.1.1");
-    expect(isAgentToolName("list_orgs")).toBeTruthy();
-    expect(isAgentToolName("suggest_connector")).toBeTruthy();
-    expect(isAgentToolName("rm_rf")).toBeFalsy();
-    expect(text).not.toMatch(/OpenConnector|OOMOL|workers\.dev/i);
+    expect({
+      banned: /OpenConnector|OOMOL|workers\.dev/i.test(text),
+      catalog: AGENT_TOOL_NAMES.every((name) => text.includes(name)),
+      listOrgs: isAgentToolName("list_orgs"),
+      skillFrontmatter: /---\nname:/.test(text),
+      staleHint: text.includes("tahcode CLI is older than 0.1.1"),
+      suggest: isAgentToolName("suggest_connector"),
+      unknown: isAgentToolName("rm_rf"),
+      unknownToolHint: text.includes("不明なコマンド: tool"),
+    }).toStrictEqual({
+      banned: false,
+      catalog: true,
+      listOrgs: true,
+      skillFrontmatter: false,
+      staleHint: true,
+      suggest: true,
+      unknown: false,
+      unknownToolHint: true,
+    });
   });
 
   it("parses object arguments and rejects arrays", () => {
