@@ -195,9 +195,7 @@ export const prepareConnectorInvoke = internalMutation({
       throw new Error("Connection not found");
     }
     if (row.status !== "connected") {
-      throw new Error(
-        `${label} is not connected. Reconnect it from Connectors.`
-      );
+      throw new Error(`${label} is not connected. Reconnect it from Plugins.`);
     }
     return {
       connectedAccountId: row.connectedAccountId,

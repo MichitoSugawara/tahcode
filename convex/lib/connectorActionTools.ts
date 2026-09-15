@@ -29,7 +29,7 @@ export async function runConnectorAction(input: {
     );
   }
   const mapped = mapConnectorActionInput(input.name, input.args);
-  const disconnected = `${connectorProviderLabel(action.provider)} is not connected. Reconnect it from Connectors.`;
+  const disconnected = `${connectorProviderLabel(action.provider)} is not connected. Reconnect it from Plugins.`;
   try {
     let alias = input.oauthAlias?.trim() ?? "";
     if (alias.length < 1) {

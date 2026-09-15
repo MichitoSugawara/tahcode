@@ -13,7 +13,7 @@ import { useDocumentTitle } from "@/lib/title";
 export default function ConnectorsPage() {
   const { org } = useOrg();
   const [query, setQuery] = useState("");
-  useDocumentTitle("コネクタ", org.name);
+  useDocumentTitle(CONNECTOR_CARD_COPY.surface, org.name);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -24,7 +24,7 @@ export default function ConnectorsPage() {
           }}
         >
           <h1 className="text-ink text-[22px] font-normal tracking-[-0.02em]">
-            コネクタ
+            {CONNECTOR_CARD_COPY.surface}
           </h1>
           <p className="text-ink-3 mt-1 max-w-[42rem] text-[13px] leading-relaxed">
             Linear などのサービスをこの org に接続します。追加と認証は Owner /
@@ -42,7 +42,7 @@ export default function ConnectorsPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="コネクタを検索"
+            placeholder={CONNECTOR_CARD_COPY.searchLabel}
             aria-label={CONNECTOR_CARD_COPY.searchLabel}
             className="text-ink placeholder:text-ink-3 min-w-0 flex-1 bg-transparent text-[13px] outline-none"
           />

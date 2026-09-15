@@ -34,7 +34,7 @@ npx shadcn@latest add @beautifui/thinking-state   # 例。foundation は registr
 
 | プリミティブ | 使い所 |
 | --- | --- |
-| **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、新しいチャット / ホーム / 招待 / コネクタのレール、Projects→Chats ツリー、52↔224px 折りたたみ。設定は左下ユーザーメニュー |
+| **SidebarNav**（移植: lucide アイコン、データ駆動化） | ワークスペース切替（Org）、新しいチャット / ホーム / 招待 / プラグインのレール、Projects→Chats ツリー、52↔224px 折りたたみ。設定は左下ユーザーメニュー |
 | **PromptBar**（移植: デモ/口述/シェーダを除去、データ駆動化） | コンポーザ。`@` でエージェント + メンバー、`/` でコマンド、プロバイダ / ランタイムのピルピッカー、R2 添付チップ、⏎送信 / ⇧⏎改行、IME 対応 |
 | **ThinkingState**（`working` prop を追加してライブ駆動） | ランタイムの `thinking` イベントをそのままトレース行に。実行中はシマー + スピナー、完了で「N ステップ実行」に畳む |
 | **ToolChips**（`live` / `fill` prop を追加） | ランタイムの `tool` イベント（コマンド実行・編集・MCP）を展開可能なチップ行に。「N 件のツール呼び出し」で畳む |
@@ -75,7 +75,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 
 1. **Auth** — `/login`（ログイン / 新規登録の切替）。メール＋パスワード、または **Google で続ける**（OAuth 設定時のみ有効）。`?next=` で招待リンクへ戻る（Google 経由でも維持）。入力検証と失敗メッセージは日本語（空欄・形式不正・8 文字未満・確認不一致・パスワード相違・登録済みメール・ネットワーク断・セッション未確立）。サインアウトはワークスペースメニュー
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
-3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・コネクタ・招待・テーマ・サインアウト）、`/o/:slug/settings`。コネクタは専用面 `/o/:slug/connectors`（Org 設定の一節ではない）。チャットでは `/connect` またはエージェントの `suggest_connector` で会話内に同じ Linear カードが出る
+3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・プラグイン・招待・テーマ・サインアウト）、`/o/:slug/settings`。プラグインは専用面 `/o/:slug/connectors`（Org 設定の一節ではない）。チャットでは `/connect` またはエージェントの `suggest_connector` で会話内に同じ Linear カードが出る
 4. **プロジェクト作成** — プロジェクト作成ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ。作成フローの型は Multica を着想にした）。作成すると「General」チャットが開く
 5. **チャット作成 / 開く** — 「新しいチャット」はフルページ（`/o/:slug/new`）。デフォルトは **No project**（送信で毎回新しいスレッド。既存 Personal DM には合流しない）。見出しの点線でプロジェクトを選べる。エージェント（プロバイダ / モデル / 推論）は composer 内。プロジェクトを選んで送るとそのプロジェクトにチャットを作り、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）が付く。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
@@ -246,7 +246,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 - **Convex デプロイ**: ローカルは匿名モード。本番 Convex へのリンクは未実施（`npx convex login` → 通常 `dev`/`deploy`）。
 - **承認フロー**: headless 実行は非対話（権限は各 CLI 側の事前設定に委譲）。t3code の approval デシジョン同期は Phase 1 外。
 - **スキル同期のギャップ**: Codex / Claude / Cursor / OpenCode はジョブ開始時にローカルのスキルディレクトリへ SKILL.md を書く。Grok / Antigravity はストア規約がなく未書き込み。詳細は [`docs/skills.md`](docs/skills.md)。
-- **Agent Tools / ops MCP（TAH-55 / TAH-54）**: ジョブ中のエージェントは `tahcode tool`（Claude は一時 `--mcp-config`）で Org / プロジェクト / チャット / ランタイム / コネクタ状態を操作できる。`@linear` があるジョブでは同じ経路で tahcode 所有の Linear 課題ツールも載る（Cursor 内蔵 MCP は使わない）。詳細は [`docs/agent-tools.md`](docs/agent-tools.md) と [`docs/ops-mcp.md`](docs/ops-mcp.md)。
+- **Agent Tools / ops MCP（TAH-55 / TAH-54）**: ジョブ中のエージェントは `tahcode tool`（Claude は一時 `--mcp-config`）で Org / プロジェクト / チャット / ランタイム / プラグイン状態を操作できる。`@linear` があるジョブでは同じ経路で tahcode 所有の Linear 課題ツールも載る（Cursor 内蔵 MCP は使わない）。詳細は [`docs/agent-tools.md`](docs/agent-tools.md) と [`docs/ops-mcp.md`](docs/ops-mcp.md)。
 
 ## CI/CD（Convex + Cloudflare）
 

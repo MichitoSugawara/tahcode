@@ -206,6 +206,7 @@ export const CONNECTOR_CARD_COPY = {
   addAnotherAccount: "+ 別のアカウントを追加",
   authorize: "認証",
   authorizeHint: "認証すると Linear に移動し、完了後この画面に戻ります。",
+  cardError: "プラグインカードを表示できませんでした",
   chatIntro: (name: string) => `${name} をこの org に接続します。`,
   chatIntroUser: (name: string) => `${name} を個人アカウントとして接続します。`,
   chatMemberHint: "Team 連携の認証は Owner / Admin が行います。",
@@ -215,7 +216,8 @@ export const CONNECTOR_CARD_COPY = {
   disconnect: "切断",
   disconnectDetail:
     "tahcode からの連携だけを止めます。Linear 側のアカウントはそのままです。",
-  emptySearch: "該当するコネクタがありません",
+  emptySearch: "該当するプラグインがありません",
+  loading: "プラグインを読み込んでいます",
   needsAuth: "認証が必要",
   notConfigured: "認証を開始できません。管理者に連絡してください。",
   personal: "個人",
@@ -228,7 +230,8 @@ export const CONNECTOR_CARD_COPY = {
   reopen: "再表示",
   retry: "再試行",
   retryHint: (name: string) => `${name} の認証が完了しませんでした`,
-  searchLabel: "コネクタを検索",
+  searchLabel: "プラグインを検索",
+  surface: "プラグイン",
   team: "Team",
   waiting: (name: string) => `${name} の認証を待っています…`,
 } as const;

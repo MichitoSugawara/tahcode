@@ -28,7 +28,7 @@ GitHub PR #33 / #34 / #35 は **別チケット** を運んだ。TAH-32–39 は
 
 ```
 Org 切替
-レール: 新しいチャット / ホーム / 招待 / コネクタ
+レール: 新しいチャット / ホーム / 招待 / プラグイン
 プロジェクト
   ▼ Alpha
       General
@@ -36,7 +36,7 @@ Org 切替
 チャット
   ▼ パーソナル
       Personal DM
-ユーザーメニュー（設定 / コネクタ / テーマ / サインアウト）
+ユーザーメニュー（設定 / プラグイン / テーマ / サインアウト）
 ```
 
 ### TAH-35 — なぜ Projects が先か
@@ -54,7 +54,7 @@ Org 切替
 - **新しいチャット** を残す: フルページ `/o/:slug/new`（`NewChatPage`。デフォルト No project）。詳細は [`docs/new-chat-t3code.md`](new-chat-t3code.md)（TAH-68 / 67 / 69）。
 - **ホーム** を残す: `HomePage` はダッシュボード（提案・ランタイム状態・DM コンポーザ）。Codex home はほぼ composer だが、tahcode のホームは作成フォームと同一ではない。
 - **ランタイム** ラベルを rail から削除。実体は `goSettings` だった（ラベル嘘）。設定は TAH-31 のユーザーメニューとワークスペースメニュー。マシンは Settings `#runtimes` とコマンドパレット「ランタイムの利用許可を管理」。
-- **招待** と **コネクタ** は rail に残す（作成 / チーム拡張。Settings 下部に全部寄せると到達が落ちる）。
+- **招待** と **プラグイン** は rail に残す（作成 / チーム拡張。Settings 下部に全部寄せると到達が落ちる）。
 
 エビデンス: Codex に "Runtime" 第一級ナビはない。t3code は Settings → Providers。Slack/Linear は作成とホームを分けるが、ホーム≠作成フォームのときだけ。
 
@@ -142,6 +142,6 @@ Slack / Notion / Linear はコアを薄くし、ボードやカレンダーは�
 1. スコープ: project 単位か、org テンプレ + project override か。
 2. 契約: `id` / ナビ露出 / Convex テーブル / agent tools・context。
 3. 無効化時: データは残して隠す（推奨）か消すか。
-4. Meetings のカレンダーはコネクタ面と組み合わせる。UI に OpenConnector / workers.dev は出さない。
+4. Meetings のカレンダーはプラグイン面と組み合わせる。UI に OpenConnector / workers.dev は出さない。
 
 Phase 0 = このメモ。実装は Phase 2a（enable フラグとナビ）から。
