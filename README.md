@@ -343,7 +343,7 @@ npm run check      # Ultracite（Oxlint + Oxfmt、`--deny-warnings`）。`lint` 
 npm run lint:convex  # Convex 専用 ESLint（`eslint.convex.config.js`。Oxlint ではカバーしない）
 npm run fix        # Ultracite autofix + format
 npm run cli -- …   # tahcode CLI をソースから実行 / npm run cli:build でバンドル
-npm test           # vitest（mentions / access）
+npm test           # vitest（unit + convex-test）。層と優先順位は docs/testing.md
 npm run build      # 本番ビルド
 npx shadcn@latest add @beautifui/<name>   # Beautiful UI プリミティブの追加（components.json 済み）
 ```
