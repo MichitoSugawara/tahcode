@@ -39,12 +39,12 @@ jobs:
           name="pr-${{ github.event.number }}"
           echo "preview_name=$name" >> "$GITHUB_OUTPUT"
 
-          fallbacks=$(gh pr list --state merged --limit 30 --json headRefName \
-            --jq '[.[].headRefName] | join(",")' || true)
+          fallbacks=$(gh pr list --state merged --limit 30 --json number,headRefName \
+            --jq '[.[] | .headRefName, "pr-\(.number)"] | join(",")' || true)
           echo "preview_fallbacks=$fallbacks" >> "$GITHUB_OUTPUT"
 
-          prune=$(gh pr list --state closed --limit 50 --json headRefName \
-            --jq '[.[].headRefName] | join(",")' || true)
+          prune=$(gh pr list --state closed --limit 50 --json number,headRefName \
+            --jq '[.[] | .headRefName, "pr-\(.number)"] | join(",")' || true)
           echo "preview_prune=$prune" >> "$GITHUB_OUTPUT"
 
           exclude=$(gh pr list --state open --json number,headRefName \
