@@ -13,6 +13,35 @@ export const SUGGESTED_COMPOSER_BRANCHES = [
 export const MISSING_PROJECT_FOLDER_MESSAGE =
   "このマシンのフォルダが未設定です。作業ディレクトリを指定してください。";
 
+export const COMPOSER_BRANCH_OFFLINE_MESSAGE =
+  "オンラインのマシンがないため、ブランチを切り替えられません。マシンを起動するか、別のマシンを選んでください。";
+
+export const COMPOSER_BRANCH_MACHINE_OFFLINE_MESSAGE =
+  "指定中のマシンがオフラインのため、ブランチを切り替えられません。別のマシンを選ぶか、このマシンを起動してください。";
+
+export const COMPOSER_BRANCH_INVALID_MESSAGE =
+  "ブランチ名が無効です。空や空白、Git で使えない文字は使えません。";
+
+export const COMPOSER_BRANCH_RUNTIME_LOADING_MESSAGE =
+  "マシンの状態を確認しています。しばらくして再試行してください。";
+
+export const COMPOSER_CATALOG_OFFLINE_MESSAGE =
+  "オンラインのマシンがないため、プロバイダとモデルは選べません。";
+
+export type ComposerBranchApplyCta = "retry" | "mapFolder" | "pickMachine";
+
+export type ComposerBranchApplyFailure = {
+  code: "offline" | "folder" | "invalid";
+  ctas: readonly ComposerBranchApplyCta[];
+  message: string;
+};
+
+export type ComposerBranchApplyResult =
+  | { branch: string; ok: true; unchanged: boolean }
+  | { failure: ComposerBranchApplyFailure; ok: false };
+
+const UNSAFE_BRANCH_CHARS = /[\s~^:?*\\[]/;
+
 export type ComposerProjectFolder = {
   cwd: string;
   runtimeId: string;
@@ -32,6 +61,100 @@ export function normalizeComposerBranch(raw: string | undefined): string {
     return DEFAULT_COMPOSER_BRANCH;
   }
   return trimmed.slice(0, MAX_COMPOSER_BRANCH_LEN);
+}
+
+/** Reject names that cannot be a git checkout target. Empty is not `main`. */
+export function parseComposerBranchInput(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (trimmed.length < 1 || trimmed.length > MAX_COMPOSER_BRANCH_LEN) {
+    return undefined;
+  }
+  if (
+    trimmed.includes("..") ||
+    trimmed.includes("@{") ||
+    trimmed.startsWith("-") ||
+    trimmed.startsWith(".") ||
+    trimmed.endsWith("/") ||
+    trimmed.endsWith(".lock") ||
+    UNSAFE_BRANCH_CHARS.test(trimmed)
+  ) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+export function isComposerRuntimeSelectable(input: {
+  canUse?: boolean;
+  live: boolean;
+}): boolean {
+  return input.canUse === true && input.live;
+}
+
+/**
+ * Confirm a branch only when the target machine can actually work on it.
+ * Does not invent a git checkout — callers persist only after `ok: true`.
+ */
+export function evaluateComposerBranchApply(input: {
+  confirmedBranch: string;
+  folderBlocked: boolean;
+  hasUsableOnline: boolean;
+  nextBranch: string;
+  runtimesReady: boolean;
+  /** `null` = auto. A designated machine must itself be live + usable. */
+  selectedRuntimeUsable: boolean | null;
+}): ComposerBranchApplyResult {
+  const parsed = parseComposerBranchInput(input.nextBranch);
+  if (!parsed) {
+    return {
+      failure: {
+        code: "invalid",
+        ctas: ["retry"],
+        message: COMPOSER_BRANCH_INVALID_MESSAGE,
+      },
+      ok: false,
+    };
+  }
+  const confirmed = normalizeComposerBranch(input.confirmedBranch);
+  if (parsed === confirmed) {
+    return { branch: parsed, ok: true, unchanged: true };
+  }
+  if (!input.runtimesReady) {
+    return {
+      failure: {
+        code: "offline",
+        ctas: ["retry"],
+        message: COMPOSER_BRANCH_RUNTIME_LOADING_MESSAGE,
+      },
+      ok: false,
+    };
+  }
+  const targetOnline =
+    input.selectedRuntimeUsable === null
+      ? input.hasUsableOnline
+      : input.selectedRuntimeUsable;
+  if (!targetOnline) {
+    return {
+      failure: {
+        code: "offline",
+        ctas: ["retry", "pickMachine"],
+        message: input.hasUsableOnline
+          ? COMPOSER_BRANCH_MACHINE_OFFLINE_MESSAGE
+          : COMPOSER_BRANCH_OFFLINE_MESSAGE,
+      },
+      ok: false,
+    };
+  }
+  if (input.folderBlocked) {
+    return {
+      failure: {
+        code: "folder",
+        ctas: ["retry", "mapFolder", "pickMachine"],
+        message: MISSING_PROJECT_FOLDER_MESSAGE,
+      },
+      ok: false,
+    };
+  }
+  return { branch: parsed, ok: true, unchanged: false };
 }
 
 /**

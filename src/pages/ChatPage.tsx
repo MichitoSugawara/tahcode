@@ -26,7 +26,7 @@ import {
   markLoaded,
   placeholderOf,
 } from "@/lib/optimistic";
-import { agentLabel, agentMention, modelMentionExample } from "@/lib/providers";
+import { agentLabel, agentMention } from "@/lib/providers";
 import { useDocumentTitle } from "@/lib/title";
 
 import { api } from "../../convex/_generated/api";
@@ -177,13 +177,6 @@ export default function ChatPage() {
           }
           composerMenuOpen={composerMenuOpen}
           suggestions={suggestions}
-          link={{
-            label:
-              chat.kind === "dm"
-                ? `DM では常時応答します（${agentLabel(agent.driverKind, agent.model)}）。メンションは不要です`
-                : `このチャットは ${agentMention(agent.driverKind, agent.model)} が応答します。${modelMentionExample(agent.driverKind)} のように別のモデルも指名できます`,
-            onClick: () => {},
-          }}
         />
         <div className="text-ink-3 pointer-events-none fixed right-6 bottom-4 hidden items-center gap-1.5 text-[11.5px] xl:flex">
           <MessageSquare size={11} />{" "}

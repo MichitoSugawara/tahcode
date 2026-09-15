@@ -1,18 +1,24 @@
 import * as Popover from "@radix-ui/react-popover";
 import {
   SUGGESTED_COMPOSER_BRANCHES,
+  evaluateComposerBranchApply,
+  isComposerRuntimeSelectable,
   needsProjectFolderMapping,
   normalizeComposerBranch,
 } from "@shared/composerContext.ts";
-import { Check, Folder, GitBranch, Monitor, Plus } from "lucide-react";
+import type { ComposerBranchApplyFailure } from "@shared/composerContext.ts";
+import { hasUsableOnlineRuntime } from "@shared/runtimeHealth.ts";
+import { Check, Cpu, Folder, GitBranch, Monitor, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/Button";
 import GlideMenu from "@/components/primitives/GlideMenu";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat, Project, Runtime } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
+import { registerRuntimeCtaLabel } from "@/lib/desktop";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -42,10 +48,69 @@ export function effectiveComposerRuntime(
   return live.length === 1 ? (live[0] ?? null) : null;
 }
 
+export function useComposerBranchApply(chat: Chat | null) {
+  const org = useOrg();
+  const [error, setError] = useState<{
+    attempted: string;
+    failure: ComposerBranchApplyFailure;
+  } | null>(null);
+  const project = effectiveComposerProject(
+    chat,
+    org.projects,
+    org.composerProjectId
+  );
+
+  const applyBranch = (raw: string): boolean => {
+    const runtime = effectiveComposerRuntime(
+      org.runtimes,
+      org.runtimeId,
+      org.now
+    );
+    const selected = org.runtimeId
+      ? (org.runtimes ?? []).find((item) => item._id === org.runtimeId)
+      : undefined;
+    const result = evaluateComposerBranchApply({
+      confirmedBranch: org.composerBranch,
+      folderBlocked: needsProjectFolderMapping({
+        folders: (project?.folders ?? []).map((folder) => ({
+          cwd: folder.cwd,
+          runtimeId: String(folder.runtimeId),
+        })),
+        hasProject: project !== null,
+        projectCwd: project?.cwd,
+        runtimeId: runtime ? String(runtime._id) : org.runtimeId,
+      }),
+      hasUsableOnline: hasUsableOnlineRuntime(org.runtimes ?? [], org.now),
+      nextBranch: raw,
+      runtimesReady: org.runtimes !== undefined,
+      selectedRuntimeUsable: org.runtimeId
+        ? isComposerRuntimeSelectable({
+            canUse: selected?.canUse,
+            live: selected ? isLive(selected, org.now) : false,
+          })
+        : null,
+    });
+    if (!result.ok) {
+      setError({ attempted: raw, failure: result.failure });
+      toast.error(result.failure.message);
+      return false;
+    }
+    if (!result.unchanged) {
+      org.setComposerBranch(result.branch);
+    }
+    setError(null);
+    return true;
+  };
+
+  return { applyBranch, error, project, setError };
+}
+
 export function ComposerContextBar({
+  applyBranch,
   chat,
   tall = false,
 }: {
+  applyBranch: (raw: string) => boolean;
   chat: Chat | null;
   tall?: boolean;
 }) {
@@ -155,17 +220,27 @@ export function ComposerContextBar({
             />
             {(org.runtimes ?? []).map((item) => {
               const live = isLive(item, org.now);
-              const disabled = !item.canUse;
+              const selectable = isComposerRuntimeSelectable({
+                canUse: item.canUse,
+                live,
+              });
               return (
                 <ContextRow
                   key={String(item._id)}
-                  disabled={disabled}
+                  disabled={!selectable}
                   label={item.name}
                   tag={
-                    disabled ? "許可なし" : live ? "オンライン" : "オフライン"
+                    item.canUse
+                      ? live
+                        ? "オンライン"
+                        : "オフライン"
+                      : "許可なし"
                   }
                   selected={org.runtimeId === item._id}
                   onSelect={() => {
+                    if (!selectable) {
+                      return;
+                    }
                     org.setRuntimeId(item._id);
                     close();
                   }}
@@ -175,10 +250,7 @@ export function ComposerContextBar({
           </>
         )}
       </ContextMenu>
-      <BranchMenu
-        branch={org.composerBranch}
-        onChange={org.setComposerBranch}
-      />
+      <BranchMenu applyBranch={applyBranch} />
     </div>
   );
 }
@@ -236,25 +308,125 @@ export function ComposerFolderNotice({ chat }: { chat: Chat | null }) {
   );
 }
 
-function BranchMenu({
-  branch,
-  onChange,
+export function ComposerBranchNotice({
+  applyBranch,
+  chat,
+  error,
+  onDismiss,
 }: {
-  branch: string;
-  onChange: (branch: string) => void;
+  applyBranch: (raw: string) => boolean;
+  chat: Chat | null;
+  error: { attempted: string; failure: ComposerBranchApplyFailure } | null;
+  onDismiss: () => void;
 }) {
+  const org = useOrg();
+  const project = effectiveComposerProject(
+    chat,
+    org.projects,
+    org.composerProjectId
+  );
+  const runtime = effectiveComposerRuntime(
+    org.runtimes,
+    org.runtimeId,
+    org.now
+  );
+  if (!error) {
+    return null;
+  }
+  const { ctas, message } = error.failure;
+  return (
+    <Notice
+      tone="warn"
+      title="ブランチを切り替えられませんでした"
+      className="py-2"
+      action={
+        <>
+          {ctas.includes("retry") && (
+            <Button
+              type="button"
+              size="xs"
+              variant="accent"
+              onClick={() => applyBranch(error.attempted)}
+            >
+              再試行
+            </Button>
+          )}
+          {ctas.includes("mapFolder") && project && runtime && (
+            <Button
+              type="button"
+              size="xs"
+              variant="secondary"
+              onClick={() =>
+                org.openDialog({
+                  kind: "mapProjectFolder",
+                  projectId: project._id,
+                  runtimeId: runtime._id,
+                })
+              }
+            >
+              <Folder size={12} /> フォルダを指定
+            </Button>
+          )}
+          {ctas.includes("pickMachine") &&
+            (hasUsableOnlineRuntime(org.runtimes ?? [], org.now) ? (
+              <Button
+                type="button"
+                size="xs"
+                variant="secondary"
+                onClick={() => org.goSettings("runtimes")}
+              >
+                <Monitor size={12} /> 別のマシンを選ぶ
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => org.openDialog({ kind: "registerRuntime" })}
+                >
+                  <Cpu size={12} /> {registerRuntimeCtaLabel()}
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => org.goSettings("runtimes")}
+                >
+                  設定で確認
+                </Button>
+              </>
+            ))}
+          <Button type="button" size="xs" variant="ghost" onClick={onDismiss}>
+            閉じる
+          </Button>
+        </>
+      }
+    >
+      <div data-composer-branch-error>{message}</div>
+    </Notice>
+  );
+}
+
+function BranchMenu({
+  applyBranch,
+}: {
+  applyBranch: (raw: string) => boolean;
+}) {
+  const org = useOrg();
   const [custom, setCustom] = useState("");
+  const confirmed = normalizeComposerBranch(org.composerBranch);
   const options = useMemo(() => {
     const names = new Set<string>(SUGGESTED_COMPOSER_BRANCHES);
-    names.add(normalizeComposerBranch(branch));
+    names.add(confirmed);
     return [...names];
-  }, [branch]);
+  }, [confirmed]);
 
   return (
     <ContextMenu
       ariaLabel="ブランチを選択"
       icon={<GitBranch size={14} />}
-      label={normalizeComposerBranch(branch)}
+      label={confirmed}
     >
       {(close) => (
         <>
@@ -262,9 +434,9 @@ function BranchMenu({
             <ContextRow
               key={name}
               label={name}
-              selected={normalizeComposerBranch(branch) === name}
+              selected={confirmed === name}
               onSelect={() => {
-                onChange(name);
+                applyBranch(name);
                 close();
               }}
             />
@@ -273,9 +445,10 @@ function BranchMenu({
             className="px-1.5 pt-1 pb-1"
             onSubmit={(event) => {
               event.preventDefault();
-              const next = normalizeComposerBranch(custom);
-              onChange(next);
-              setCustom("");
+              const accepted = applyBranch(custom);
+              if (accepted) {
+                setCustom("");
+              }
               close();
             }}
           >

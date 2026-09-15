@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COMPOSER_BRANCH_INVALID_MESSAGE,
+  COMPOSER_BRANCH_MACHINE_OFFLINE_MESSAGE,
+  COMPOSER_BRANCH_OFFLINE_MESSAGE,
   DEFAULT_COMPOSER_BRANCH,
   MISSING_PROJECT_FOLDER_MESSAGE,
   composerBranchStorageKey,
   composerProjectStorageKey,
   composerSendBlockedReason,
+  evaluateComposerBranchApply,
+  isComposerRuntimeSelectable,
   needsProjectFolderMapping,
   normalizeComposerBranch,
   normalizeProjectFolderPath,
+  parseComposerBranchInput,
   resolveProjectCwd,
 } from "../shared/composerContext.ts";
 
@@ -21,9 +27,85 @@ describe("folder path normalization", () => {
 });
 
 describe("composer branch names", () => {
-  it("defaults blank input to main", () => {
+  it("defaults blank storage values to main and keeps feature slashes", () => {
     expect(normalizeComposerBranch("")).toBe(DEFAULT_COMPOSER_BRANCH);
     expect(normalizeComposerBranch(" feature/foo ")).toBe("feature/foo");
+  });
+
+  it("rejects checkout-unsafe names instead of coercing them", () => {
+    expect(parseComposerBranchInput("")).toBeUndefined();
+    expect(parseComposerBranchInput(" feature/foo ")).toBe("feature/foo");
+    expect(parseComposerBranchInput("bad name")).toBeUndefined();
+    expect(parseComposerBranchInput("-hotfix")).toBeUndefined();
+    expect(parseComposerBranchInput("oops..")).toBeUndefined();
+  });
+});
+
+describe("composer branch apply gates", () => {
+  const ready = {
+    confirmedBranch: "main",
+    folderBlocked: false,
+    hasUsableOnline: true,
+    runtimesReady: true,
+    selectedRuntimeUsable: true as boolean | null,
+  };
+
+  it("confirms a new branch only when the target machine is online", () => {
+    expect(
+      evaluateComposerBranchApply({ ...ready, nextBranch: "develop" })
+    ).toStrictEqual({ branch: "develop", ok: true, unchanged: false });
+    expect(
+      evaluateComposerBranchApply({
+        ...ready,
+        hasUsableOnline: false,
+        nextBranch: "develop",
+        selectedRuntimeUsable: null,
+      })
+    ).toMatchObject({
+      failure: { code: "offline", message: COMPOSER_BRANCH_OFFLINE_MESSAGE },
+      ok: false,
+    });
+    expect(
+      evaluateComposerBranchApply({
+        ...ready,
+        nextBranch: "develop",
+        selectedRuntimeUsable: false,
+      })
+    ).toMatchObject({
+      failure: {
+        code: "offline",
+        message: COMPOSER_BRANCH_MACHINE_OFFLINE_MESSAGE,
+      },
+      ok: false,
+    });
+  });
+
+  it("keeps the confirmed branch when apply cannot proceed", () => {
+    expect(
+      evaluateComposerBranchApply({ ...ready, nextBranch: "main" })
+    ).toStrictEqual({ branch: "main", ok: true, unchanged: true });
+    expect(
+      evaluateComposerBranchApply({
+        ...ready,
+        folderBlocked: true,
+        nextBranch: "feature/foo",
+      })
+    ).toMatchObject({
+      failure: { code: "folder", message: MISSING_PROJECT_FOLDER_MESSAGE },
+      ok: false,
+    });
+    expect(
+      evaluateComposerBranchApply({ ...ready, nextBranch: "bad name" })
+    ).toMatchObject({
+      failure: { code: "invalid", message: COMPOSER_BRANCH_INVALID_MESSAGE },
+      ok: false,
+    });
+    expect(
+      isComposerRuntimeSelectable({ canUse: true, live: false })
+    ).toBeFalsy();
+    expect(
+      isComposerRuntimeSelectable({ canUse: true, live: true })
+    ).toBeTruthy();
   });
 });
 
