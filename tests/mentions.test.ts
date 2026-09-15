@@ -103,6 +103,12 @@ describe(shouldDispatchAgent, () => {
     expect(shouldDispatchAgent({ chatKind: "dm", mentions: [] })).toBeTruthy();
   });
 
+  it("always dispatches in no-project threads", () => {
+    expect(
+      shouldDispatchAgent({ chatKind: "thread", mentions: [] })
+    ).toBeTruthy();
+  });
+
   it("requires an agent-like mention in project chats", () => {
     expect(
       shouldDispatchAgent({

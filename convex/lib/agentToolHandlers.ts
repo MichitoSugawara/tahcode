@@ -10,6 +10,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import {
   createProjectChatForUser,
+  createThreadChatForUser,
   ensureDmForUser,
   summarizeChat,
 } from "../chats";
@@ -197,8 +198,8 @@ async function createSession(
   args: Record<string, unknown>
 ) {
   const kind = optionalString(args, "kind") ?? "project";
-  if (kind !== "dm" && kind !== "project") {
-    throw new Error("kind must be dm or project");
+  if (kind !== "dm" && kind !== "project" && kind !== "thread") {
+    throw new Error("kind must be dm, project, or thread");
   }
   if (kind === "dm") {
     const orgId = await requireOrgId(ctx, scope, optionalString(args, "orgId"));
@@ -209,9 +210,21 @@ async function createSession(
     }
     return { created: true, session: summarizeChat(chat) };
   }
+  if (kind === "thread") {
+    const orgId = await requireOrgId(ctx, scope, optionalString(args, "orgId"));
+    const chatId = await createThreadChatForUser(ctx, scope.user, {
+      orgId,
+      title: optionalString(args, "title") ?? "Untitled chat",
+    });
+    const chat = await ctx.db.get("chats", chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    return { created: true, session: summarizeChat(chat) };
+  }
   const projectId = optionalString(args, "projectId");
   if (!projectId) {
-    throw new Error("projectId is required unless kind is dm");
+    throw new Error("projectId is required unless kind is dm or thread");
   }
   const visibility = optionalString(args, "visibility") ?? "inherit";
   if (visibility !== "inherit" && visibility !== "private") {

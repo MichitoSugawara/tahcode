@@ -67,7 +67,9 @@ export function CommandPalette({
         : undefined;
       return {
         hint:
-          chat.kind === "dm" ? "常時応答" : (project?.name ?? "プロジェクト"),
+          chat.kind === "dm" || chat.kind === "thread"
+            ? "常時応答"
+            : (project?.name ?? "プロジェクト"),
         icon:
           chat.kind === "dm" ? (
             <UserRound size={14} />

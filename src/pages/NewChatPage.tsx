@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { Composer, useChatAgent } from "@/harness/Composer";
 import { EmptyHero, useHeroComposerMenu } from "@/harness/EmptyHero";
 import { NewChatProjectSwitch } from "@/harness/NewChatProjectSwitch";
-import { useCreateProjectChat } from "@/harness/optimisticMutations";
+import {
+  useCreateProjectChat,
+  useCreateThreadChat,
+} from "@/harness/optimisticMutations";
 import { useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
 import { errorSummary } from "@/lib/format";
@@ -22,11 +25,11 @@ import { useDocumentTitle } from "@/lib/title";
 import type { Id } from "../../convex/_generated/dataModel";
 
 /* ─────────────────────────────────────────────────────────
- * NEW CHAT — t3code New thread as a full page (TAH-68).
- * Default is No project (Personal DM). A project is optional;
- * first send creates that project's chat. Agent pickers live
- * inside the composer. Project / machine / branch context bar
- * is TAH-71 (do not add a second strip here).
+ * NEW CHAT — t3code New thread as a full page (TAH-68 / TAH-75).
+ * Default is No project. First send creates a fresh thread
+ * (never the singleton Personal DM). A project is optional;
+ * first send then creates that project's chat. Agent pickers
+ * live inside the composer. Context bar is TAH-71.
  * ───────────────────────────────────────────────────────── */
 export default function NewChatPage() {
   const org = useOrg();
@@ -34,6 +37,7 @@ export default function NewChatPage() {
   const navigate = useNavigate();
   const { composerMenuOpen, onSuggestMenuOpenChange } = useHeroComposerMenu();
   const createChat = useCreateProjectChat();
+  const createThread = useCreateThreadChat();
   const { agent } = useChatAgent(null);
   const pendingCreated = useRef<Promise<Id<"chats">> | null>(null);
   const requested = readNewChatProjectParam(location.search);
@@ -48,11 +52,6 @@ export default function NewChatPage() {
     projectId === null
       ? null
       : (org.projects?.find((item) => String(item._id) === projectId) ?? null);
-  const dm =
-    org.chats?.find(
-      (chat) =>
-        chat.kind === "dm" && String(chat.ownerId) === String(org.me._id)
-    ) ?? null;
 
   useDocumentTitle(NEW_CHAT_TITLE, org.org.name);
 
@@ -61,10 +60,32 @@ export default function NewChatPage() {
   };
 
   const ensureChat = async (draft: string): Promise<Chat | null> => {
-    if (!project) {
-      return dm;
-    }
     const title = titleFromFirstMessage(draft);
+    if (!project) {
+      const { created, placeholder } = createThread({
+        driverKind: agent.driverKind,
+        model: agent.model ?? undefined,
+        options: agent.options,
+        title,
+      });
+      pendingCreated.current = created;
+      created.catch((error: unknown) => {
+        toast.error(`「${title}」を作成できませんでした`, {
+          description: errorSummary(error),
+        });
+      });
+      return {
+        _id: placeholder,
+        driverKind: agent.driverKind,
+        kind: "thread",
+        model: agent.model ?? undefined,
+        options: agent.options,
+        orgId: org.org._id,
+        ownerId: org.me._id,
+        title,
+        visibility: "inherit",
+      };
+    }
     const { created, placeholder } = createChat({
       driverKind: agent.driverKind,
       model: agent.model ?? undefined,
@@ -109,14 +130,14 @@ export default function NewChatPage() {
         }
         composer={
           <Composer
-            chat={project ? null : dm}
-            ensureChat={project ? ensureChat : undefined}
+            chat={null}
+            ensureChat={ensureChat}
             tall
             autoFocus
             hideHint
             placeholder={NEW_CHAT_PLACEHOLDER}
             onSubmit={(chat) => {
-              if (chat.kind === "project" && pendingCreated.current) {
+              if (pendingCreated.current) {
                 org.goPendingChat(chat._id, pendingCreated.current);
                 return;
               }

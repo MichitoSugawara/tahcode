@@ -30,3 +30,10 @@ export function titleFromFirstMessage(text: string): string {
   const line = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
   return line.slice(0, 80) || NEW_CHAT_TITLE;
 }
+
+/** No project → a fresh thread. A selected project → that project's chat. Never the singleton DM. */
+export function resolveNewChatSendKind(
+  projectId: string | null
+): "thread" | "project" {
+  return projectId ? "project" : "thread";
+}

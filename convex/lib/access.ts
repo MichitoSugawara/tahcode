@@ -4,6 +4,7 @@ import {
   roleAtLeast,
 } from "../../shared/access.ts";
 import type { OrgRole } from "../../shared/access.ts";
+import { isOwnerScopedChat } from "../../shared/chatKind.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 
@@ -92,9 +93,13 @@ export async function assertChatVisible(
   userId: Id<"users">,
   role: OrgRole
 ) {
-  if (chat.kind === "dm") {
+  if (isOwnerScopedChat(chat.kind)) {
     if (chat.ownerId !== userId) {
-      throw new Error("Personal DMs are owner-only in Phase 1");
+      throw new Error(
+        chat.kind === "dm"
+          ? "Personal DMs are owner-only in Phase 1"
+          : "No-project threads are owner-only"
+      );
     }
     return;
   }

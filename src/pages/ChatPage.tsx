@@ -158,9 +158,11 @@ export default function ChatPage() {
           greeting={
             chat.kind === "dm"
               ? `こんにちは、${displayName(org.me)}`
-              : project
-                ? project.name
-                : "プロジェクトチャット"
+              : chat.kind === "thread"
+                ? chat.title
+                : project
+                  ? project.name
+                  : "プロジェクトチャット"
           }
           question={
             chat.kind === "dm"
@@ -182,7 +184,9 @@ export default function ChatPage() {
           <MessageSquare size={11} />{" "}
           {chat.kind === "dm"
             ? `Personal DM · 常時応答 · ${agentLabel(agent.driverKind, agent.model)}`
-            : `${project?.name ?? "project"} · ${agentMention(agent.driverKind, agent.model)} で応答`}
+            : chat.kind === "thread"
+              ? `${chat.title} · 常時応答 · ${agentLabel(agent.driverKind, agent.model)}`
+              : `${project?.name ?? "project"} · ${agentMention(agent.driverKind, agent.model)} で応答`}
         </div>
       </div>
     );

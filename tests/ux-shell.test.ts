@@ -70,6 +70,48 @@ describe("sidebar IA", () => {
     });
   });
 
+  it("lists no-project threads next to Personal DM, not inside a project", () => {
+    const sections = buildSidebarSections({
+      chats: [
+        {
+          _id: "dm1",
+          kind: "dm",
+          ownerId: "me",
+          title: "ignored",
+          visibility: "inherit",
+        },
+        {
+          _id: "t1",
+          kind: "thread",
+          ownerId: "me",
+          title: "こんに血は",
+          visibility: "inherit",
+        },
+        {
+          _id: "c1",
+          kind: "project",
+          projectId: "p1",
+          title: "General",
+          visibility: "inherit",
+        },
+      ],
+      isAdmin: true,
+      meId: "me",
+      projects: [{ _id: "p1", name: "Alpha", visibility: "org" }],
+    });
+    expect(sections[0]?.groups[0]?.items.map((item) => item.id)).toStrictEqual([
+      "c1",
+    ]);
+    expect(sections[1]?.groups[0]?.items.map((item) => item.id)).toStrictEqual([
+      "dm1",
+      "t1",
+    ]);
+    expect(sections[1]?.groups[0]?.items[1]).toMatchObject({
+      kind: "thread",
+      label: "こんに血は",
+    });
+  });
+
   it("shows an empty-project create row when there are no projects", () => {
     const sections = buildSidebarSections({
       chats: [],

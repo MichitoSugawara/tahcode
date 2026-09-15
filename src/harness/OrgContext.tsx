@@ -80,7 +80,7 @@ export interface Chat {
   _id: Id<"chats">;
   orgId: Id<"orgs">;
   projectId?: Id<"projects">;
-  kind: "dm" | "project";
+  kind: "dm" | "project" | "thread";
   title: string;
   visibility: "inherit" | "private";
   ownerId?: Id<"users">;

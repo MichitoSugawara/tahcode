@@ -11,7 +11,7 @@ export type SidebarSectionId = "projects" | "chats";
 
 export interface SidebarModelItem {
   id: string;
-  kind: "dm" | "project";
+  kind: "dm" | "project" | "thread";
   label: string;
   meta?: string;
   privateItem: boolean;
@@ -36,7 +36,7 @@ export interface SidebarModelSection {
 
 export interface SidebarModelChat {
   _id: string;
-  kind: "dm" | "project";
+  kind: "dm" | "project" | "thread";
   ownerId?: string;
   projectId?: string;
   title: string;
@@ -55,6 +55,15 @@ function personalChat(
 ): SidebarModelChat | undefined {
   return chats.find(
     (chat) => chat.kind === "dm" && String(chat.ownerId) === String(meId)
+  );
+}
+
+function ownerThreads(
+  chats: readonly SidebarModelChat[],
+  meId: string
+): SidebarModelChat[] {
+  return chats.filter(
+    (chat) => chat.kind === "thread" && String(chat.ownerId) === String(meId)
   );
 }
 
@@ -124,20 +133,30 @@ export function buildSidebarSections({
   }
 
   const dm = personalChat(chats ?? [], meId);
+  const threads = ownerThreads(chats ?? [], meId);
+  const personalItems: SidebarModelItem[] = [];
+  if (dm) {
+    personalItems.push({
+      id: String(dm._id),
+      kind: "dm",
+      label: "Personal DM",
+      meta: "常時応答",
+      privateItem: false,
+    });
+  }
+  for (const chat of threads) {
+    personalItems.push({
+      id: String(chat._id),
+      kind: "thread",
+      label: chat.title,
+      meta: "常時応答",
+      privateItem: false,
+    });
+  }
   const personal: SidebarModelGroup = {
     emptyHint: "DM を準備しています…",
     id: "personal",
-    items: dm
-      ? [
-          {
-            id: String(dm._id),
-            kind: "dm",
-            label: "Personal DM",
-            meta: "常時応答",
-            privateItem: false,
-          },
-        ]
-      : [],
+    items: personalItems,
     kind: "personal",
     label: "パーソナル",
     privateGroup: false,

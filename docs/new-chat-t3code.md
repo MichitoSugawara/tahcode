@@ -243,7 +243,7 @@ Terminal / Browser / リモートデスクトップ / サイドチャットが�
 
 | 項目 | 判断（この PR） | 開き |
 | --- | --- | --- |
-| No project の送信先 | Personal DM（1 人 1 本） | t3code は毎回新しい thread。複数のプロジェクトなしスレッドは `chats.kind` 拡張が要る |
+| No project の送信先 | 毎回新しい `kind: "thread"`（TAH-75）。Personal DM はホーム専用の 1 本 | 旧実装は `/new` 送信で既存 DM に合流していた |
 | プロジェクトチャットのタイトル | 本文先頭行。空なら「新しいチャット」 | 旧モーダルの手入力タイトルは捨てた |
 | 公開範囲 | `inherit` 固定 | プライベート作成 UI はスクショに無い |
 | スキルプロファイル | プロジェクトの `profileId` を継承 | ページ上の ProfilePicker は置かない |
@@ -261,7 +261,7 @@ Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は p
 3. 見出しが「**プロジェクトなし** で何を作りますか？」
 4. composer 下段にプロバイダ / モデル（と推論があればそれ）がある
 5. **プロジェクト / マシン / ブランチのコンテキストバーが無い**（TAH-71）
-6. 送信 → Personal DM が開く
+6. 送信 → **新しい空スレッド**が開く（既存 Personal DM ではない）
 7. 見出しでプロジェクトを選んで送信 → そのプロジェクトにチャットができる
 8. プロジェクト行の ＋ → `?project=` 付き。レールから入ったときと違い初期選択がある
 9. ページソース / 画面に OpenConnector / OOMOL / gateway / workers.dev が無い
@@ -270,7 +270,7 @@ Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は p
 
 - `/o/preview/new` のフルページ（No project）
 - プロジェクト切替メニューを開いた状態
-- 送信後の DM / プロジェクトチャット
+- 送信後の新規スレッド / プロジェクトチャット
 
 ユニット: `tests/new-chat.test.ts`（デフォルト No project、`/new` パス、モーダル削除）。
 
@@ -281,4 +281,4 @@ Preview は PR コメントの Cloudflare URL（`pr-<n>`）。Google OAuth は p
 - [TAH-71](https://linear.app/tahcode/issue/TAH-71/composer-上でプロジェクトマシンブランチ選択作成時はマシン別フォルダ任意): Composer コンテキストバー（別エージェント）
 - TAH-67: フォルダ選択が完了する。バー UI は TAH-71
 - TAH-69: 右レール 4 面。子 issue に分割して本 issue にリンク
-- （任意）プロジェクトなしの複数スレッド。Linear が要求したら kind を足す
+- TAH-75: No project は `kind: "thread"`。Personal DM 再利用はしない
