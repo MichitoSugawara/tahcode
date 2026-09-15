@@ -21,6 +21,7 @@ import {
   orgChatPath,
   orgConnectorsPath,
   orgHomePath,
+  orgNewChatPath,
   orgSettingsPath,
 } from "@/lib/orgPaths";
 import type {
@@ -122,7 +123,6 @@ export interface Member {
 export type DialogState =
   | { kind: "createOrg" }
   | { kind: "createProject" }
-  | { kind: "newChat"; projectId?: Id<"projects"> }
   | { kind: "registerRuntime" }
   | { kind: "grant"; runtimeId: Id<"runtimes"> }
   | {
@@ -170,6 +170,7 @@ interface OrgContextValue {
   openDialog: (state: NonNullable<DialogState>) => void;
   closeDialog: () => void;
   goHome: () => void;
+  goNewChat: (projectId?: Id<"projects">) => void;
   goChat: (id: Id<"chats">) => void;
   /** Open a chat whose create is still in flight: shows `placeholder` now, swaps the URL and tab
    *  to the real id when `created` resolves, and returns to the previous screen if it fails. */
@@ -376,6 +377,9 @@ export function OrgProvider({
         navigate(orgChatPath(org.slug, String(id)));
       },
       goHome: () => navigate(orgHomePath(org.slug)),
+      goNewChat: (projectId) => {
+        navigate(orgNewChatPath(org.slug, projectId));
+      },
       goPendingChat,
       goConnectors: () => {
         navigate(orgConnectorsPath(org.slug));

@@ -12,6 +12,7 @@ import ConnectorsPage from "./pages/ConnectorsPage.tsx";
 import HomePage from "./pages/HomePage.tsx";
 import InvitePage from "./pages/InvitePage.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
+import NewChatPage from "./pages/NewChatPage.tsx";
 import OrgLayout from "./pages/OrgLayout.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
 import WelcomePage from "./pages/WelcomePage.tsx";
@@ -77,6 +78,7 @@ export default function App() {
           )}
         >
           <Route index element={<HomePage />} />
+          <Route path="new" element={<NewChatPage />} />
           <Route path="c/:chatId" element={<ChatPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
           <Route path="settings" element={<SettingsPage />} />

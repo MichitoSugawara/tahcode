@@ -5,7 +5,6 @@ import { CreateOrgDialog } from "./CreateOrgDialog";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { GrantAccessDialog } from "./GrantAccessDialog";
 import { InviteDialog } from "./InviteDialog";
-import { NewChatDialog } from "./NewChatDialog";
 import { RegisterRuntimeDialog } from "./RegisterRuntimeDialog";
 import { RuntimeProvidersDialog } from "./RuntimeProvidersDialog";
 
@@ -31,13 +30,6 @@ export function DialogHost({
       <CreateProjectDialog
         open={dialog?.kind === "createProject"}
         onOpenChange={close}
-      />
-      <NewChatDialog
-        open={dialog?.kind === "newChat"}
-        onOpenChange={close}
-        initialProjectId={
-          dialog?.kind === "newChat" ? dialog.projectId : undefined
-        }
       />
       <RegisterRuntimeDialog
         open={dialog?.kind === "registerRuntime"}

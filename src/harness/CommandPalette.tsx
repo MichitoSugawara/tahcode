@@ -88,9 +88,7 @@ export function CommandPalette({
       key: `project-${String(project._id)}`,
       keywords: "project プロジェクト new chat",
       label: `${project.name} に新しいチャット`,
-      onSelect: run(() =>
-        org.openDialog({ kind: "newChat", projectId: project._id })
-      ),
+      onSelect: run(() => org.goNewChat(project._id)),
     }));
     const actions: SearchItem[] = [
       {
@@ -105,7 +103,7 @@ export function CommandPalette({
         icon: <MessageSquarePlus size={14} />,
         key: "new-chat",
         label: "新しいチャット",
-        onSelect: run(() => org.openDialog({ kind: "newChat" })),
+        onSelect: run(() => org.goNewChat()),
       },
       {
         hint: "/project",

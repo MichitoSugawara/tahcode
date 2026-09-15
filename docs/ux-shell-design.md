@@ -51,7 +51,7 @@ Org 切替
 
 **決定（案 A の差別化）**
 
-- **新しいチャット** を残す: `NewChatDialog`（場所・タイトル・エージェント）。Codex の New chat。
+- **新しいチャット** を残す: フルページ `/o/:slug/new`（`NewChatPage`。デフォルト No project）。詳細は [`docs/new-chat-t3code.md`](new-chat-t3code.md)（TAH-68 / 67 / 69）。
 - **ホーム** を残す: `HomePage` はダッシュボード（提案・ランタイム状態・DM コンポーザ）。Codex home はほぼ composer だが、tahcode のホームは作成フォームと同一ではない。
 - **ランタイム** ラベルを rail から削除。実体は `goSettings` だった（ラベル嘘）。設定は TAH-31 のユーザーメニューとワークスペースメニュー。マシンは Settings `#runtimes` とコマンドパレット「ランタイムの利用許可を管理」。
 - **招待** と **コネクタ** は rail に残す（作成 / チーム拡張。Settings 下部に全部寄せると到達が落ちる）。
@@ -112,6 +112,8 @@ Org 切替
 - 根拠: Grok Bot / Settings アカウント一覧は破壊操作をアイコンか赤で区別。Codex / IDE も危険アクションを主 CTA と並べない。
 
 ## TAH-34 — 右サイド workbench（実装しない）
+
+TAH-69 の段階 ship と後続チケットは [`docs/new-chat-t3code.md`](new-chat-t3code.md) §7。
 
 旧 Context / Runtime / Team は設定寄り。#33 で隠した判断と整合するので **再表示しない**。
 

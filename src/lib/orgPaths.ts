@@ -22,6 +22,18 @@ export function orgChatPath(slug: string, chatId: string): string {
   return `/o/${slug}/c/${chatId}`;
 }
 
+export function orgNewChatPath(
+  slug: string,
+  projectId?: string | null
+): string {
+  const base = `/o/${slug}/new`;
+  return projectId ? `${base}?project=${encodeURIComponent(projectId)}` : base;
+}
+
+export function isNewChatPath(pathname: string, slug: string): boolean {
+  return pathname === `/o/${slug}/new`;
+}
+
 export function isOrgFullWidthPath(pathname: string, slug: string): boolean {
   return (
     pathname === `/o/${slug}/settings` ||

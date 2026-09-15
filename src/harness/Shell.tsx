@@ -59,7 +59,7 @@ import {
   roleLabel,
   truncate,
 } from "@/lib/format";
-import { orgChatPath, orgConnectorsPath } from "@/lib/orgPaths";
+import { isNewChatPath, orgChatPath, orgConnectorsPath } from "@/lib/orgPaths";
 import type { Theme } from "@/lib/theme";
 
 import type { Id } from "../../convex/_generated/dataModel";
@@ -72,11 +72,7 @@ function sidebarGroupOnAdd(
     return () => org.openDialog({ kind: "createProject" });
   }
   if (group.addKind === "newChat" && group.projectId) {
-    return () =>
-      org.openDialog({
-        kind: "newChat",
-        projectId: group.projectId as Id<"projects">,
-      });
+    return () => org.goNewChat(group.projectId as Id<"projects">);
   }
   return undefined;
 }
@@ -99,14 +95,16 @@ function useSidebarModel() {
   const onConnectors =
     location.pathname === orgConnectorsPath(org.org.slug) ||
     location.pathname.startsWith(`${orgConnectorsPath(org.org.slug)}/`);
+  const onNewChat = isNewChatPath(location.pathname, org.org.slug);
 
   const rail: SidebarRailItem[] = [
     {
+      active: onNewChat,
       icon: <SquarePen size={17} />,
       key: "new",
       label: "新しいチャット",
-      hint: "プロジェクトまたは Personal DM にスレッドを作る",
-      onClick: () => org.openDialog({ kind: "newChat" }),
+      hint: "プロジェクトなしで開始。あとから選べます",
+      onClick: () => org.goNewChat(),
     },
     {
       active: onHome,
@@ -533,7 +531,7 @@ export function TabBar({
         <button
           type="button"
           aria-label="新しいチャット"
-          onClick={() => org.openDialog({ kind: "newChat" })}
+          onClick={() => org.goNewChat()}
           className="text-ink-3 hover:bg-hover hover:text-ink ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100"
         >
           <Plus size={15} strokeWidth={2} />

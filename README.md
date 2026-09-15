@@ -77,7 +77,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 2. **First run** — Org がなければ `/welcome`。Org 作成（Owner になる）または招待トークンで参加 → 作成後は Personal DM が即使えるホームへ
 3. **Org 切替 / 設定** — サイドバー上部のワークスペースメニュー（切替・新規・設定・コネクタ・招待・テーマ・サインアウト）、`/o/:slug/settings`。コネクタは専用面 `/o/:slug/connectors`（Org 設定の一節ではない）。チャットでは `/connect` またはエージェントの `suggest_connector` で会話内に同じ Linear カードが出る
 4. **プロジェクト作成** — プロジェクト作成ダイアログ（名前、公開範囲 org / private、任意でリポジトリ URL と作業ディレクトリ。作成フローの型は Multica を着想にした）。作成すると「General」チャットが開く
-5. **チャット作成 / 開く** — 「新しいチャット」ダイアログ（場所 = プロジェクト or Personal DM、タイトル、公開範囲、エージェント = プロバイダ + モデル + 推論レベル）。選んだエージェントはチャットに保存され、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）に使われる。開いたチャットは上部タブに並ぶ
+5. **チャット作成 / 開く** — 「新しいチャット」はフルページ（`/o/:slug/new`）。デフォルトは **No project**（Personal DM に送る）。見出しの点線でプロジェクトを選べる。エージェント（プロバイダ / モデル / 推論）は composer 内。プロジェクトを選んで送るとそのプロジェクトにチャットを作り、最初の 1 通から自動メンション（`@cursor/muse-spark-1.3`）が付く。開いたチャットは上部タブに並ぶ
 6. **招待とロール** — Team タブ / 「メンバーを招待」（Admin 以上）。招待リンク `…/invite/<token>` を発行 → 受け取った人はサインイン後 `/invite/:token` で参加。ロール変更は Owner / Admin（Owner の付与は Owner のみ、最後の Owner は降格不可）
 7. **ランタイム登録** — ブラウザは「このマシンを登録」→ 一度きりのトークン入りの `npm i -g tahcode` / `tahcode link` / `tahcode start`。デスクトップシェルでは「この Mac を登録」ワンクリック（main が同じ CLI を実行）。最初のハートビートで同じ画面が「接続されました + 検出した CLI」に変わる
 8. **利用許可（default deny）** — 「許可を管理」ダイアログ。メンバー単位 / ロール単位を混在して付与・取消。所有者以外は許可があるまで「利用許可がありません」の説明付き **プロバイダ設定** — マシンカードの「プロバイダ設定」で、検出 CLI ごとの使えるモデル（ライブ / 静的）・バージョン・インストール方法を確認し、所有者は「CLI を更新」「モデルを再取得」を実行（進行ログ・結果はその場に表示）
@@ -92,7 +92,7 @@ Dark Green+ の生トークンを `--dg-*` として保持し、Beautiful UI の
 - **カタログ** — `shared/providers.ts` が 6 プロバイダごとのモデル一覧を持つ。出典は t3code の `model-manifest.json`（Codex / Claude / Antigravity）、Multica の `models.go` 静的カタログ（Codex / Claude / Grok）、Cursor のモデルドキュメント（Cursor CLI の id）。Cursor / Grok / OpenCode は上流ではサインイン済み CLI から動的に取得するため、ここでの一覧はスナップショット。**一覧にないスラッグも `@cursor/<slug>` で直接指名でき、そのまま CLI に渡る**（CLI 側のカタログが正）。
 - **メンション文法** — `@provider/model`。最初の `/` で分割するので OpenCode の `@opencode/anthropic/claude-sonnet-5` も通る。Claude の別名（`@claude/opus` → `claude-opus-5`）はカタログで解決。`@agent` は「このチャットのエージェント」。
 - **既定モデル（後方互換）** — `@cursor` のようにプロバイダだけの指名は、そのプロバイダの既定モデル = **CLI 側の設定に従う**（`--model` を付けない）。これまでの `@codex` / `@claude` はそのまま同じ動きをする。チャットが `cursor/muse-spark-1.3` に結びついているときは素の `@cursor` もそのモデルで動く（別プロバイダを素で指名したときはその CLI の既定）。
-- **チャットへの結びつけ** — `chats.driverKind` / `chats.model` / `chats.options`。「新しいチャット」ダイアログで選ぶか、コンポーザのプロバイダ / モデル / 推論ピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。別プロバイダを `@mention` したときはそのプロバイダの CLI 既定に戻り、effort も引き継がない。
+- **チャットへの結びつけ** — `chats.driverKind` / `chats.model` / `chats.options`。新しいチャットページまたはコンポーザのプロバイダ / モデル / 推論ピッカーで変更（`chats:setAgent`、チャットのメンバー全員に共有）。優先順位は **明示メンション > コンポーザ / チャットの結びつけ > ランタイムに入っている CLI**。別プロバイダを `@mention` したときはそのプロバイダの CLI 既定に戻り、effort も引き継がない。
 - **ランタイム** — ジョブが `model` を持つときだけ CLI にフラグを付ける: `codex exec --model`、`claude -p --model`、`agent -p --model`、`opencode run --model provider/model`、`grok --model`（Grok の headless 引数は暫定のまま）。指名されたプロバイダの CLI がそのマシンに無いときは別の CLI で黙って実行せず、「未インストール」を返信として返す。サーバ側も指名プロバイダが検出済みのマシンを優先して選ぶ。`tahcode start --provider <kind>` で固定した場合はメンションのモデル指定は無視される（モデル名はプロバイダ固有のため）。認証 UX の検証ショット（ログイン / 新規登録 / 各バリデーション / エラー状態 / モバイル、デスクトップ＋390px）は `docs/ui-screenshots/auth/`。
 
 ### 推論レベル（effort / reasoning）
@@ -225,7 +225,7 @@ Linux CI（`.github/workflows/desktop.yml`）は typecheck → `npm test` → `e
 ## 受け入れ基準の対応
 
 1. Org / Project 作成 → `/welcome` と ワークスペースメニュー（Org）、サイドバーの ＋ / `/project`（Project、org/private + リソース）
-2. DM / プロジェクトチャット → DM は Org 参加時に自動作成、プロジェクトチャットは「新しいチャット」ダイアログ / プロジェクト行の ＋
+2. DM / プロジェクトチャット → DM は Org 参加時に自動作成、プロジェクトチャットは「新しいチャット」ページ / プロジェクト行の ＋
 3. DM 常時 / 他はメンション時のみ → `shared/mentions.ts`（`@provider/model` 文法）+ `convex/messages.ts:send`
 4. Context = 履歴 + メンション + プロジェクトリンク → `convex/lib/context.ts`（ジョブに JSON 同梱、ランタイムがプロンプトに付与）
 5. t3code 由来プロバイダで実行 → `tahcode start`（tahcode ブリッジ）→ `runtime/src/providers.ts`（6種カタログ、`codex exec` / `claude -p` / `agent -p` / `grok` / `opencode run`）

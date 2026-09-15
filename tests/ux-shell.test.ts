@@ -27,7 +27,11 @@ import {
   normalizeOptionalEmail,
   optionalInviteEmailError,
 } from "../src/lib/inviteEmail.ts";
-import { orgChatPath, orgHomePath } from "../src/lib/orgPaths.ts";
+import {
+  orgChatPath,
+  orgHomePath,
+  orgNewChatPath,
+} from "../src/lib/orgPaths.ts";
 
 describe("sidebar IA", () => {
   it("puts Projects above Chats and keeps Personal DM outside projects", () => {
@@ -193,5 +197,6 @@ describe("shell source contracts", () => {
   it("builds chat and home paths used by copy-link", () => {
     expect(orgHomePath("acme")).toBe("/o/acme");
     expect(orgChatPath("acme", "chat1")).toBe("/o/acme/c/chat1");
+    expect(orgNewChatPath("acme")).toBe("/o/acme/new");
   });
 });

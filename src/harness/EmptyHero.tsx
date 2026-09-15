@@ -51,15 +51,19 @@ export function EmptyHero({
   greeting,
   question,
   composer,
+  afterComposer,
+  align = "start",
   composerMenuOpen = false,
   suggestions,
   onShuffle,
   link,
   replayKey,
 }: {
-  greeting: string;
-  question: string;
+  greeting?: string;
+  question: ReactNode;
   composer: ReactNode;
+  afterComposer?: ReactNode;
+  align?: "start" | "center";
   /** when the composer @ / $ menu is open, unmount starter prompts */
   composerMenuOpen?: boolean;
   suggestions: Suggestion[];
@@ -79,16 +83,28 @@ export function EmptyHero({
     return () => timers.forEach(clearTimeout);
   }, [replayKey]);
 
+  const centered = align === "center";
+  const questionVisible = greeting ? stage >= 2 : stage >= 1;
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[720px] flex-col justify-center px-4 py-10 sm:px-8">
-      <h1 className="text-ink text-[26px] font-normal tracking-[-0.02em]">
+      <h1
+        className={`text-ink font-normal tracking-[-0.02em] ${
+          centered ? "text-center text-[28px]" : "text-[26px]"
+        }`}
+      >
+        {greeting ? (
+          <span
+            className="home-reveal text-ink-3 block"
+            style={revealStyle(stage >= 1)}
+          >
+            {greeting}
+          </span>
+        ) : null}
         <span
-          className="home-reveal text-ink-3 block"
-          style={revealStyle(stage >= 1)}
+          className="home-reveal block"
+          style={revealStyle(questionVisible)}
         >
-          {greeting}
-        </span>
-        <span className="home-reveal block" style={revealStyle(stage >= 2)}>
           {question}
         </span>
       </h1>
@@ -98,52 +114,54 @@ export function EmptyHero({
         style={revealStyle(stage >= 3)}
       >
         {composer}
+        {afterComposer}
       </div>
 
-      {shouldShowHeroSuggestions(composerMenuOpen) && (
-        <div
-          className="home-reveal mt-6 flex flex-col"
-          style={revealStyle(stage >= 4)}
-        >
-          {suggestions.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={item.onClick}
-              className="rounded-control text-ink hover:bg-hover -mx-2 flex items-center gap-3 px-2 py-2.5 text-left text-[14px] transition-colors duration-150"
-            >
-              <span className="text-ink-3 flex size-4 shrink-0 items-center justify-center">
-                {item.icon}
-              </span>
-              <span className="min-w-0 truncate">{item.label}</span>
-            </button>
-          ))}
-          {(link || onShuffle) && (
-            <div className="text-ink-3 mt-1 flex flex-wrap items-center gap-5 pl-0.5 text-[13px]">
-              {link && (
-                <button
-                  type="button"
-                  onClick={link.onClick}
-                  className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
-                >
-                  {link.label}
-                  <ArrowRight size={13} />
-                </button>
-              )}
-              {onShuffle && (
-                <button
-                  type="button"
-                  onClick={onShuffle}
-                  className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
-                >
-                  <RefreshCw size={13} />
-                  候補を入れ替え
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {shouldShowHeroSuggestions(composerMenuOpen) &&
+        (suggestions.length > 0 || link || onShuffle) && (
+          <div
+            className="home-reveal mt-6 flex flex-col"
+            style={revealStyle(stage >= 4)}
+          >
+            {suggestions.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={item.onClick}
+                className="rounded-control text-ink hover:bg-hover -mx-2 flex items-center gap-3 px-2 py-2.5 text-left text-[14px] transition-colors duration-150"
+              >
+                <span className="text-ink-3 flex size-4 shrink-0 items-center justify-center">
+                  {item.icon}
+                </span>
+                <span className="min-w-0 truncate">{item.label}</span>
+              </button>
+            ))}
+            {(link || onShuffle) && (
+              <div className="text-ink-3 mt-1 flex flex-wrap items-center gap-5 pl-0.5 text-[13px]">
+                {link && (
+                  <button
+                    type="button"
+                    onClick={link.onClick}
+                    className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
+                  >
+                    {link.label}
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+                {onShuffle && (
+                  <button
+                    type="button"
+                    onClick={onShuffle}
+                    className="hover:text-ink flex items-center gap-2 py-1 transition-colors duration-150"
+                  >
+                    <RefreshCw size={13} />
+                    候補を入れ替え
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
     </div>
   );
 }
