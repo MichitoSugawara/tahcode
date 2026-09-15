@@ -2,8 +2,9 @@
  * Published `tahcode` CLI semver. Keep in sync with `packages/cli/package.json`.
  * 0.1.0 (2026-09-13) predates agent tools; `tahcode tool` / `tool-mcp` ship in 0.1.1+.
  * 0.1.2 adds Cursor headless `--force` so `tahcode tool` is not rejected (TAH-63).
+ * 0.1.3 adds workbench pty / preview capabilities on the bridge (TAH-69).
  */
-export const CLI_VERSION = "0.1.2";
+export const CLI_VERSION = "0.1.3";
 
 /** First CLI that understands `tahcode tool` / `tahcode tool-mcp` (TAH-54 / TAH-55). */
 export const AGENT_TOOLS_MIN_CLI_VERSION = "0.1.1";
