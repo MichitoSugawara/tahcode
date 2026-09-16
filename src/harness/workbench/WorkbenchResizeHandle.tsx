@@ -41,7 +41,7 @@ export function WorkbenchResizeHandle({
   return (
     <div
       role="separator"
-      aria-label="検証ワークベンチの幅を変更"
+      aria-label="右サイドバーの幅を変更"
       aria-orientation="vertical"
       aria-valuemax={WORKBENCH_WIDTH_MAX_PX}
       aria-valuemin={WORKBENCH_WIDTH_MIN_PX}

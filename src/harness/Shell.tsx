@@ -72,7 +72,9 @@ import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
 import {
   useWorkbenchDocked,
+  useWorkbenchTabs,
   useWorkbenchWidth,
+  WorkbenchTabsProvider,
 } from "@/harness/workbench/state";
 import { WorkbenchResizeHandle } from "@/harness/workbench/WorkbenchResizeHandle";
 import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
@@ -750,14 +752,46 @@ export function Shell({
   /** show the docked workbench (chat + home); settings and connectors run full-width */
   rail: boolean;
 }) {
+  return (
+    <WorkbenchTabsProvider>
+      <ShellFrame rail={rail} theme={theme} onToggleTheme={onToggleTheme}>
+        {children}
+      </ShellFrame>
+    </WorkbenchTabsProvider>
+  );
+}
+
+function ShellFrame({
+  theme,
+  onToggleTheme,
+  children,
+  rail,
+}: {
+  theme: Theme;
+  onToggleTheme: () => void;
+  children: ReactNode;
+  rail: boolean;
+}) {
   const org = useOrg();
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [railDocked, setRailDocked] = useWorkbenchDocked();
   const [railWidth, setRailWidth] = useWorkbenchWidth();
+  const workbenchTabs = useWorkbenchTabs();
   const palette = useCommandPalette();
   const location = useLocation();
   const showRail = rail;
+  const railVisible = railDocked && workbenchTabs.open.length > 0;
+  const openRail = (dock: boolean) => {
+    if (workbenchTabs.open.length === 0) {
+      workbenchTabs.ensureOpen();
+    }
+    if (dock) {
+      setRailDocked(true);
+      return;
+    }
+    setRailOpen(true);
+  };
   const chatDrop = useChatDropTarget((id) => {
     org.goChat(id as Id<"chats">);
   });
@@ -773,7 +807,7 @@ export function Shell({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <div className="flex min-h-0 flex-1 gap-2.5">
+        <div className="flex min-h-0 flex-1">
           <section className="border-line bg-page flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border">
             <TabBar
               leading={
@@ -806,8 +840,11 @@ export function Shell({
                       <button
                         type="button"
                         data-shell-workbench-toggle
-                        aria-label="検証ワークベンチを開く"
-                        onClick={() => setRailOpen(true)}
+                        aria-label="右サイドバーを開く"
+                        title="右サイドバー"
+                        onClick={() => {
+                          openRail(false);
+                        }}
                         className="text-ink-3 hover:bg-hover hover:text-ink flex size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:hidden"
                       >
                         <PanelRight size={16} />
@@ -816,13 +853,24 @@ export function Shell({
                         type="button"
                         data-shell-workbench-toggle
                         aria-label={
-                          railDocked
-                            ? "検証ワークベンチを閉じる"
-                            : "検証ワークベンチを開く"
+                          railVisible
+                            ? "右サイドバーを閉じる"
+                            : "右サイドバーを開く"
                         }
-                        aria-pressed={railDocked}
-                        onClick={() => setRailDocked(!railDocked)}
-                        className="text-ink-3 hover:bg-hover hover:text-ink hidden size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:flex"
+                        aria-pressed={railVisible}
+                        title="右サイドバー"
+                        onClick={() => {
+                          if (railVisible) {
+                            setRailDocked(false);
+                            return;
+                          }
+                          openRail(true);
+                        }}
+                        className={`hidden size-7 shrink-0 items-center justify-center rounded-[7px] transition-colors duration-100 xl:flex ${
+                          railVisible
+                            ? "bg-hover-2 text-ink"
+                            : "text-ink-3 hover:bg-hover hover:text-ink"
+                        }`}
                       >
                         <PanelRight size={16} />
                       </button>
@@ -831,38 +879,36 @@ export function Shell({
                 </>
               }
             />
-            <div
-              data-shell-chat-drop
-              role="toolbar"
-              tabIndex={-1}
-              aria-label="チャットをドロップして開く"
-              onDragLeave={chatDrop.onDragLeave}
-              onDragOver={chatDrop.onDragOver}
-              onDrop={chatDrop.onDrop}
-              className={`flex min-h-0 flex-1 flex-col ${
-                chatDrop.over ? "bg-hover-2" : ""
-              }`}
-            >
-              {children}
+            <div className="flex min-h-0 flex-1">
+              <div
+                data-shell-chat-drop
+                role="toolbar"
+                tabIndex={-1}
+                aria-label="チャットをドロップして開く"
+                onDragLeave={chatDrop.onDragLeave}
+                onDragOver={chatDrop.onDragOver}
+                onDrop={chatDrop.onDrop}
+                className={`flex min-h-0 min-w-0 flex-1 flex-col ${
+                  chatDrop.over ? "bg-hover-2" : ""
+                }`}
+              >
+                {children}
+              </div>
+              {showRail && railVisible && (
+                <aside
+                  data-shell-workbench
+                  className="border-line relative hidden shrink-0 flex-col border-l xl:flex"
+                  style={{ width: railWidth }}
+                >
+                  <WorkbenchResizeHandle
+                    width={railWidth}
+                    onWidthChange={setRailWidth}
+                  />
+                  <RightRail onCollapse={() => setRailDocked(false)} />
+                </aside>
+              )}
             </div>
           </section>
-
-          {showRail && railDocked && (
-            <aside
-              data-shell-workbench
-              className="border-line bg-page relative hidden shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
-              style={{
-                animation: "fade-in 300ms ease both",
-                width: railWidth,
-              }}
-            >
-              <WorkbenchResizeHandle
-                width={railWidth}
-                onWidthChange={setRailWidth}
-              />
-              <RightRail />
-            </aside>
-          )}
         </div>
       </div>
 
@@ -907,7 +953,7 @@ export function Shell({
             <DialogPrimitive.Content
               aria-describedby={undefined}
               data-shell-workbench
-              className="border-line bg-page fixed inset-y-2.5 right-2.5 z-[61] flex flex-col overflow-hidden rounded-[14px] border outline-none"
+              className="border-line bg-page fixed inset-y-0 right-0 z-[61] flex flex-col overflow-hidden border-l outline-none"
               style={{
                 animation:
                   "sheet-in-right 260ms cubic-bezier(0.16,1,0.3,1) both",
@@ -915,13 +961,13 @@ export function Shell({
               }}
             >
               <DialogPrimitive.Title className="sr-only">
-                検証ワークベンチ
+                右サイドバー
               </DialogPrimitive.Title>
               <WorkbenchResizeHandle
                 width={railWidth}
                 onWidthChange={setRailWidth}
               />
-              <RightRail onClose={() => setRailOpen(false)} />
+              <RightRail onCollapse={() => setRailOpen(false)} />
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
         </DialogPrimitive.Root>

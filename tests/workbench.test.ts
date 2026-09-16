@@ -27,15 +27,26 @@ import {
   parseWorkbenchStoredRaw,
   WORKBENCH_DOCKED_KEY,
   WORKBENCH_HOME_SCOPE,
-  WORKBENCH_PANEL_KEY,
   WORKBENCH_WIDTH_KEY,
   WORKBENCH_WIDTH_MAX_PX,
   WORKBENCH_WIDTH_MIN_PX,
   WORKBENCH_WIDTH_PX,
+  WORKBENCH_TABS_KEY,
   workbenchDockedKey,
   workbenchPanelKey,
   workbenchScope,
+  workbenchTabsKey,
+  workbenchWidthKey,
 } from "../src/harness/workbench/state.ts";
+import {
+  closeWorkbenchTab,
+  cycleWorkbenchTab,
+  DEFAULT_WORKBENCH_TABS,
+  ensureWorkbenchTabs,
+  openWorkbenchTab,
+  parseWorkbenchTabs,
+  shouldCollapseWorkbench,
+} from "../src/harness/workbench/tabs.ts";
 
 describe("workbench panel catalog", () => {
   it("lists the four verification surfaces", () => {
@@ -105,15 +116,28 @@ describe("workbench chrome persistence", () => {
   it("uses home keys when no chat is open", () => {
     expect({
       docked: workbenchDockedKey(),
-      panelChat: workbenchPanelKey("c1"),
       panelHome: workbenchPanelKey(),
-      prefix: WORKBENCH_PANEL_KEY,
+      tabsHome: workbenchTabsKey(),
+      widthHome: workbenchWidthKey(),
     }).toStrictEqual({
       docked: "th:workbench:docked:home",
-      panelChat: "th:workbench:panel:c1",
       panelHome: "th:workbench:panel:home",
-      prefix: "th:workbench:panel",
+      tabsHome: "th:workbench:tabs:home",
+      widthHome: "th:workbench:width:home",
     });
+  });
+
+  it("scopes open-tab and width keys by chatId", () => {
+    expect({
+      tabs: workbenchTabsKey("c1"),
+      tabsPrefix: WORKBENCH_TABS_KEY,
+      width: workbenchWidthKey("c1"),
+    }).toStrictEqual({
+      tabs: "th:workbench:tabs:c1",
+      tabsPrefix: "th:workbench:tabs",
+      width: "th:workbench:width:c1",
+    });
+    expect(workbenchPanelKey("c1")).toBe("th:workbench:panel:c1");
   });
 
   it("prefers scoped storage and falls back to the legacy global key", () => {
@@ -150,6 +174,62 @@ describe("workbench chrome persistence", () => {
   });
 });
 
+describe("workbench open-tab set", () => {
+  it("parses ordered open tabs and the active surface", () => {
+    expect(
+      parseWorkbenchTabs({
+        active: "browser",
+        open: ["chat", "terminal", "browser"],
+      })
+    ).toStrictEqual({
+      active: "browser",
+      open: ["chat", "terminal", "browser"],
+    });
+    expect(parseWorkbenchTabs("terminal")).toStrictEqual({
+      active: "terminal",
+      open: ["terminal"],
+    });
+    expect(parseWorkbenchTabs(["Context", "browser", "browser"])).toStrictEqual(
+      {
+        active: "browser",
+        open: ["browser"],
+      }
+    );
+  });
+
+  it("opens a new tab at the end and only focuses an already-open one", () => {
+    const started = DEFAULT_WORKBENCH_TABS;
+    const opened = openWorkbenchTab(started, "terminal");
+    expect(opened).toStrictEqual({
+      active: "terminal",
+      open: ["chat", "terminal"],
+    });
+    expect(openWorkbenchTab(opened, "chat")).toStrictEqual({
+      active: "chat",
+      open: ["chat", "terminal"],
+    });
+  });
+
+  it("closes a tab and collapses when the last surface is gone", () => {
+    const two = { active: "terminal" as const, open: ["chat", "terminal"] };
+    expect(closeWorkbenchTab(two, "terminal")).toStrictEqual({
+      active: "chat",
+      open: ["chat"],
+    });
+    const last = closeWorkbenchTab({ active: "chat", open: ["chat"] }, "chat");
+    expect(last).toStrictEqual({ active: null, open: [] });
+    expect(shouldCollapseWorkbench(last)).toBeTruthy();
+    expect(ensureWorkbenchTabs(last)).toStrictEqual(DEFAULT_WORKBENCH_TABS);
+  });
+
+  it("cycles keyboard focus across the open set only", () => {
+    expect(cycleWorkbenchTab(["chat", "terminal"], "chat", 1)).toBe("terminal");
+    expect(cycleWorkbenchTab(["chat", "terminal"], "terminal", 1)).toBe("chat");
+    expect(cycleWorkbenchTab(["chat", "browser"], "chat", -1)).toBe("browser");
+    expect(cycleWorkbenchTab([], null, 1)).toBeNull();
+  });
+});
+
 describe("side chat local thread", () => {
   it("scopes storage per chat", () => {
     expect(sideChatStorageKey("c1")).toBe("th:workbench:sidechat:c1");
@@ -170,10 +250,35 @@ describe("workbench source contracts", () => {
   it("rebuilds the right rail as a workbench, not settings panes", () => {
     const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
     expect(rail).toContain("data-workbench");
-    expect(rail).toContain("data-workbench-tab");
+    expect(rail).toContain("WorkbenchTabStrip");
     expect(rail).not.toContain("ContextPane");
     expect(rail).not.toContain("RuntimePane");
     expect(rail).not.toContain("TeamPane");
+  });
+
+  it("uses a real open-tab strip plus a panel picker", () => {
+    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
+    const strip = readFileSync(
+      "src/harness/workbench/WorkbenchTabStrip.tsx",
+      "utf-8"
+    );
+    expect(strip).toContain("data-workbench-tablist");
+    expect(strip).toContain("data-workbench-tab-close");
+    expect(strip).toContain("data-workbench-open-panel");
+    expect(rail).toContain("workbenchPickerIds");
+    expect(rail).toContain("data-workbench-panel-picker");
+  });
+
+  it("does not keep a four-way segmented nav of every panel", () => {
+    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
+    const strip = readFileSync(
+      "src/harness/workbench/WorkbenchTabStrip.tsx",
+      "utf-8"
+    );
+    expect(rail).not.toContain("WORKBENCH_PANEL_IDS.map");
+    expect(strip).not.toContain("flex-1 items-center justify-center");
+    expect(strip).toContain("group-hover/workbench-tab:opacity-100");
+    expect(strip).toContain("overflow-x-auto");
   });
 
   it("keeps the four live panel IDs on the workbench", () => {
@@ -227,10 +332,10 @@ describe("workbench source contracts", () => {
   it("wires the header toggle and drops the old visibility gate", () => {
     const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
     expect(shell).toContain("data-shell-workbench-toggle");
-    expect(shell).toContain("useWorkbenchDocked");
-    expect(shell).toContain("useWorkbenchWidth");
-    expect(shell).not.toContain("isRightRailVisible");
-    expect(shell).not.toContain("railDefaultTab");
+    expect(shell).toContain("WorkbenchTabsProvider");
+    expect(shell).toContain("railVisible");
+    expect(shell).toContain("右サイドバー");
+    expect(shell).not.toMatch(/isRightRailVisible|railDefaultTab/);
   });
 
   it("exposes a rail resize handle without leaking internal product names", () => {

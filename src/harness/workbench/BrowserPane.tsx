@@ -133,7 +133,7 @@ export function BrowserPane() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-line flex shrink-0 items-center gap-2 border-b px-3 py-2">
+      <div className="border-line flex shrink-0 items-center gap-1.5 border-b px-2 py-1">
         <label className="sr-only" htmlFor="workbench-preview-url">
           プレビュー URL
         </label>
@@ -142,7 +142,7 @@ export function BrowserPane() {
           value={draft}
           disabled={!machine.online || !machine.hasPreview}
           placeholder="http://localhost:3000"
-          className="h-8 font-mono text-[12px]"
+          className="h-7 font-mono text-[12px]"
           onChange={(event) => {
             setDraft(event.target.value);
           }}
