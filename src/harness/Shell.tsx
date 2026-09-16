@@ -72,8 +72,9 @@ import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
 import {
   useWorkbenchDocked,
-  WORKBENCH_WIDTH_PX,
+  useWorkbenchWidth,
 } from "@/harness/workbench/state";
+import { WorkbenchResizeHandle } from "@/harness/workbench/WorkbenchResizeHandle";
 import { CONNECTOR_CARD_COPY } from "@/lib/connectorCard";
 import { isDesktopShell } from "@/lib/desktop";
 import {
@@ -753,6 +754,7 @@ export function Shell({
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [railDocked, setRailDocked] = useWorkbenchDocked();
+  const [railWidth, setRailWidth] = useWorkbenchWidth();
   const palette = useCommandPalette();
   const location = useLocation();
   const showRail = rail;
@@ -848,12 +850,16 @@ export function Shell({
           {showRail && railDocked && (
             <aside
               data-shell-workbench
-              className="border-line bg-page hidden shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
+              className="border-line bg-page relative hidden shrink-0 flex-col overflow-hidden rounded-[14px] border xl:flex"
               style={{
                 animation: "fade-in 300ms ease both",
-                width: WORKBENCH_WIDTH_PX,
+                width: railWidth,
               }}
             >
+              <WorkbenchResizeHandle
+                width={railWidth}
+                onWidthChange={setRailWidth}
+              />
               <RightRail />
             </aside>
           )}
@@ -905,12 +911,16 @@ export function Shell({
               style={{
                 animation:
                   "sheet-in-right 260ms cubic-bezier(0.16,1,0.3,1) both",
-                width: `min(${WORKBENCH_WIDTH_PX}px, calc(100vw - 20px))`,
+                width: `min(${railWidth}px, calc(100vw - 20px))`,
               }}
             >
               <DialogPrimitive.Title className="sr-only">
                 検証ワークベンチ
               </DialogPrimitive.Title>
+              <WorkbenchResizeHandle
+                width={railWidth}
+                onWidthChange={setRailWidth}
+              />
               <RightRail onClose={() => setRailOpen(false)} />
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>

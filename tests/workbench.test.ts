@@ -20,12 +20,21 @@ import {
   sideChatStorageKey,
 } from "../src/harness/workbench/SideChatPane.tsx";
 import {
+  clampWorkbenchWidth,
   DEFAULT_WORKBENCH_DOCKED,
   parseWorkbenchDocked,
   parseWorkbenchPanel,
+  parseWorkbenchStoredRaw,
   WORKBENCH_DOCKED_KEY,
+  WORKBENCH_HOME_SCOPE,
   WORKBENCH_PANEL_KEY,
+  WORKBENCH_WIDTH_KEY,
+  WORKBENCH_WIDTH_MAX_PX,
+  WORKBENCH_WIDTH_MIN_PX,
   WORKBENCH_WIDTH_PX,
+  workbenchDockedKey,
+  workbenchPanelKey,
+  workbenchScope,
 } from "../src/harness/workbench/state.ts";
 
 describe("workbench panel catalog", () => {
@@ -77,11 +86,67 @@ describe("workbench chrome persistence", () => {
     expect(WORKBENCH_DOCKED_KEY).toBe("th:workbench:docked");
   });
 
-  it("parses the active panel and keeps a fixed rail width", () => {
+  it("scopes docked and panel keys by chatId with a home fallback", () => {
+    expect({
+      blank: workbenchScope("  "),
+      chat: workbenchScope("c1"),
+      dockedChat: workbenchDockedKey("c1"),
+      missing: workbenchScope(),
+      nullable: workbenchScope(null),
+    }).toStrictEqual({
+      blank: WORKBENCH_HOME_SCOPE,
+      chat: "c1",
+      dockedChat: "th:workbench:docked:c1",
+      missing: WORKBENCH_HOME_SCOPE,
+      nullable: WORKBENCH_HOME_SCOPE,
+    });
+  });
+
+  it("uses home keys when no chat is open", () => {
+    expect({
+      docked: workbenchDockedKey(),
+      panelChat: workbenchPanelKey("c1"),
+      panelHome: workbenchPanelKey(),
+      prefix: WORKBENCH_PANEL_KEY,
+    }).toStrictEqual({
+      docked: "th:workbench:docked:home",
+      panelChat: "th:workbench:panel:c1",
+      panelHome: "th:workbench:panel:home",
+      prefix: "th:workbench:panel",
+    });
+  });
+
+  it("prefers scoped storage and falls back to the legacy global key", () => {
+    expect({
+      corruptScoped: parseWorkbenchStoredRaw("{", '"browser"'),
+      none: parseWorkbenchStoredRaw(null, null),
+      scoped: parseWorkbenchStoredRaw("true", "false"),
+    }).toStrictEqual({
+      corruptScoped: "browser",
+      none: undefined,
+      scoped: true,
+    });
+    expect(parseWorkbenchStoredRaw(null, "false")).toBeFalsy();
     expect(parseWorkbenchPanel("browser")).toBe("browser");
     expect(parseWorkbenchPanel("Remote")).toBe("chat");
-    expect(WORKBENCH_PANEL_KEY).toBe("th:workbench:panel");
-    expect(WORKBENCH_WIDTH_PX).toBe(360);
+  });
+
+  it("clamps persisted rail width between min and max", () => {
+    expect({
+      defaultPx: WORKBENCH_WIDTH_PX,
+      high: clampWorkbenchWidth(2000),
+      invalid: clampWorkbenchWidth("nope"),
+      key: WORKBENCH_WIDTH_KEY,
+      low: clampWorkbenchWidth(200),
+    }).toStrictEqual({
+      defaultPx: 360,
+      high: WORKBENCH_WIDTH_MAX_PX,
+      invalid: WORKBENCH_WIDTH_PX,
+      key: "th:workbench:width",
+      low: WORKBENCH_WIDTH_MIN_PX,
+    });
+    expect(clampWorkbenchWidth(400)).toBe(400);
+    expect(clampWorkbenchWidth(Number.NaN)).toBe(WORKBENCH_WIDTH_PX);
   });
 });
 
@@ -109,6 +174,14 @@ describe("workbench source contracts", () => {
     expect(rail).not.toContain("ContextPane");
     expect(rail).not.toContain("RuntimePane");
     expect(rail).not.toContain("TeamPane");
+  });
+
+  it("keeps the four live panel IDs on the workbench", () => {
+    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
+    expect(rail).toContain("TerminalPane");
+    expect(rail).toContain("BrowserPane");
+    expect(rail).toContain("RemotePane");
+    expect(rail).toContain("SideChatPane");
   });
 
   it("wires Terminal to a Ghostty session instead of stub copy", () => {
@@ -153,11 +226,22 @@ describe("workbench source contracts", () => {
 
   it("wires the header toggle and drops the old visibility gate", () => {
     const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
-    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
     expect(shell).toContain("data-shell-workbench-toggle");
     expect(shell).toContain("useWorkbenchDocked");
+    expect(shell).toContain("useWorkbenchWidth");
     expect(shell).not.toContain("isRightRailVisible");
     expect(shell).not.toContain("railDefaultTab");
+  });
+
+  it("exposes a rail resize handle without leaking internal product names", () => {
+    const shell = readFileSync("src/harness/Shell.tsx", "utf-8");
+    const handle = readFileSync(
+      "src/harness/workbench/WorkbenchResizeHandle.tsx",
+      "utf-8"
+    );
+    const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
+    expect(shell).toContain("WorkbenchResizeHandle");
+    expect(handle).toContain("data-workbench-resize");
     expect(rail).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
   });
 });
