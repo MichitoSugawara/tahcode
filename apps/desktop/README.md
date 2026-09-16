@@ -162,7 +162,7 @@ production / staging の Convex に `callbacks.redirect` が入っていない�
 `.github/workflows/desktop.yml`:
 
 - `linux-check`（PR / push で `apps/desktop/**` / `packages/core/**` / lockfile が変わったとき）: ルートの `npm ci`（共通 setup action）→ `packages/core` と shell の typecheck → `npm test` → `electron-vite build` → **xvfb 上で 3 回起動** （production 読み込み / `tahcode://` 疑似コールバック / オフラインフォールバック）→ スクリーンショットを artifact に → `electron-builder --linux dir --projectDir apps/desktop` で packaging 設定を検証。
-- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で arm64 `.dmg` / `.zip` を artifact に。GitHub secrets `CSC_LINK` / `CSC_KEY_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` が **5 つ揃っている**ときだけ Developer ID 署名 + 公証 + `TAHCODE_DESKTOP_SIGNED=1`。欠けていれば従来どおり未署名で成功する（CI は落とさない）。`desktop-v*` タグは `apps/desktop` の version と一致必須で、GitHub Releases にも同じ成果物 + `latest-mac.yml` を publish する。
+- `mac-dmg`（`workflow_dispatch` または `desktop-v*` タグ）: `macos-latest` で arm64 `.dmg` / `.zip` を artifact に。GitHub secrets `CSC_LINK` / `CSC_KEY_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` が **5 つ揃っている**ときだけ Developer ID 署名 + 公証 + `TAHCODE_DESKTOP_SIGNED=1`。欠けていれば従来どおり未署名で成功する（CI は落とさない）。`desktop-v*` タグは `apps/desktop` の version と一致必須で、インストーラは公開配布リポ [MichitoSugawara/tahcode-releases](https://github.com/MichitoSugawara/tahcode-releases) の GitHub Releases に `.dmg` / `.zip` / `latest-mac.yml` を publish する（ソースリポ `tahcode` は非公開のまま）。タグ時の publish には secret `TAHCODE_RELEASES_GITHUB_TOKEN` が必要。
 
 ローカルの同等コマンド: `npm run desktop:smoke -- /tmp/shell.png`（`DISPLAY` がなければ `xvfb-run` を自動使用）。
 
@@ -170,7 +170,7 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 
 ## アップデート（TAH-22）
 
-配布ソースは GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.0`）。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。
+配布ソースは公開リポ [MichitoSugawara/tahcode-releases](https://github.com/MichitoSugawara/tahcode-releases) の GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.0`）。ソース本体の `tahcode` は非公開のまま。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。クライアントに GitHub トークンは埋め込まない。
 
 - **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。新しいシェル + 古い Web（未デプロイ）のときはメニュー確認がネイティブダイアログにフォールバックする。
 - **自動アップデート**: `~/Library/Application Support/tahcode/settings.json` の `autoUpdateEnabled`。**既定オフ**（未署名のため安全側）。オンなら起動約 20 秒後と 4 時間ごとに確認し、更新があればトースト / ダイアログ。適用はユーザー確認のまま。
@@ -178,7 +178,7 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 - **署名済み配布**（`TAHCODE_DESKTOP_SIGNED=1` を electron-vite がバンドルに焼き込む）: `canInstallInApp` が立ち、UI は「再起動して適用」になる。未署名ビルドのダウンロード → `.dmg` を開く経路はそのまま。
 - **開発ビルド**（`npm run desktop:dev`）: 確認とダウンロードはできるが、実行中の Electron には適用しない。
 - **Windows / Linux 配布**は対象外。手動で Releases を開く導線だけ出す。
-- 新しいシェルを出すとき: `apps/desktop/package.json` の version を上げ、`desktop-v<その version>` タグを push する。
+- 新しいシェルを出すとき: `apps/desktop/package.json` の version を上げ、ソースリポへ `desktop-v<その version>` タグを push する。CI が公開配布リポ `tahcode-releases` に成果物を載せる。
 
 ## 署名と公証（Developer ID）
 
@@ -282,7 +282,15 @@ npm run desktop:build:signed
 
 `dist:mac:signed` は 5 変数が無いと失敗する。証明書前の確認は従来どおり `npm run desktop:build` / `dist:mac`（`mac.identity=null`）。
 
-`apps/desktop/package.json` の version を上げ、`desktop-v<その version>` を push すると `mac-dmg` が secrets を見て署名 + 公証し、Releases に `.dmg` / `.zip` / `latest-mac.yml` を載せる。`workflow_dispatch` も同じ分岐（artifact のみ、Release はタグ時）。
+`apps/desktop/package.json` の version を上げ、`desktop-v<その version>` を push すると `mac-dmg` が secrets を見て署名 + 公証し、[tahcode-releases](https://github.com/MichitoSugawara/tahcode-releases) の Releases に `.dmg` / `.zip` / `latest-mac.yml` を載せる。`workflow_dispatch` も同じ分岐（artifact のみ、Release はタグ時）。タグ時の publish には `TAHCODE_RELEASES_GITHUB_TOKEN` が必要。
+
+### 公開配布リポへ publish する token
+
+ソースリポ `tahcode` は非公開のままにする。GitHub は非公開リポの Releases を公開できないため、インストーラだけ公開リポ `tahcode-releases` に載せる。`GITHUB_TOKEN` は別リポへ書けないので、次の repository secret を **ソースリポ** に置く。
+
+| Secret 名 | 入れる値 |
+| --- | --- |
+| `TAHCODE_RELEASES_GITHUB_TOKEN` | `tahcode-releases` に Contents: write を付けた fine-grained PAT（アプリには埋め込まない） |
 
 ### 検証（署名済み .app を Applications に入れたあと）
 

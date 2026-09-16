@@ -2,13 +2,17 @@
  * Desktop app updates — shared types and pure helpers.
  *
  * The Electron shell checks GitHub Releases (`desktop-v*` tags)
- * and either downloads a .dmg (unsigned builds) or, later,
- * applies in-app once Developer ID + notarization exist.
+ * on the public installer-only repo (`tahcode-releases`) and either
+ * downloads a .dmg (unsigned builds) or, later, applies in-app once
+ * Developer ID + notarization exist. Source stays in the private
+ * `tahcode` repo — GitHub cannot publish Releases from a private repo
+ * without exposing it. The packaged app never embeds a GitHub token.
  * The web app only renders state the preload already validated.
  * ───────────────────────────────────────────────────────── */
 
 export const DESKTOP_GITHUB_OWNER = "MichitoSugawara";
-export const DESKTOP_GITHUB_REPO = "tahcode";
+/** Public repo that hosts installer assets only (no application source). */
+export const DESKTOP_GITHUB_REPO = "tahcode-releases";
 export const DESKTOP_RELEASE_TAG_PREFIX = "desktop-v";
 export const DESKTOP_RELEASES_URL = `https://github.com/${DESKTOP_GITHUB_OWNER}/${DESKTOP_GITHUB_REPO}/releases`;
 export const DESKTOP_GITHUB_API_RELEASES = `https://api.github.com/repos/${DESKTOP_GITHUB_OWNER}/${DESKTOP_GITHUB_REPO}/releases`;

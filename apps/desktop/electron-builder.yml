@@ -81,14 +81,15 @@ linux:
   target:
     - dir
 
-# GitHub Releases are the feed for desktop-v* tags. CI publishes only on those
-# tags (see .github/workflows/desktop.yml). workflow_dispatch stays artifact-only.
+# GitHub Releases on the public installer-only repo are the feed for
+# desktop-v* tags. CI publishes only on those tags
+# (see .github/workflows/desktop.yml). workflow_dispatch stays artifact-only.
 # Signed+notarized builds set TAHCODE_DESKTOP_SIGNED=1 so the in-app updater
 # can offer quitAndInstall. Unsigned builds download the .dmg and ask the user
-# to copy it into Applications.
+# to copy it into Applications. Source stays private (`tahcode`).
 publish:
   provider: github
   owner: MichitoSugawara
-  repo: tahcode
+  repo: tahcode-releases
   releaseType: release
   vPrefixedTagName: false
