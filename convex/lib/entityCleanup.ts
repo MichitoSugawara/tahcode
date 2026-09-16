@@ -91,6 +91,25 @@ async function deleteChatMembers(ctx: MutationCtx, chatId: Id<"chats">) {
   }
 }
 
+async function deleteChatSideTurns(ctx: MutationCtx, chatId: Id<"chats">) {
+  for (let round = 0; round < DELETE_ROUNDS; round++) {
+    const turns = await ctx.db
+      .query("sideChatTurns")
+      .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+      .take(DELETE_BATCH);
+    if (turns.length === 0) {
+      return;
+    }
+    for (const turn of turns) {
+      await ctx.db.delete("sideChatTurns", turn._id);
+    }
+    if (turns.length < DELETE_BATCH) {
+      return;
+    }
+  }
+  throw new Error("Too many related records to delete at once");
+}
+
 /** Drop a chat and its messages / jobs / memberships. R2 bytes are left to expire. */
 export async function deleteChatTree(
   ctx: MutationCtx,
@@ -98,6 +117,7 @@ export async function deleteChatTree(
 ): Promise<void> {
   await deleteChatJobs(ctx, chatId);
   await deleteChatMessages(ctx, chatId);
+  await deleteChatSideTurns(ctx, chatId);
   await deleteChatFiles(ctx, chatId);
   await deleteChatMembers(ctx, chatId);
   await ctx.db.delete("chats", chatId);

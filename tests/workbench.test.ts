@@ -15,10 +15,9 @@ import {
   WORKBENCH_PANELS,
 } from "../src/harness/workbench/panels.ts";
 import {
-  appendSideChatTurn,
-  parseSideChatMessages,
+  extractLocalSideChatUserTexts,
   sideChatStorageKey,
-} from "../src/harness/workbench/SideChatPane.tsx";
+} from "../src/harness/workbench/sideChatLocal.ts";
 import {
   DEFAULT_WORKBENCH_DOCKED,
   parseWorkbenchDocked,
@@ -85,19 +84,26 @@ describe("workbench chrome persistence", () => {
   });
 });
 
-describe("side chat local thread", () => {
-  it("scopes storage per chat", () => {
+describe("side chat local draft migration", () => {
+  it("scopes leftover storage per chat", () => {
     expect(sideChatStorageKey("c1")).toBe("th:workbench:sidechat:c1");
     expect(sideChatStorageKey()).toBe("th:workbench:sidechat:home");
-    expect(parseSideChatMessages([{ id: 1 }])).toStrictEqual([]);
   });
 
-  it("appends a local-only turn and ignores blank drafts", () => {
-    const next = appendSideChatTurn([], "  メモ  ", 42);
-    expect(next).toHaveLength(3);
-    expect(next[1]).toMatchObject({ role: "user", text: "メモ" });
-    expect(next[2]?.text).toContain("ローカル");
-    expect(appendSideChatTurn([], "   ")).toStrictEqual([]);
+  it("extracts user texts and skips seed or assistant acks", () => {
+    expect(extractLocalSideChatUserTexts([{ id: 1 }])).toStrictEqual([]);
+    expect(
+      extractLocalSideChatUserTexts([
+        {
+          id: "seed",
+          role: "assistant",
+          text: "本線チャットとは別の副スレッドです。",
+        },
+        { id: "u-1", role: "user", text: "  メモ  " },
+        { id: "a-1", role: "assistant", text: "（ローカル）" },
+        { id: "u-2", role: "user", text: "   " },
+      ])
+    ).toStrictEqual(["メモ"]);
   });
 });
 
@@ -149,6 +155,27 @@ describe("workbench source contracts", () => {
       Buffer.from([0, 0x61, 0x73, 0x6d])
     );
     expect(trampoline).toHaveLength(112);
+  });
+
+  it("wires side chat UI to Convex instead of localStorage", () => {
+    const pane = readFileSync(
+      "src/harness/workbench/SideChatPane.tsx",
+      "utf-8"
+    );
+    expect(pane).toContain("api.workbenchSideChat");
+    expect(pane).toContain("ジョブは始まらない");
+    expect(pane).not.toContain("api.messages.send");
+    expect(pane).not.toContain("useStoredState");
+    expect(pane).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+  });
+
+  it("keeps the side chat backend off the main message and job path", () => {
+    const backend = readFileSync("convex/workbenchSideChat.ts", "utf-8");
+    expect(backend).not.toContain("sendUserMessage");
+    expect(backend).not.toContain("shouldDispatchAgent");
+    expect(backend).not.toContain('insert("messages"');
+    expect(backend).not.toContain('insert("jobs"');
+    expect(WORKBENCH_PANELS.chat.next).toContain("ジョブは始まりません");
   });
 
   it("wires the header toggle and drops the old visibility gate", () => {
