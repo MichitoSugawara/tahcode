@@ -83,8 +83,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.build_mac || startsWith(github.ref, 'refs/tags/desktop-v')
     runs-on: macos-latest
     timeout-minutes: 60
-    permissions:
-      contents: write
+    # Installers publish to the public MichitoSugawara/tahcode-releases repo via
+    # TAHCODE_RELEASES_GITHUB_TOKEN (not this workflow's GITHUB_TOKEN, which
+    # cannot write another repository). The private source repo stays read-only.
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
@@ -99,6 +100,20 @@ jobs:
           version="$(node -p "require('./apps/desktop/package.json').version")"
           if [ "$tag" != "$version" ]; then
             echo "Tag desktop-v${tag} does not match apps/desktop version ${version}"
+            exit 1
+          fi
+
+      # Fine-grained PAT on tahcode-releases (Contents: write). Repository
+      # secret on this private source repo — never embed the value in the app.
+      - name: Require token to publish installers to tahcode-releases
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        env:
+          TAHCODE_RELEASES_GITHUB_TOKEN: ${{ secrets.TAHCODE_RELEASES_GITHUB_TOKEN }}
+        run: |
+          if [ -z "${TAHCODE_RELEASES_GITHUB_TOKEN}" ]; then
+            echo "Missing TAHCODE_RELEASES_GITHUB_TOKEN."
+            echo "Create a fine-grained PAT with Contents: write on MichitoSugawara/tahcode-releases"
+            echo "and add it as a repository secret on MichitoSugawara/tahcode."
             exit 1
           fi
 
@@ -133,7 +148,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.TAHCODE_RELEASES_GITHUB_TOKEN }}
         run: |
           npm run build -w @tahcode/desktop
           if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
@@ -146,7 +161,7 @@ jobs:
         if: steps.signing.outputs.signed != 'true'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.TAHCODE_RELEASES_GITHUB_TOKEN }}
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
             npm run build -w @tahcode/desktop

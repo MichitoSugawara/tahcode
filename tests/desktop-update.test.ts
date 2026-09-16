@@ -4,6 +4,9 @@ import { join } from "node:path";
 
 import {
   DEFAULT_AUTO_UPDATE_ENABLED,
+  DESKTOP_GITHUB_API_RELEASES,
+  DESKTOP_GITHUB_OWNER,
+  DESKTOP_GITHUB_REPO,
   DESKTOP_RELEASES_URL,
   UPDATE_UI,
   compareSemver,
@@ -32,20 +35,20 @@ const release = {
   assets: [
     {
       browser_download_url:
-        "https://github.com/MichitoSugawara/tahcode/releases/download/desktop-v0.2.0/tahcode-0.2.0-mac-arm64.dmg",
+        "https://github.com/MichitoSugawara/tahcode-releases/releases/download/desktop-v0.2.0/tahcode-0.2.0-mac-arm64.dmg",
       name: "tahcode-0.2.0-mac-arm64.dmg",
       size: 120,
     },
     {
       browser_download_url:
-        "https://github.com/MichitoSugawara/tahcode/releases/download/desktop-v0.2.0/tahcode-0.2.0-mac-arm64.zip",
+        "https://github.com/MichitoSugawara/tahcode-releases/releases/download/desktop-v0.2.0/tahcode-0.2.0-mac-arm64.zip",
       name: "tahcode-0.2.0-mac-arm64.zip",
       size: 110,
     },
   ],
   draft: false,
   html_url:
-    "https://github.com/MichitoSugawara/tahcode/releases/tag/desktop-v0.2.0",
+    "https://github.com/MichitoSugawara/tahcode-releases/releases/tag/desktop-v0.2.0",
   prerelease: false,
   tag_name: "desktop-v0.2.0",
 };
@@ -72,6 +75,17 @@ function serviceDeps(overrides: Partial<UpdateServiceDeps>): UpdateServiceDeps {
 }
 
 describe("desktop update helpers", () => {
+  it("reads installer releases from the public tahcode-releases repo", () => {
+    expect(DESKTOP_GITHUB_OWNER).toBe("MichitoSugawara");
+    expect(DESKTOP_GITHUB_REPO).toBe("tahcode-releases");
+    expect(DESKTOP_RELEASES_URL).toBe(
+      "https://github.com/MichitoSugawara/tahcode-releases/releases"
+    );
+    expect(DESKTOP_GITHUB_API_RELEASES).toBe(
+      "https://api.github.com/repos/MichitoSugawara/tahcode-releases/releases"
+    );
+  });
+
   it("parses desktop-v tags", () => {
     expect(parseSemver("0.1.0")).toStrictEqual([0, 1, 0]);
     expect(desktopReleaseTag("0.2.0")).toBe("desktop-v0.2.0");
@@ -89,7 +103,7 @@ describe("desktop update helpers", () => {
     const older = {
       ...release,
       html_url:
-        "https://github.com/MichitoSugawara/tahcode/releases/tag/desktop-v0.1.0",
+        "https://github.com/MichitoSugawara/tahcode-releases/releases/tag/desktop-v0.1.0",
       tag_name: "desktop-v0.1.0",
     };
     const parsed = parseGithubReleases([
@@ -116,7 +130,7 @@ describe("desktop update helpers", () => {
   it("allows only GitHub download URLs", () => {
     expect(
       isAllowedUpdateDownloadUrl(
-        "https://github.com/MichitoSugawara/tahcode/releases/tag/desktop-v0.2.0"
+        "https://github.com/MichitoSugawara/tahcode-releases/releases/tag/desktop-v0.2.0"
       )
     ).toBeTruthy();
     expect(
@@ -129,7 +143,7 @@ describe("desktop update helpers", () => {
     ).toBeFalsy();
     expect(
       isAllowedUpdateDownloadUrl(
-        "https://user:pass@github.com/MichitoSugawara/tahcode"
+        "https://user:pass@github.com/MichitoSugawara/tahcode-releases"
       )
     ).toBeFalsy();
   });
