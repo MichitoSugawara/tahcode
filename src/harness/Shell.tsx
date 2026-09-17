@@ -921,10 +921,7 @@ function ShellFrame({
                   chatDrop.over ? "bg-hover-2" : ""
                 }`}
                 style={{
-                  flex:
-                    showRail && railVisible
-                      ? `${(1 - railRatio).toFixed(4)} 1 0%`
-                      : "1 1 0%",
+                  flex: "1 1 0%",
                   minWidth: 0,
                 }}
               >
@@ -936,9 +933,10 @@ function ShellFrame({
                   data-shell-workbench-ratio={railRatio.toFixed(4)}
                   className="border-line relative hidden min-w-0 flex-col border-l xl:flex"
                   style={{
-                    flex: `${railRatio.toFixed(4)} 1 0%`,
+                    flex: "0 0 auto",
                     maxWidth: `${WORKBENCH_RATIO_MAX * 100}%`,
                     minWidth: WORKBENCH_WIDTH_MIN_PX,
+                    width: `${(railRatio * 100).toFixed(4)}%`,
                   }}
                 >
                   <WorkbenchResizeHandle

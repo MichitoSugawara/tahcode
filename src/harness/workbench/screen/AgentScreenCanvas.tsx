@@ -90,7 +90,7 @@ export function AgentScreenCanvas({
   );
 
   const onPointer = (
-    event: PointerEvent<HTMLDivElement>,
+    event: PointerEvent<Element>,
     kind: "move" | "down" | "up"
   ) => {
     const stage = event.currentTarget.getBoundingClientRect();
@@ -119,7 +119,7 @@ export function AgentScreenCanvas({
     });
   };
 
-  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+  const onWheel = (event: WheelEvent<Element>) => {
     if (!interactive) {
       return;
     }

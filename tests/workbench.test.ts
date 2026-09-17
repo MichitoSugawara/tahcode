@@ -33,6 +33,7 @@ import {
   WORKBENCH_WIDTH_KEY,
   WORKBENCH_WIDTH_MIN_PX,
   parseWorkbenchRatio,
+  serializeWorkbenchRatio,
   workbenchWidthFromRatio,
   WORKBENCH_TABS_KEY,
   workbenchDockedKey,
@@ -166,6 +167,8 @@ describe("workbench chrome persistence", () => {
       key: WORKBENCH_WIDTH_KEY,
       legacyPx: parseWorkbenchRatio(360),
       low: parseWorkbenchRatio(0.01),
+      stored: serializeWorkbenchRatio(0.4),
+      storedObject: parseWorkbenchRatio({ ratio: 0.4 }),
     }).toStrictEqual({
       defaultRatio: 0.36,
       high: WORKBENCH_RATIO_MAX,
@@ -173,6 +176,8 @@ describe("workbench chrome persistence", () => {
       key: "th:workbench:width",
       legacyPx: 360 / WORKBENCH_RATIO_REFERENCE_PX,
       low: WORKBENCH_RATIO_MIN,
+      stored: { ratio: 0.4 },
+      storedObject: 0.4,
     });
     expect(workbenchWidthFromRatio(0.36, 2000)).toBe(720);
     expect(workbenchWidthFromRatio(0.36, 1000)).toBe(360);
@@ -417,6 +422,7 @@ describe("workbench source contracts", () => {
     expect({
       handle: handle.includes("data-workbench-resize"),
       leak: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(rail),
+      percentWidth: shell.includes("railRatio * 100"),
       ratio: shell.includes("useWorkbenchRatio"),
       row: shell.includes("data-shell-chat-row"),
       tabsClear: handle.includes("top-7"),
@@ -425,6 +431,7 @@ describe("workbench source contracts", () => {
     }).toStrictEqual({
       handle: true,
       leak: false,
+      percentWidth: true,
       ratio: true,
       row: true,
       tabsClear: true,

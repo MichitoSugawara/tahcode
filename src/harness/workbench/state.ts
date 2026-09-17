@@ -138,6 +138,11 @@ export function clampWorkbenchRatio(raw: unknown): number {
   return Math.min(WORKBENCH_RATIO_MAX, Math.max(WORKBENCH_RATIO_MIN, value));
 }
 
+/** Persist a share of the chat+rail row — never an absolute px width. */
+export function serializeWorkbenchRatio(ratio: number): { ratio: number } {
+  return { ratio: clampWorkbenchRatio(ratio) };
+}
+
 /** Number in (0, 1] is a ratio. Number > 1 is a legacy absolute px width. */
 export function parseWorkbenchRatio(
   raw: unknown,
@@ -276,7 +281,7 @@ export function useWorkbenchRatio(): [number, (next: number) => void] {
   return [
     ratio,
     (next: number) => {
-      setRaw(clampWorkbenchRatio(next));
+      setRaw(serializeWorkbenchRatio(next));
     },
   ];
 }
