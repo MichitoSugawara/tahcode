@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import {
   clampWorkbenchWidth,
-  WORKBENCH_WIDTH_MAX_PX,
+  WORKBENCH_RATIO_MAX,
   WORKBENCH_WIDTH_MIN_PX,
   WORKBENCH_WIDTH_NUDGE_PX,
 } from "./state";
@@ -14,9 +14,11 @@ type DragOrigin = {
 
 /** Left-edge splitter for the verification workbench. */
 export function WorkbenchResizeHandle({
+  available,
   onWidthChange,
   width,
 }: {
+  available: number;
   onWidthChange: (next: number) => void;
   width: number;
 }) {
@@ -29,7 +31,10 @@ export function WorkbenchResizeHandle({
       return;
     }
     onWidthChange(
-      clampWorkbenchWidth(origin.startWidth - (clientX - origin.startX))
+      clampWorkbenchWidth(
+        origin.startWidth - (clientX - origin.startX),
+        available
+      )
     );
   };
 
@@ -43,12 +48,12 @@ export function WorkbenchResizeHandle({
       role="separator"
       aria-label="右サイドバーの幅を変更"
       aria-orientation="vertical"
-      aria-valuemax={WORKBENCH_WIDTH_MAX_PX}
+      aria-valuemax={Math.round(Math.max(1, available) * WORKBENCH_RATIO_MAX)}
       aria-valuemin={WORKBENCH_WIDTH_MIN_PX}
       aria-valuenow={width}
       data-workbench-resize
       tabIndex={0}
-      className={`absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 ${
+      className={`pointer-events-auto absolute top-7 bottom-0 left-0 z-10 w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 ${
         dragging ? "bg-hover-2" : "hover:bg-hover"
       }`}
       onPointerDown={(event) => {
@@ -73,12 +78,16 @@ export function WorkbenchResizeHandle({
       onKeyDown={(event) => {
         if (event.key === "ArrowLeft") {
           event.preventDefault();
-          onWidthChange(clampWorkbenchWidth(width + WORKBENCH_WIDTH_NUDGE_PX));
+          onWidthChange(
+            clampWorkbenchWidth(width + WORKBENCH_WIDTH_NUDGE_PX, available)
+          );
           return;
         }
         if (event.key === "ArrowRight") {
           event.preventDefault();
-          onWidthChange(clampWorkbenchWidth(width - WORKBENCH_WIDTH_NUDGE_PX));
+          onWidthChange(
+            clampWorkbenchWidth(width - WORKBENCH_WIDTH_NUDGE_PX, available)
+          );
           return;
         }
         if (event.key === "Home") {
@@ -88,7 +97,9 @@ export function WorkbenchResizeHandle({
         }
         if (event.key === "End") {
           event.preventDefault();
-          onWidthChange(WORKBENCH_WIDTH_MAX_PX);
+          onWidthChange(
+            Math.round(Math.max(1, available) * WORKBENCH_RATIO_MAX)
+          );
         }
       }}
     />

@@ -40,7 +40,7 @@ export const WORKBENCH_PANELS: Record<WorkbenchPanelId, WorkbenchPanelDef> = {
     blurb: "マシン画面のリモートセッション",
     id: "remote",
     label: "リモート",
-    next: "RDP / VNC の画面共有は次のフェーズです。停止は既存のジョブ中断です。",
+    next: "接続中マシンの画面をこの面に描画し、キーとマウスで操作します。停止は既存のジョブ中断です。",
     title: "リモートデスクトップ",
   },
   terminal: {

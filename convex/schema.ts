@@ -22,6 +22,11 @@ import {
   previewNavStatus,
   providerKind,
   ptySessionStatus,
+  screenInputKind,
+  screenInputStatus,
+  screenModifier,
+  screenPointerButton,
+  screenSessionStatus,
   visibility,
 } from "./lib/validators";
 
@@ -379,6 +384,52 @@ export default defineSchema({
     .index("by_runtime", ["runtimeId"])
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_runtime_owner_tab", ["runtimeId", "requestedBy", "tabId"]),
+
+  /* Machine display frames + HID (TAH-81). Periodic JPEG/PNG in
+   * Convex `_storage` plus queued pointer/key events. Not Microsoft
+   * RDP. Beautiful UI Agent Screen / Computer Use / t3code capturePage. */
+  screenSessions: defineTable({
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    requestedBy: v.id("users"),
+    chatId: v.optional(v.id("chats")),
+    tabId: v.string(),
+    status: screenSessionStatus,
+    storageId: v.optional(v.id("_storage")),
+    contentType: v.optional(v.string()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    displayWidth: v.optional(v.number()),
+    displayHeight: v.optional(v.number()),
+    bytes: v.optional(v.number()),
+    capturedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    lastBridgeAt: v.optional(v.number()),
+    claimedAt: v.optional(v.number()),
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"])
+    .index("by_runtime_owner_tab", ["runtimeId", "requestedBy", "tabId"]),
+
+  screenInputs: defineTable({
+    sessionId: v.id("screenSessions"),
+    runtimeId: v.id("runtimes"),
+    orgId: v.id("orgs"),
+    kind: screenInputKind,
+    x: v.optional(v.number()),
+    y: v.optional(v.number()),
+    button: v.optional(screenPointerButton),
+    key: v.optional(v.string()),
+    code: v.optional(v.string()),
+    modifiers: v.optional(v.array(screenModifier)),
+    text: v.optional(v.string()),
+    dx: v.optional(v.number()),
+    dy: v.optional(v.number()),
+    count: v.optional(v.number()),
+    status: screenInputStatus,
+  })
+    .index("by_runtime_and_status", ["runtimeId", "status"])
+    .index("by_session_and_status", ["sessionId", "status"]),
 
   /* Secondary verification thread (TAH-80). Not `messages` — @mentions
    * never launch jobs. Scoped to the parent chat's org + ACL. */

@@ -56,6 +56,28 @@ export type ClaimedPreview = {
   url: string;
 };
 
+export type ClaimedScreen = {
+  _id: string;
+};
+
+export type ClaimedScreenInputs = {
+  displayHeight?: number;
+  displayWidth?: number;
+  events: {
+    button?: string;
+    code?: string;
+    count?: number;
+    dx?: number;
+    dy?: number;
+    key?: string;
+    kind: string;
+    modifiers?: string[];
+    text?: string;
+    x?: number;
+    y?: number;
+  }[];
+};
+
 export interface ClaimedJob {
   _id: string;
   assistantMessageId: string;
@@ -260,6 +282,68 @@ export class RuntimeClient {
   }): Promise<void> {
     await this.client.mutation(
       "workbenchPreview:complete" as never,
+      input as never
+    );
+  }
+
+  async claimNextScreen(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedScreen | null> {
+    return await this.client.mutation(
+      "workbenchScreen:claimNext" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async generateScreenUploadUrl(input: {
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<string> {
+    return await this.client.mutation(
+      "workbenchScreen:generateUploadUrl" as never,
+      input as never
+    );
+  }
+
+  async claimScreenInputs(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedScreenInputs> {
+    return await this.client.mutation(
+      "workbenchScreen:claimInputs" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async reportScreenFrame(input: {
+    bytes: number;
+    contentType: string;
+    displayHeight?: number;
+    displayWidth?: number;
+    height?: number;
+    runtimeId: string;
+    sessionId: string;
+    storageId: string;
+    token: string;
+    width?: number;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchScreen:reportFrame" as never,
+      input as never
+    );
+  }
+
+  async reportScreenError(input: {
+    error: string;
+    fatal?: boolean;
+    runtimeId: string;
+    sessionId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchScreen:reportError" as never,
       input as never
     );
   }

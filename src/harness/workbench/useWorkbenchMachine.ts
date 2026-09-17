@@ -1,5 +1,9 @@
 import { isLiveRuntime } from "@shared/runtimeHealth.ts";
 import { runtimeHasPreview } from "@shared/workbenchPreview.ts";
+import {
+  runtimeHasScreen,
+  runtimeHasScreenInput,
+} from "@shared/workbenchScreen.ts";
 import { runtimeHasPty } from "@shared/workbenchTerminal.ts";
 import { useParams } from "react-router-dom";
 
@@ -45,6 +49,8 @@ export function useWorkbenchMachine() {
     cwd: workbenchCwd(runtime, project),
     hasPreview: runtimeHasPreview(runtime?.capabilities),
     hasPty: runtimeHasPty(runtime?.capabilities),
+    hasScreen: runtimeHasScreen(runtime?.capabilities),
+    hasScreenInput: runtimeHasScreenInput(runtime?.capabilities),
     online: runtime !== undefined,
     runtime,
   };

@@ -27,8 +27,14 @@ describe("workbench terminal contract", () => {
     expect(DEFAULT_TERMINAL_ID).toBe("term-1");
     expect(runtimeHasPty(["maintenance", BRIDGE_CAPABILITY_PTY])).toBeTruthy();
     expect(runtimeHasPty(["filesystemBrowse"])).toBeFalsy();
-    expect(BRIDGE_CAPABILITIES).toContain(BRIDGE_CAPABILITY_PTY);
-    expect(BRIDGE_CAPABILITIES).toContain(BRIDGE_CAPABILITY_PREVIEW);
+    expect(BRIDGE_CAPABILITIES).toStrictEqual(
+      expect.arrayContaining([
+        BRIDGE_CAPABILITY_PTY,
+        BRIDGE_CAPABILITY_PREVIEW,
+        "screen",
+        "screenInput",
+      ])
+    );
   });
 
   it("clamps cols/rows to t3code's TerminalCols/Rows bounds", () => {

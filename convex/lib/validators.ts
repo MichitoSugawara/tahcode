@@ -233,6 +233,54 @@ export const previewNavStatus = v.union(
   v.literal("failed")
 );
 
+export const screenSessionStatus = v.union(
+  v.literal("watching"),
+  v.literal("error"),
+  v.literal("closed")
+);
+
+export const screenInputKind = v.union(
+  v.literal("move"),
+  v.literal("down"),
+  v.literal("up"),
+  v.literal("click"),
+  v.literal("scroll"),
+  v.literal("key"),
+  v.literal("text")
+);
+
+export const screenPointerButton = v.union(
+  v.literal("left"),
+  v.literal("right"),
+  v.literal("middle")
+);
+
+export const screenModifier = v.union(
+  v.literal("alt"),
+  v.literal("ctrl"),
+  v.literal("meta"),
+  v.literal("shift")
+);
+
+export const screenInputStatus = v.union(
+  v.literal("pending"),
+  v.literal("done")
+);
+
+export const screenInputEvent = v.object({
+  button: v.optional(screenPointerButton),
+  code: v.optional(v.string()),
+  count: v.optional(v.number()),
+  dx: v.optional(v.number()),
+  dy: v.optional(v.number()),
+  key: v.optional(v.string()),
+  kind: screenInputKind,
+  modifiers: v.optional(v.array(screenModifier)),
+  text: v.optional(v.string()),
+  x: v.optional(v.number()),
+  y: v.optional(v.number()),
+});
+
 export const sideChatTurnView = v.object({
   _creationTime: v.number(),
   _id: v.id("sideChatTurns"),

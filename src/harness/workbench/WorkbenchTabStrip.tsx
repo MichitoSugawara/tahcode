@@ -144,7 +144,7 @@ export function WorkbenchTabStrip({
   };
 
   return (
-    <div className="border-line flex h-7 shrink-0 items-center border-b">
+    <div className="border-line pointer-events-auto relative z-20 flex h-7 shrink-0 items-center border-b">
       <div
         role="tablist"
         aria-label="開いているパネル"
@@ -178,7 +178,7 @@ export function WorkbenchTabStrip({
           const rect = event.currentTarget.getBoundingClientRect();
           onOpenPicker(rect.left, rect.bottom + 4);
         }}
-        className="text-ink-3 hover:text-ink hover:bg-hover flex size-7 shrink-0 items-center justify-center transition-colors duration-100"
+        className="text-ink-3 hover:text-ink hover:bg-hover pointer-events-auto relative z-20 flex size-7 shrink-0 items-center justify-center transition-colors duration-100"
       >
         <Plus size={13} strokeWidth={2.2} />
       </button>

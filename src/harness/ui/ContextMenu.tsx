@@ -130,7 +130,7 @@ export function ContextMenu({
           : undefined
       }
       onContextMenu={(event) => event.preventDefault()}
-      className="bg-surface shadow-overlay fixed z-50 min-w-44 rounded-[14px] p-1.5 outline-none"
+      className="bg-surface shadow-overlay pointer-events-auto fixed z-[80] min-w-44 rounded-[14px] p-1.5 outline-none"
       style={{
         animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both",
         left: position.left,

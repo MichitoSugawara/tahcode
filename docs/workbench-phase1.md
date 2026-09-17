@@ -107,7 +107,7 @@ tahcode への写し方: タブラベルは **リモートデスクトップ**�
 | サイドチャット | Convex `sideChatTurns`（親 chatId + org。ACL は本線チャット）。メンションはジョブを起こさない | エージェント応答 / メンション補完 |
 | ターミナル | 端末枠 + PTY 待ち empty。オフラインは「オンラインのマシンが必要」 | **TAH-69 で実 PTY**（Ghostty + ブリッジ）。複数 split / tool ログは残件 |
 | ブラウザ | disabled アドレス欄 + プレビュー枠 | **TAH-69 で URL→マシン fetch→描画**。Chromium guest / 注釈は残件 |
-| リモート | セッション枠 + **停止**（active job → `jobs.cancel`） | RDP / VNC / 画面ストリーム |
+| リモート | セッション枠 + **停止**（active job → `jobs.cancel`） | **TAH-81 で画面フレーム**。フル RDP / VNC 操作は残件 |
 | Files / Diff | 出さない | ランタイムが構造化 diff / ファイル樹を返してから |
 
 ヘッダートグルは TAH-39 の `data-shell-header-tools` に常設。`RIGHT_RAIL_SECTION_ENABLED` ではゲートしない（あれは旧設定タブ用で、すべて false のまま）。

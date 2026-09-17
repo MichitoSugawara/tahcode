@@ -6,9 +6,11 @@ import type { SidebarSectionId } from "@/harness/sidebarModel";
 import { shouldDismissComposerMenu } from "@/lib/composerMenu";
 
 export const CONTEXT_MENU_ROOT = "[data-context-menu]";
+export const WORKBENCH_OPEN_PANEL = "[data-workbench-open-panel]";
 export const CONTEXT_MENU_KEEP_OPEN = [
   CONTEXT_MENU_ROOT,
   SIDEBAR_MORE_TRIGGER,
+  WORKBENCH_OPEN_PANEL,
 ] as const;
 
 export interface ContextMenuSpec {
