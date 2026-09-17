@@ -26,6 +26,7 @@ import {
   requireScreenInputRuntime,
   requireScreenRuntime,
 } from "./lib/workbenchAccess";
+import { screenSessionHasLiveRtc } from "./workbenchScreenRtc";
 
 const sessionView = v.object({
   _id: v.id("screenSessions"),
@@ -87,6 +88,9 @@ async function markQuietWatching(ctx: MutationCtx, runtimeId: Id<"runtimes">) {
     .take(16);
   const now = Date.now();
   for (const row of watching) {
+    if (await screenSessionHasLiveRtc(ctx, row._id)) {
+      continue;
+    }
     const last = row.lastBridgeAt ?? row.claimedAt ?? row._creationTime;
     if (now - last <= SCREEN_WATCH_TIMEOUT_MS) {
       continue;
@@ -230,9 +234,17 @@ export const claimNext = mutation({
       .order("asc")
       .take(16);
     const now = Date.now();
-    const row = watching.find((item) =>
-      screenFrameDue(item.lastBridgeAt, now, SCREEN_POLL_MS)
-    );
+    let row = null;
+    for (const item of watching) {
+      if (!screenFrameDue(item.lastBridgeAt, now, SCREEN_POLL_MS)) {
+        continue;
+      }
+      if (await screenSessionHasLiveRtc(ctx, item._id)) {
+        continue;
+      }
+      row = item;
+      break;
+    }
     if (!row) {
       return null;
     }

@@ -4,6 +4,7 @@ import {
   runtimeHasScreen,
   runtimeHasScreenInput,
 } from "@shared/workbenchScreen.ts";
+import { runtimeHasScreenWebRtc } from "@shared/workbenchScreenRtc.ts";
 import { runtimeHasPty } from "@shared/workbenchTerminal.ts";
 import { useParams } from "react-router-dom";
 
@@ -51,6 +52,7 @@ export function useWorkbenchMachine() {
     hasPty: runtimeHasPty(runtime?.capabilities),
     hasScreen: runtimeHasScreen(runtime?.capabilities),
     hasScreenInput: runtimeHasScreenInput(runtime?.capabilities),
+    hasScreenWebRtc: runtimeHasScreenWebRtc(runtime?.capabilities),
     online: runtime !== undefined,
     runtime,
   };

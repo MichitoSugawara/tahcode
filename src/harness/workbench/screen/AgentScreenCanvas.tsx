@@ -6,7 +6,7 @@ import type {
   ScreenControlMode,
   ScreenInputEvent,
 } from "@shared/workbenchScreen.ts";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 
 const MOVE_THROTTLE_MS = 40;
@@ -43,43 +43,68 @@ export function AgentScreenCanvas({
   frameUrl,
   now,
   onInput,
+  onPlaying,
   stale,
+  stream,
+  transport = "jpeg",
 }: {
   capturedAt?: number;
   control: ScreenControlMode;
   error?: string;
-  frameUrl: string;
+  frameUrl?: string;
   now: number;
   onInput?: (event: ScreenInputEvent) => void;
+  onPlaying?: () => void;
   stale: boolean;
+  stream?: MediaStream;
+  transport?: "jpeg" | "webrtc";
 }) {
   const frameRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const lastMove = useRef(0);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const [focused, setFocused] = useState(false);
   const interactive = control === "control" && onInput !== undefined;
+  const live = transport === "webrtc";
   const age =
     capturedAt === undefined ? null : formatScreenAge(capturedAt, now);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) {
+      return;
+    }
+    video.srcObject = stream;
+    return () => {
+      video.srcObject = null;
+    };
+  }, [stream]);
+
   const pointFromEvent = useCallback(
     (event: { clientX: number; clientY: number }) => {
-      const image = frameRef.current;
-      if (!image) {
+      const media = live ? videoRef.current : frameRef.current;
+      if (!media) {
         return null;
       }
-      const rect = image.getBoundingClientRect();
+      const rect = media.getBoundingClientRect();
+      const naturalWidth = live
+        ? (videoRef.current?.videoWidth ?? 0)
+        : (frameRef.current?.naturalWidth ?? 0);
+      const naturalHeight = live
+        ? (videoRef.current?.videoHeight ?? 0)
+        : (frameRef.current?.naturalHeight ?? 0);
       return screenPointFromClient({
         clientX: event.clientX,
         clientY: event.clientY,
         height: rect.height,
         left: rect.left,
-        naturalHeight: image.naturalHeight,
-        naturalWidth: image.naturalWidth,
+        naturalHeight,
+        naturalWidth,
         top: rect.top,
         width: rect.width,
       });
     },
-    []
+    [live]
   );
 
   const send = useCallback(
@@ -141,6 +166,7 @@ export function AgentScreenCanvas({
     <div
       data-workbench-screen-frame
       data-stale={stale ? "true" : "false"}
+      data-workbench-transport={transport}
       className="bg-inset flex min-h-0 flex-1 flex-col p-2 pt-0"
     >
       <button
@@ -221,24 +247,40 @@ export function AgentScreenCanvas({
           });
         }}
       >
-        <img
-          ref={frameRef}
-          alt="接続中マシンの画面フレーム"
-          src={frameUrl}
-          draggable={false}
-          className="absolute inset-0 h-full w-full object-contain select-none"
-        />
+        {live && stream ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            aria-label="接続中マシンの画面"
+            className="absolute inset-0 h-full w-full object-contain"
+            onPlaying={() => {
+              onPlaying?.();
+            }}
+          />
+        ) : (
+          <img
+            ref={frameRef}
+            alt="接続中マシンの画面フレーム"
+            src={frameUrl}
+            draggable={false}
+            className="absolute inset-0 h-full w-full object-contain select-none"
+          />
+        )}
         {interactive && cursor ? (
           <AgentCursor x={cursor.x} y={cursor.y} />
         ) : null}
       </button>
       <div className="text-ink-3 flex shrink-0 items-center justify-between gap-2 px-1 pt-1.5 text-[11px]">
         <span>
-          {stale
-            ? "更新が止まっています"
-            : age
-              ? `最終フレーム ${age}`
-              : "フレーム"}
+          {live
+            ? "ライブ映像"
+            : stale
+              ? "更新が止まっています"
+              : age
+                ? `最終フレーム ${age}`
+                : "フレーム"}
           {control === "view"
             ? " · 閲覧のみ"
             : focused

@@ -49,7 +49,7 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。製品面
 
 | 面 | この PR | 残すもの |
 | --- | --- | --- |
-| リモート | オンライン + `screen` で最新フレーム。`screenInput` でキー / マウス。poll 約 0.5s | WebRTC、Windows キャプチャ、Microsoft RDP |
+| リモート | オンライン + `screen` で最新フレーム。`screenInput` でキー / マウス。poll 約 0.5s | WebRTC は [TAH-83](https://linear.app/tahcode/issue/TAH-83/) / [`docs/workbench-tah83.md`](workbench-tah83.md)。Windows キャプチャ、Microsoft RDP |
 | オフライン | `MachineNeeded` | — |
 | 旧ブリッジ | `screen` なし → 更新 CTA。`screenInput` なし → 閲覧のみ + 更新チップ | — |
 | 右レール幅 | ビューポートに対する **比率**。ドラッグした割合を維持 | — |

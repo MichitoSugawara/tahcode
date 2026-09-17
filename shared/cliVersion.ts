@@ -5,8 +5,12 @@
  * 0.1.3 adds workbench pty / preview capabilities on the bridge (TAH-69).
  * 0.1.4 adds workbench screen frames on the bridge (TAH-81).
  * 0.1.5 adds keyboard / mouse input on those frames (`screenInput`).
+ * 0.1.6 adds optional WebRTC screen (`screenWebRtc`) when webrtc-streamer is present.
  */
-export const CLI_VERSION = "0.1.5";
+export const CLI_VERSION = "0.1.6";
+
+/** First CLI that can advertise `screenWebRtc` and proxy sidecar signaling. */
+export const SCREEN_WEBRTC_MIN_CLI_VERSION = "0.1.6";
 
 /** First CLI that advertises `screen` and captures a display frame. */
 export const SCREEN_MIN_CLI_VERSION = "0.1.4";

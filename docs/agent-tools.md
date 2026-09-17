@@ -36,7 +36,7 @@ Cursor の `agent -p` には `--mcp-config` が無いので、ツールはシェ
 
 ## 必要な CLI バージョン
 
-`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。Cursor がシェルで `tahcode tool` を呼ぶにはさらに **0.1.2+**（`--force`）。更新: `npm i -g tahcode@0.1.5` のあと `tahcode restart`。ワークベンチの端末 / プレビューは **0.1.3+**。リモートの画面フレームは **0.1.4+**。画面操作は **0.1.5+**。バイナリを拾うだけなら `tahcode service install` は不要（TAH-60: 再登録しても `CURSOR_API_KEY` 等は消さない）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
+`tahcode tool` / `tahcode tool-mcp` は **0.1.1 以降**。npm の `tahcode@0.1.0` にはサブコマンドが無く、Cursor ジョブは 「不明なコマンド: tool」で止まります（`--mcp-config` が無いため Claude より先に壊れます）。Cursor がシェルで `tahcode tool` を呼ぶにはさらに **0.1.2+**（`--force`）。更新: `npm i -g tahcode@0.1.6` のあと `tahcode restart`。ワークベンチの端末 / プレビューは **0.1.3+**。リモートの画面フレームは **0.1.4+**。画面操作は **0.1.5+**。WebRTC 映像は **0.1.6+**。バイナリを拾うだけなら `tahcode service install` は不要（TAH-60: 再登録しても `CURSOR_API_KEY` 等は消さない）。`tahcode doctor` の「エージェントツール」が ✗ なら未更新です。
 
 ## ツール
 

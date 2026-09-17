@@ -26,6 +26,8 @@ import {
   screenInputStatus,
   screenModifier,
   screenPointerButton,
+  screenRtcIceFrom,
+  screenRtcSessionStatus,
   screenSessionStatus,
   visibility,
 } from "./lib/validators";
@@ -430,6 +432,42 @@ export default defineSchema({
   })
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_session_and_status", ["sessionId", "status"]),
+
+  /* Ephemeral WebRTC signaling (TAH-83). SDP / ICE only — never video. */
+  screenRtcSessions: defineTable({
+    answerSdp: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    lastBridgeAt: v.optional(v.number()),
+    offerSdp: v.string(),
+    orgId: v.id("orgs"),
+    peerId: v.string(),
+    requestedBy: v.id("users"),
+    runtimeId: v.id("runtimes"),
+    sessionId: v.id("screenSessions"),
+    status: screenRtcSessionStatus,
+  })
+    .index("by_runtime", ["runtimeId"])
+    .index("by_runtime_and_status", ["runtimeId", "status"])
+    .index("by_session", ["sessionId"])
+    .index("by_runtime_owner_session", [
+      "runtimeId",
+      "requestedBy",
+      "sessionId",
+    ]),
+
+  screenRtcIce: defineTable({
+    candidate: v.string(),
+    from: screenRtcIceFrom,
+    orgId: v.id("orgs"),
+    rtcSessionId: v.id("screenRtcSessions"),
+    runtimeId: v.id("runtimes"),
+    sdpMLineIndex: v.optional(v.number()),
+    sdpMid: v.optional(v.string()),
+    status: screenInputStatus,
+  })
+    .index("by_rtc_from_status", ["rtcSessionId", "from", "status"])
+    .index("by_runtime_from_status", ["runtimeId", "from", "status"]),
 
   /* Secondary verification thread (TAH-80). Not `messages` — @mentions
    * never launch jobs. Scoped to the parent chat's org + ACL. */

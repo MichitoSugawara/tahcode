@@ -17,10 +17,11 @@ import {
 } from "../../../runtime/src/providers.ts";
 import type { ProviderProbe } from "../../../runtime/src/providers.ts";
 import {
-  BRIDGE_CAPABILITIES,
+  liveBridgeCapabilities,
   reportFor,
   runLoop,
 } from "../../../runtime/src/runner.ts";
+import { resolveWebRtcStreamer } from "../../../runtime/src/webrtcStreamer.ts";
 import { CLI_VERSION as VERSION } from "../../../shared/cliVersion.ts";
 import {
   mergeModelCatalog,
@@ -97,8 +98,7 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  * 0.1.3 adds workbench pty / preview capabilities on the bridge.
  * 0.1.4 adds workbench screen frames on the bridge.
  * 0.1.5 adds keyboard / mouse input on the remote screen.
- * 0.1.5 adds keyboard / mouse input on the remote screen.
- * 0.1.5 adds keyboard / mouse input on the remote screen.
+ * 0.1.6 adds optional WebRTC screen (`screenWebRtc`) when webrtc-streamer is present.
  * ───────────────────────────────────────────────────────── */
 
 type Flags = Record<string, string | boolean>;
@@ -511,7 +511,7 @@ async function cmdDoctor(): Promise<void> {
   try {
     await new RuntimeClient(link.url).heartbeat({
       bridgeVersion: VERSION,
-      capabilities: BRIDGE_CAPABILITIES,
+      capabilities: liveBridgeCapabilities(),
       hostname: os.hostname(),
       providers: probes.map((probe) => reportFor(probe)),
       runtimeId: link.runtimeId,
@@ -523,6 +523,12 @@ async function cmdDoctor(): Promise<void> {
       `接続に失敗: ${error instanceof Error ? error.message : String(error)}`
     );
   }
+  const streamer = resolveWebRtcStreamer();
+  (streamer ? ok : info)(
+    streamer
+      ? `WebRTC 画面: ${streamer}`
+      : "WebRTC 画面: 未検出（Remote は JPEG。webrtc-streamer を PATH か TAHCODE_WEBRTC_STREAMER へ）"
+  );
   const bridge = runningBridge();
   (bridge ? ok : warn)(
     bridge

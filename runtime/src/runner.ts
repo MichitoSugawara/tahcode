@@ -41,6 +41,10 @@ import {
 } from "../../shared/workbenchScreen.ts";
 import type { ScreenInputEvent } from "../../shared/workbenchScreen.ts";
 import {
+  SCREEN_RTC_POLL_MS,
+  withScreenWebRtcCapability,
+} from "../../shared/workbenchScreenRtc.ts";
+import {
   BRIDGE_CAPABILITY_PTY,
   PTY_POLL_MS,
 } from "../../shared/workbenchTerminal.ts";
@@ -72,6 +76,7 @@ import {
 } from "./screenCapture.ts";
 import { injectScreenInput } from "./screenInput.ts";
 import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
+import { resolveWebRtcStreamer, WebRtcStreamerHost } from "./webrtcStreamer.ts";
 
 export interface RunnerOptions {
   convexUrl: string;
@@ -100,6 +105,12 @@ export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_SCREEN,
   BRIDGE_CAPABILITY_SCREEN_INPUT,
 ];
+
+export function liveBridgeCapabilities(
+  available = resolveWebRtcStreamer() !== null
+): string[] {
+  return withScreenWebRtcCapability(BRIDGE_CAPABILITIES, available);
+}
 
 /**
  * Live model catalogs, one per provider, refreshed lazily: a CLI's `models`
@@ -186,6 +197,8 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
   let lastHeartbeat = 0;
   let lastWorkPoll = 0;
   const ptySessions = new Map<string, PtyProcess>();
+  const rtcHost = new WebRtcStreamerHost();
+  const rtcPeers = new Map<string, string>();
 
   console.log(`[runtime] polling ${options.convexUrl} as ${options.runtimeId}`);
   const cliEntry = process.argv[1];
@@ -210,7 +223,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
         reportFor(probe, models.get(probe.kind))
       ),
       bridgeVersion: options.bridgeVersion,
-      capabilities: BRIDGE_CAPABILITIES,
+      capabilities: liveBridgeCapabilities(),
     });
     lastHeartbeat = Date.now();
     const available = probes
@@ -258,6 +271,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       const ptyBusy = await syncPtySessions(client, options, ptySessions);
       const inputBusy = await syncScreenInputs(client, options);
       const screenBusy = await syncScreenSessions(client, options);
+      const rtcBusy = await syncRtcSessions(client, options, rtcHost, rtcPeers);
 
       if (Date.now() - lastWorkPoll >= pollMs) {
         lastWorkPoll = Date.now();
@@ -285,8 +299,8 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       }
 
       await sleep(
-        ptyBusy || screenBusy || inputBusy
-          ? Math.min(PTY_POLL_MS, SCREEN_POLL_MS)
+        ptyBusy || screenBusy || inputBusy || rtcBusy
+          ? Math.min(PTY_POLL_MS, SCREEN_POLL_MS, SCREEN_RTC_POLL_MS)
           : Math.min(pollMs, FS_BROWSE_POLL_MS)
       );
     } catch (error) {
@@ -401,6 +415,82 @@ async function syncScreenSessions(
     });
   }
   return true;
+}
+
+async function syncRtcSessions(
+  client: RuntimeClient,
+  options: RunnerOptions,
+  host: WebRtcStreamerHost,
+  peers: Map<string, string>
+): Promise<boolean> {
+  const auth = { runtimeId: options.runtimeId, token: options.token };
+  const claimed = await client.claimNextScreenRtc(
+    options.runtimeId,
+    options.token
+  );
+  if (claimed) {
+    try {
+      const answerSdp = await host.call(claimed.peerId, claimed.offerSdp);
+      await client.reportScreenRtcAnswer({
+        ...auth,
+        answerSdp,
+        rtcSessionId: claimed._id,
+      });
+      peers.set(claimed._id, claimed.peerId);
+    } catch (error) {
+      await client.reportScreenRtcError({
+        ...auth,
+        error: error instanceof Error ? error.message : String(error),
+        rtcSessionId: claimed._id,
+      });
+    }
+  }
+  const ice = await client.claimScreenRtcIce(options.runtimeId, options.token);
+  for (const event of ice.events) {
+    try {
+      await host.addIce(event.peerId, {
+        candidate: event.candidate,
+        sdpMLineIndex: event.sdpMLineIndex,
+        sdpMid: event.sdpMid,
+      });
+    } catch (error) {
+      console.error(
+        "[runtime] screen rtc ice failed",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+  const active = await client.listActiveScreenRtc(
+    options.runtimeId,
+    options.token
+  );
+  const activeIds = new Set(active.map((row) => row._id));
+  for (const row of active) {
+    peers.set(row._id, row.peerId);
+    try {
+      const remote = await host.getIce(row.peerId);
+      if (remote.length > 0) {
+        await client.reportScreenRtcIce({
+          ...auth,
+          events: remote,
+          rtcSessionId: row._id,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "[runtime] screen rtc remote ice failed",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+  for (const [sessionId, peerId] of peers) {
+    if (activeIds.has(sessionId)) {
+      continue;
+    }
+    await host.hangup(peerId);
+    peers.delete(sessionId);
+  }
+  return claimed !== null || ice.events.length > 0 || peers.size > 0;
 }
 
 async function syncPtySessions(
@@ -901,7 +991,7 @@ async function executeJob(
     void client
       .heartbeat({
         bridgeVersion: options.bridgeVersion,
-        capabilities: BRIDGE_CAPABILITIES,
+        capabilities: liveBridgeCapabilities(),
         hostname: os.hostname(),
         providers: probes.map((probe) => ({
           available: probe.available,
