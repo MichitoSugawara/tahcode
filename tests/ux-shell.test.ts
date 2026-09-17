@@ -256,9 +256,11 @@ describe("shell source contracts", () => {
     const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
     expect(shell).toContain("data-shell-workbench-toggle");
     expect(shell).toContain("useWorkbenchDocked");
-    expect(rail).toContain("data-workbench-tab");
-    expect(rail).not.toContain("ContextPane");
-    expect(rail).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+    expect(shell).toContain("WorkbenchResizeHandle");
+    expect(rail).toContain("WorkbenchTabStrip");
+    expect(rail).not.toMatch(
+      /OpenConnector|OOMOL|workers\.dev|gateway|ContextPane/i
+    );
   });
 
   it("keeps runtime off the left-rail labels in Shell", () => {

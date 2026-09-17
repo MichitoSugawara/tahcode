@@ -1,22 +1,23 @@
-import { Globe, MessageSquare, Monitor, Terminal, X } from "lucide-react";
+import { Check, Globe, MessageSquare, Monitor, Terminal } from "lucide-react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { ContextMenu } from "@/harness/ui/ContextMenu";
 import { BrowserPane } from "@/harness/workbench/BrowserPane";
 import type { WorkbenchPanelId } from "@/harness/workbench/panels";
-import {
-  WORKBENCH_PANEL_IDS,
-  WORKBENCH_PANELS,
-} from "@/harness/workbench/panels";
+import { WORKBENCH_PANELS } from "@/harness/workbench/panels";
 import { RemotePane } from "@/harness/workbench/RemotePane";
 import { SideChatPane } from "@/harness/workbench/SideChatPane";
-import { useWorkbenchPanel } from "@/harness/workbench/state";
+import { useWorkbenchTabs } from "@/harness/workbench/state";
+import { workbenchPickerIds } from "@/harness/workbench/tabs";
 import { TerminalPane } from "@/harness/workbench/TerminalPane";
+import { WorkbenchTabStrip } from "@/harness/workbench/WorkbenchTabStrip";
 
 const PANEL_ICONS: Record<WorkbenchPanelId, ReactNode> = {
-  browser: <Globe size={14} />,
-  chat: <MessageSquare size={14} />,
-  remote: <Monitor size={14} />,
-  terminal: <Terminal size={14} />,
+  browser: <Globe size={12} />,
+  chat: <MessageSquare size={12} />,
+  remote: <Monitor size={12} />,
+  terminal: <Terminal size={12} />,
 };
 
 function WorkbenchBody({ panel }: { panel: WorkbenchPanelId }) {
@@ -32,68 +33,74 @@ function WorkbenchBody({ panel }: { panel: WorkbenchPanelId }) {
   return <SideChatPane />;
 }
 
-/** Closable verification workbench — not the old Context / Runtime / Team settings. */
-export function RightRail({ onClose }: { onClose?: () => void }) {
-  const [panel, setPanel] = useWorkbenchPanel();
-  const current = WORKBENCH_PANELS[panel];
+/** Closable verification workbench — open surfaces as real tabs, not a 4-way nav. */
+export function RightRail({ onCollapse }: { onCollapse?: () => void }) {
+  const tabs = useWorkbenchTabs();
+  const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
+  const current = tabs.active ? WORKBENCH_PANELS[tabs.active] : null;
+
+  const closeTab = (id: WorkbenchPanelId) => {
+    const next = tabs.closeTab(id);
+    if (next.open.length === 0) {
+      onCollapse?.();
+    }
+  };
 
   return (
     <div data-workbench className="flex min-h-0 flex-1 flex-col">
-      <div className="border-line flex h-11 shrink-0 items-center gap-1 border-b px-2">
-        <div
-          role="tablist"
-          aria-label="検証ワークベンチ"
-          className="flex min-w-0 flex-1 items-center gap-0.5"
-        >
-          {WORKBENCH_PANEL_IDS.map((id) => {
-            const item = WORKBENCH_PANELS[id];
-            const selected = id === panel;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                data-workbench-tab={id}
-                aria-selected={selected}
-                title={item.title}
-                onClick={() => setPanel(id)}
-                className={`flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-[7px] px-1 text-[11px] font-medium transition-colors duration-100 ${
-                  selected
-                    ? "bg-hover-2 text-ink"
-                    : "text-ink-3 hover:bg-hover hover:text-ink"
-                }`}
-              >
-                <span className="shrink-0">{PANEL_ICONS[id]}</span>
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            aria-label="閉じる"
-            onClick={onClose}
-            className="text-ink-3 hover:bg-hover hover:text-ink flex size-6 shrink-0 items-center justify-center rounded-[6px] transition-colors duration-100"
+      <WorkbenchTabStrip
+        active={tabs.active}
+        icons={PANEL_ICONS}
+        open={tabs.open}
+        onCloseTab={closeTab}
+        onFocusTab={tabs.setActive}
+        onOpenPicker={(x, y) => {
+          setPicker({ x, y });
+        }}
+      />
+      {current && tabs.active && (
+        <>
+          <h2 className="sr-only">{current.title}</h2>
+          <div
+            role="tabpanel"
+            id={`workbench-panel-${tabs.active}`}
+            aria-labelledby={`workbench-tab-${tabs.active}`}
+            data-workbench-panel={tabs.active}
+            className="flex min-h-0 flex-1 flex-col"
           >
-            <X size={13} strokeWidth={2.2} />
-          </button>
-        )}
-      </div>
-      <div className="border-line shrink-0 border-b px-3 py-2">
-        <h2 className="text-ink text-[13px] font-medium">{current.title}</h2>
-        <p className="text-ink-3 mt-0.5 text-[11.5px] leading-snug">
-          {current.blurb}
-        </p>
-      </div>
-      <div
-        role="tabpanel"
-        data-workbench-panel={panel}
-        className="flex min-h-0 flex-1 flex-col"
-        style={{ animation: "fade-in 160ms ease-out both" }}
-      >
-        <WorkbenchBody panel={panel} />
-      </div>
+            <WorkbenchBody panel={tabs.active} />
+          </div>
+        </>
+      )}
+      {picker && (
+        <ContextMenu
+          header={
+            <p
+              data-workbench-panel-picker
+              className="text-ink-3 px-2.5 pt-1 pb-1.5 text-[11px]"
+            >
+              パネルを開く
+            </p>
+          }
+          items={workbenchPickerIds().map((id) => {
+            const item = WORKBENCH_PANELS[id];
+            const opened = tabs.open.includes(id);
+            return {
+              icon: opened ? <Check size={14} /> : PANEL_ICONS[id],
+              key: id,
+              label: item.title,
+              onSelect: () => {
+                tabs.openTab(id);
+              },
+            };
+          })}
+          x={picker.x}
+          y={picker.y}
+          onClose={() => {
+            setPicker(null);
+          }}
+        />
+      )}
     </div>
   );
 }
