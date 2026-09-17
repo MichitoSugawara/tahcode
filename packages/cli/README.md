@@ -121,12 +121,12 @@ npm run cli:verify
 npm publish --workspace tahcode --access public
 ```
 
-Current version: `0.1.4` (workbench screen frames on the bridge; TAH-81). `0.1.3` added workbench pty / preview (TAH-69). `0.1.2` added Cursor headless `--force` so `tahcode tool` is not rejected (TAH-63). `0.1.1` added `tahcode tool` / `tool-mcp` and leaseId on `jobs:appendEvent` / `jobs:complete`. `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`. Default start is bridge-only.
+Current version: `0.1.5` (workbench screen input on the bridge; TAH-81). `0.1.4` added screen frames. `0.1.3` added workbench pty / preview (TAH-69). `0.1.2` added Cursor headless `--force` so `tahcode tool` is not rejected (TAH-63). `0.1.1` added `tahcode tool` / `tool-mcp` and leaseId on `jobs:appendEvent` / `jobs:complete`. `tahcode@0.1.0` (2026-09-13) omitted both; server hotfix [#26](https://github.com/MichitoSugawara/tahcode/pull/26) still accepts missing `leaseId`. Default start is bridge-only.
 
 Mac upgrade (binary pickup: `tahcode restart` is enough. `service install` now keeps `CURSOR_API_KEY` / Claude env — see [macOS: start at login](#macos-start-at-login-launchd) / TAH-60):
 
 ```bash
-npm i -g tahcode@0.1.4
+npm i -g tahcode@0.1.5
 tahcode restart
 tahcode doctor          # エージェントツール must be ✓
 tahcode tool            # must NOT print 不明なコマンド: tool

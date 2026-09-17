@@ -35,8 +35,11 @@ import type { ProviderDriverKind } from "../../shared/providers.ts";
 import { BRIDGE_CAPABILITY_PREVIEW } from "../../shared/workbenchPreview.ts";
 import {
   BRIDGE_CAPABILITY_SCREEN,
+  BRIDGE_CAPABILITY_SCREEN_INPUT,
+  isScreenInputKind,
   SCREEN_POLL_MS,
 } from "../../shared/workbenchScreen.ts";
+import type { ScreenInputEvent } from "../../shared/workbenchScreen.ts";
 import {
   BRIDGE_CAPABILITY_PTY,
   PTY_POLL_MS,
@@ -62,7 +65,12 @@ import { fetchPreviewPage } from "./previewFetch.ts";
 import type { ProviderProbe } from "./providers.ts";
 import { probeProviders, probeVersion, runHeadless } from "./providers.ts";
 import { PtyProcess, resolvePtyCwd } from "./ptyHost.ts";
-import { captureScreenFrame, uploadStorageBlob } from "./screenCapture.ts";
+import {
+  captureScreenFrame,
+  probeDisplaySize,
+  uploadStorageBlob,
+} from "./screenCapture.ts";
+import { injectScreenInput } from "./screenInput.ts";
 import { skillSyncSummary, syncProfileSkills } from "./skillsSync.ts";
 
 export interface RunnerOptions {
@@ -90,6 +98,7 @@ export const BRIDGE_CAPABILITIES = [
   BRIDGE_CAPABILITY_PTY,
   BRIDGE_CAPABILITY_PREVIEW,
   BRIDGE_CAPABILITY_SCREEN,
+  BRIDGE_CAPABILITY_SCREEN_INPUT,
 ];
 
 /**
@@ -247,6 +256,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       }
 
       const ptyBusy = await syncPtySessions(client, options, ptySessions);
+      const inputBusy = await syncScreenInputs(client, options);
       const screenBusy = await syncScreenSessions(client, options);
 
       if (Date.now() - lastWorkPoll >= pollMs) {
@@ -275,7 +285,7 @@ export async function runLoop(options: RunnerOptions): Promise<void> {
       }
 
       await sleep(
-        ptyBusy || screenBusy
+        ptyBusy || screenBusy || inputBusy
           ? Math.min(PTY_POLL_MS, SCREEN_POLL_MS)
           : Math.min(pollMs, FS_BROWSE_POLL_MS)
       );
@@ -304,6 +314,42 @@ async function executePreviewFetch(
   });
 }
 
+async function syncScreenInputs(
+  client: RuntimeClient,
+  options: RunnerOptions
+): Promise<boolean> {
+  const claimed = await client.claimScreenInputs(
+    options.runtimeId,
+    options.token
+  );
+  if (claimed.events.length === 0) {
+    return false;
+  }
+  const display = await probeDisplaySize();
+  const width = claimed.displayWidth ?? display?.width ?? 1440;
+  const height = claimed.displayHeight ?? display?.height ?? 900;
+  for (const raw of claimed.events) {
+    if (!isScreenInputKind(raw.kind)) {
+      continue;
+    }
+    const event: ScreenInputEvent = {
+      button: raw.button as ScreenInputEvent["button"],
+      code: raw.code,
+      count: raw.count,
+      dx: raw.dx,
+      dy: raw.dy,
+      key: raw.key,
+      kind: raw.kind,
+      modifiers: raw.modifiers as ScreenInputEvent["modifiers"],
+      text: raw.text,
+      x: raw.x,
+      y: raw.y,
+    };
+    await injectScreenInput(event, width, height);
+  }
+  return true;
+}
+
 async function syncScreenSessions(
   client: RuntimeClient,
   options: RunnerOptions
@@ -330,6 +376,7 @@ async function syncScreenSessions(
     return true;
   }
   try {
+    const display = await probeDisplaySize();
     const uploadUrl = await client.generateScreenUploadUrl(auth);
     const storageId = await uploadStorageBlob(
       uploadUrl,
@@ -340,7 +387,11 @@ async function syncScreenSessions(
       ...auth,
       bytes: frame.bytes.byteLength,
       contentType: frame.contentType,
+      displayHeight: display?.height,
+      displayWidth: display?.width,
+      height: frame.height,
       storageId,
+      width: frame.width,
     });
   } catch (error) {
     await client.reportScreenError({

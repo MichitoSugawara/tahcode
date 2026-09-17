@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 
 import {
   clipScreenError,
+  readRasterSize,
   SCREEN_CAPTURE_TIMEOUT_MS,
   SCREEN_FRAME_MAX_BYTES,
   SCREEN_JPEG_QUALITY,
@@ -29,9 +30,13 @@ export type ScreenCaptureResult =
   | {
       bytes: Uint8Array;
       contentType: ScreenFrameType;
+      height?: number;
       ok: true;
+      width?: number;
     }
   | { error: string; fatal: boolean; ok: false };
+
+export type DisplaySize = { height: number; width: number };
 
 function pathEntries(pathEnv = process.env.PATH ?? ""): string[] {
   return pathEnv.split(path.delimiter).filter((entry) => entry.length > 0);
@@ -166,7 +171,14 @@ export async function readScreenFrameFile(
       ok: false,
     };
   }
-  return { bytes, contentType, ok: true };
+  const size = readRasterSize(bytes);
+  return {
+    bytes,
+    contentType,
+    height: size?.height,
+    ok: true,
+    width: size?.width,
+  };
 }
 
 export async function captureScreenFrame(input?: {
@@ -193,7 +205,14 @@ export async function captureScreenFrame(input?: {
           ok: false,
         };
       }
-      return { bytes, contentType, ok: true };
+      const size = readRasterSize(bytes);
+      return {
+        bytes,
+        contentType,
+        height: size?.height,
+        ok: true,
+        width: size?.width,
+      };
     } catch (error) {
       return {
         error: clipScreenError(
@@ -242,6 +261,65 @@ export async function captureScreenFrame(input?: {
   } finally {
     await rm(outFile, { force: true });
   }
+}
+
+export async function probeDisplaySize(input?: {
+  env?: { DISPLAY?: string; WAYLAND_DISPLAY?: string };
+  platform?: NodeJS.Platform;
+  run?: (argv: string[]) => Promise<string>;
+  which?: (bin: string) => string | null;
+}): Promise<DisplaySize | null> {
+  const platform = input?.platform ?? process.platform;
+  const which = input?.which ?? resolveOnPath;
+  const run =
+    input?.run ??
+    (async (argv: string[]) => {
+      const [bin, ...rest] = argv;
+      if (!bin) {
+        throw new Error("display probe command is empty");
+      }
+      const result = await execFile(bin, rest, {
+        timeout: SCREEN_CAPTURE_TIMEOUT_MS,
+      });
+      return `${result.stdout}\n${result.stderr}`;
+    });
+  try {
+    if (platform === "darwin") {
+      const osascript = which("osascript");
+      if (!osascript) {
+        return null;
+      }
+      const text = await run([
+        osascript,
+        "-e",
+        'tell application "Finder" to get bounds of window of desktop',
+      ]);
+      const nums = text.match(/\d+/g)?.map(Number) ?? [];
+      if (nums.length >= 4) {
+        const width = (nums[2] ?? 0) - (nums[0] ?? 0);
+        const height = (nums[3] ?? 0) - (nums[1] ?? 0);
+        if (width > 0 && height > 0) {
+          return { height, width };
+        }
+      }
+      return null;
+    }
+    if (platform === "linux") {
+      const xdotool = which("xdotool");
+      if (xdotool && input?.env?.DISPLAY) {
+        const text = await run([xdotool, "getdisplaygeometry"]);
+        const parts = text.trim().split(/\s+/);
+        const width = Number(parts[0]);
+        const height = Number(parts[1]);
+        if (width > 0 && height > 0) {
+          return { height, width };
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export async function uploadStorageBlob(

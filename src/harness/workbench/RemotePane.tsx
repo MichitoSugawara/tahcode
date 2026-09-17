@@ -1,4 +1,8 @@
-import { screenRenderMode } from "@shared/workbenchScreen.ts";
+import {
+  screenControlMode,
+  screenRenderMode,
+} from "@shared/workbenchScreen.ts";
+import type { ScreenInputEvent } from "@shared/workbenchScreen.ts";
 import { useMutation, useQuery } from "convex/react";
 import { Monitor, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -11,17 +15,29 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { BridgeUpdateAction, MachineNeededAction } from "./MachineNeeded";
 import { WORKBENCH_PANELS } from "./panels";
-import { ScreenFrame } from "./screen/ScreenFrame";
+import { AgentScreenConnecting, ScreenFrame } from "./screen/ScreenFrame";
 import { useWorkbenchMachine } from "./useWorkbenchMachine";
 import { WorkbenchEmpty } from "./WorkbenchEmpty";
+
+function TrafficLights() {
+  return (
+    <span className="flex items-center gap-1" aria-hidden>
+      <span className="bg-red size-2 rounded-full" />
+      <span className="bg-orange size-2 rounded-full" />
+      <span className="bg-green size-2 rounded-full" />
+    </span>
+  );
+}
 
 function remoteStage(input: {
   blurb: string;
   capturedAt?: number;
+  control: ReturnType<typeof screenControlMode>;
   error?: string;
   frameUrl?: string | null;
   hasScreen: boolean;
   now: number;
+  onInput?: (event: ScreenInputEvent) => void;
   online: boolean;
 }): ReactNode {
   const mode = screenRenderMode({
@@ -40,7 +56,7 @@ function remoteStage(input: {
         badge="マシンが必要"
         action={<MachineNeededAction />}
       >
-        リモートは接続中マシンの画面フレームを見る面です。
+        リモートは接続中マシンの画面を見て操作する面です。
       </WorkbenchEmpty>
     );
   }
@@ -73,22 +89,22 @@ function remoteStage(input: {
     return (
       <ScreenFrame
         capturedAt={input.capturedAt}
+        control={input.control}
         error={input.error}
         frameUrl={input.frameUrl}
         now={input.now}
+        onInput={input.onInput}
         stale={mode === "stale"}
       />
     );
   }
   return (
-    <WorkbenchEmpty
-      icon={<Monitor size={22} />}
-      title="フレームはまだ届いていません"
-      badge="フレーム待ち"
-    >
-      {input.blurb} 届いた JPEG / PNG
-      だけを描画します。フレーム無しを接続済みにはしません。
-    </WorkbenchEmpty>
+    <div className="bg-inset flex min-h-0 flex-1 flex-col p-2 pt-0">
+      <AgentScreenConnecting />
+      <p className="text-ink-3 px-1 pt-1.5 text-[11px]">
+        {input.blurb} フレームが届くまで接続済みにはしません。
+      </p>
+    </div>
   );
 }
 
@@ -101,6 +117,7 @@ export function RemotePane() {
   );
   const open = useMutation(api.workbenchScreen.open);
   const close = useMutation(api.workbenchScreen.close);
+  const enqueueInput = useMutation(api.workbenchScreen.enqueueInput);
   const [sessionId, setSessionId] = useState<Id<"screenSessions"> | null>(null);
   const sessionRef = useRef<Id<"screenSessions"> | null>(null);
   const session = useQuery(
@@ -110,6 +127,18 @@ export function RemotePane() {
   const meta = WORKBENCH_PANELS.remote;
   const canStop = Boolean(activeJob) && !stopping;
   const [now, setNow] = useState(() => Date.now());
+  const mode = screenRenderMode({
+    capturedAt: session?.capturedAt,
+    error: session?.error,
+    frameUrl: session?.frameUrl,
+    hasScreen: machine.hasScreen,
+    now,
+    online: machine.online,
+  });
+  const control = screenControlMode({
+    hasScreenInput: machine.hasScreenInput,
+    mode,
+  });
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -149,9 +178,33 @@ export function RemotePane() {
   }, [close, machine.chatId, machine.hasScreen, machine.runtime, open]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-line flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-        <p className="text-ink-2 text-[12px]">リモートセッション</p>
+    <div
+      data-workbench-agent-screen
+      className="bg-surface flex min-h-0 flex-1 flex-col"
+    >
+      <div className="flex h-11 shrink-0 items-center justify-between gap-3 px-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <TrafficLights />
+          <p className="text-ink truncate text-[13px] font-semibold">
+            {machine.runtime?.name ?? "リモート"}
+          </p>
+          {mode === "frame" ? (
+            <span className="bg-green-tint text-green inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
+              <span className="bg-green size-2 rounded-full" />
+              ライブ
+            </span>
+          ) : null}
+          {mode === "waiting" ? (
+            <span className="text-ink-3 bg-inset inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
+              フレーム待ち
+            </span>
+          ) : null}
+          {control === "view" ? (
+            <span className="text-orange bg-orange-tint inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
+              操作は要更新
+            </span>
+          ) : null}
+        </div>
         <Button
           type="button"
           size="xs"
@@ -178,10 +231,17 @@ export function RemotePane() {
         {remoteStage({
           blurb: meta.blurb,
           capturedAt: session?.capturedAt,
+          control,
           error: session?.error,
           frameUrl: session?.frameUrl,
           hasScreen: machine.hasScreen,
           now,
+          onInput:
+            sessionId && control === "control"
+              ? (event) => {
+                  void enqueueInput({ events: [event], sessionId });
+                }
+              : undefined,
           online: machine.online,
         })}
       </div>

@@ -32,6 +32,7 @@ describe("workbench terminal contract", () => {
         BRIDGE_CAPABILITY_PTY,
         BRIDGE_CAPABILITY_PREVIEW,
         "screen",
+        "screenInput",
       ])
     );
   });

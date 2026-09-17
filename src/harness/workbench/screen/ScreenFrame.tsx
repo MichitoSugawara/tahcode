@@ -1,41 +1,74 @@
-import { formatScreenAge } from "@shared/workbenchScreen.ts";
+import type {
+  ScreenControlMode,
+  ScreenInputEvent,
+} from "@shared/workbenchScreen.ts";
+
+import { AgentScreenCanvas } from "./AgentScreenCanvas";
 
 export function ScreenFrame({
   capturedAt,
+  control = "view",
   error,
   frameUrl,
   now,
+  onInput,
   stale,
 }: {
   capturedAt?: number;
+  control?: ScreenControlMode;
   error?: string;
   frameUrl: string;
   now: number;
+  onInput?: (event: ScreenInputEvent) => void;
   stale: boolean;
 }) {
-  const age =
-    capturedAt === undefined ? null : formatScreenAge(capturedAt, now);
+  return (
+    <AgentScreenCanvas
+      capturedAt={capturedAt}
+      control={control}
+      error={error}
+      frameUrl={frameUrl}
+      now={now}
+      onInput={onInput}
+      stale={stale}
+    />
+  );
+}
+
+export function AgentScreenConnecting() {
   return (
     <div
-      data-workbench-screen-frame
-      data-stale={stale ? "true" : "false"}
-      className="flex min-h-0 flex-1 flex-col bg-black"
+      data-workbench-agent-connecting
+      className="relative min-h-0 flex-1 overflow-hidden rounded-[8px] bg-black"
     >
-      <img
-        alt="接続中マシンの画面フレーム"
-        src={frameUrl}
-        className="min-h-0 w-full flex-1 object-contain"
-      />
-      <div className="text-ink-3 flex shrink-0 items-center justify-between gap-2 px-3 py-1.5 text-[11px]">
-        <span>
-          {stale
-            ? "更新が止まっています"
-            : age
-              ? `最終フレーム ${age}`
-              : "フレーム"}
-        </span>
-        {error ? <span className="text-orange truncate">{error}</span> : null}
-      </div>
+      <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+        <svg width={26} height={26} className="block animate-spin" aria-hidden>
+          <circle
+            cx={13}
+            cy={13}
+            r={12}
+            fill="none"
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth={2}
+          />
+          <circle
+            cx={13}
+            cy={13}
+            r={12}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeDasharray={`${0.28 * 2 * Math.PI * 12} ${0.72 * 2 * Math.PI * 12}`}
+          />
+        </svg>
+      </span>
+      <span
+        className="absolute inset-x-0 text-center text-[12.5px] font-medium text-white/70"
+        style={{ top: "calc(50% + 28px)" }}
+      >
+        マシン画面に接続しています
+      </span>
     </div>
   );
 }

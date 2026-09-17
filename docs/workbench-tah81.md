@@ -1,9 +1,9 @@
-# TAH-81 — リモート: マシン画面ストリームの最小形
+# TAH-81 — リモート: マシン画面の操作付きストリーム
 
 Issue: [TAH-81](https://linear.app/tahcode/issue/TAH-81/)  
 親: [TAH-69](https://linear.app/tahcode/issue/TAH-69/) / [`docs/workbench-tah69.md`](workbench-tah69.md)
 
-リモートタブを「画面共有は未接続」のまま終わらせない。**フル RDP / VNC は作らない。** ブリッジが JPEG / PNG を撮り、Convex `_storage` のファイル URL を Remote 面に出す。停止は既存のジョブ中断（[TAH-13](https://linear.app/tahcode/issue/TAH-13/)）。
+リモートタブを「画面共有は未接続」のまま終わらせない。**Microsoft RDP / VNC スタックは置かない。** ブリッジが JPEG / PNG を撮り、Convex `_storage` のファイル URL を Remote 面に出し、同じセッションへキー / マウスを返す。見た目は [Beautiful UI Agent Screen](https://www.beautifului.dev/)（ページ末尾、`AgentScreen.tsx`）。停止は既存のジョブ中断（[TAH-13](https://linear.app/tahcode/issue/TAH-13/)）。
 
 UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。製品面のラベルは **プラグイン**。
 
@@ -11,22 +11,24 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。製品面
 
 ## 1. この OSS / 製品ではこうできていた
 
+### Beautiful UI — Agent Screen
+
+この製品ではこうできていた: エージェントの画面をカードで見せ、Open でキャンバスを広げ、カスタムカーソルと Connecting スピナーを持つ。npm パッケージは無い。tahcode は見た目・密度・キャンバス・操作感をポートする（丸コピーしない）。
+
+- [beautifului.dev](https://www.beautifului.dev/) — 末尾 **Agent Screen**（Working / Loading）
+- 根拠ファイル名: `AgentScreen.tsx`（キャプション: Watch an agent's screen — open, teach a task, record.）
+
 ### t3code — フレームループ。デスクトッププロトコルではない
 
-この OSS ではこうできていた: 右パネルのプレビューは Chromium guest の **ページキャプチャ**。PR #4397 は CDP `Page.screencast` をやめ、共有の `capturePage` ループ（おおよそ 12 FPS）で JPEG フレームを取る。PiP もそのフレームを描く。デバイス面には `device_screenshot`。どれも RDP / VNC スタックではない。
+この OSS ではこうできていた: 右パネルのプレビューは Chromium guest の **ページキャプチャ**。PR #4397 は CDP `Page.screencast` をやめ、共有の `capturePage` ループで JPEG フレームを取る。
 
-- [pingdotgg/t3code](https://github.com/pingdotgg/t3code) [#4397](https://github.com/pingdotgg/t3code/pull/4397) — `capturePage` frame loop
-- DeepWiki: [MCP & Preview Automation](https://deepwiki.com/pingdotgg/t3code/5.9-mcp-and-preview-automation) — `preview_snapshot` / `device_screenshot`
-- t3code のリモートは「エージェントセッションを見る」であり、Windows 画面全体の RDP ではない（[解説](https://knightli.com/en/2026/07/29/t3-code-windows-remote-control-codex-claude-code/)）
+- [pingdotgg/t3code](https://github.com/pingdotgg/t3code) [#4397](https://github.com/pingdotgg/t3code/pull/4397)
 
-tahcode への写し方: 同じ「1 枚の正直なフレーム」を既存 tahcode ブリッジ + Convex 能力チャネルに載せる。第二のデーモンも、WebRTC も、RDP サーバも置かない。
+### Computer Use — screenshot + 座標アクション
 
-### Computer Use — screenshot ツール
+この製品ではこうできていた: ディスプレイの PNG を間欠で取り、クリック / キーを座標で返す。Windows 専用 RDP ではない。
 
-この製品ではこうできていた: エージェントはディスプレイの PNG / JPEG をツール結果として受け取る。連続映像ではなく、間欠フレーム。
-
-- Anthropic: [Computer use](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use) — `screenshot`
-- OpenAI Codex 右面は検証ワークベンチ（Browser / Terminal）。画面共有は「共有ビュー」でありフルデスクトッププロトコルではない（[Browser](https://developers.openai.com/codex/app/browser)）
+- Anthropic: [Computer use](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use)
 
 ---
 
@@ -34,11 +36,12 @@ tahcode への写し方: 同じ「1 枚の正直なフレーム」を既存 tahc
 
 | 出典 | tahcode |
 | --- | --- |
-| t3code `capturePage` / `device_screenshot` | `runtime/src/screenCapture.ts`（`screencapture` / grim / scrot） |
-| Computer Use の 1 フレーム | Convex `_storage` + `screenSessions.storageId`（URL は query 時に `getUrl`） |
-| 能力ビット | heartbeat `capabilities: ["screen"]`（CLI **0.1.4+**） |
-| オフライン / 旧 CLI | Terminal / Browser と同じ `MachineNeeded` / 「更新コマンドをコピー」 |
-| 停止 | `useCancelJob`（TAH-13）。画面セッションの stop ではない |
+| Beautiful UI Agent Screen | `AgentScreenCanvas` / Remote のウィンドウクロム |
+| t3code `capturePage` | `runtime/src/screenCapture.ts` |
+| Computer Use の click / type | `screenInputs` + `runtime/src/screenInput.ts`（cliclick / osascript / xdotool） |
+| 能力ビット | `screen`（CLI **0.1.4+**）と `screenInput`（**0.1.5+**） |
+| オフライン / 旧 CLI | Terminal / Browser と同じ `MachineNeeded` / 更新 CTA |
+| 停止 | `useCancelJob`（TAH-13） |
 
 ---
 
@@ -46,9 +49,11 @@ tahcode への写し方: 同じ「1 枚の正直なフレーム」を既存 tahc
 
 | 面 | この PR | 残すもの |
 | --- | --- | --- |
-| リモート | オンライン + `screen` で最新フレーム。poll 間隔 1.5s。フレーム無しは「待ち」または失敗 | キー / マウス、WebRTC、連続映像、Windows キャプチャ |
+| リモート | オンライン + `screen` で最新フレーム。`screenInput` でキー / マウス。poll 約 0.5s | WebRTC、Windows キャプチャ、Microsoft RDP |
 | オフライン | `MachineNeeded` | — |
-| 旧ブリッジ | `screen` 未報告 → 更新 CTA | — |
+| 旧ブリッジ | `screen` なし → 更新 CTA。`screenInput` なし → 閲覧のみ + 更新チップ | — |
+| 右レール幅 | ビューポートに対する **比率**。ドラッグした割合を維持 | — |
+| `+` ピッカー | `pointer-events: auto`。リサイズハンドルはタブ下 | — |
 | 停止 | active job があるときだけ | 画面キャプチャ専用の stop |
 
 **嘘をつかない:** `frameUrl` が無い限り「接続済みデスクトップ」は出さない。古いフレームは「更新が止まっています」。
@@ -57,10 +62,10 @@ tahcode への写し方: 同じ「1 枚の正直なフレーム」を既存 tahc
 
 ## 4. 自動テスト
 
-- 契約: `tests/workbench-screen.test.ts`（能力ビット、render mode、JPEG magic）
-- Convex: `tests/convex/workbench-screen.test.ts`（open → claim → report、capability 拒否、他 Org 隠し、フレーム無しは URL null）
-- ブリッジ: `tests/runtime-screen-capture.test.ts`（darwin / linux のコマンド選択、DISPLAY 無しは fatal）
-- シェル: `tests/workbench.test.ts`（スタブ「画面共有は未接続」を出さない）
+- 契約: `tests/workbench-screen.test.ts`
+- Convex: `tests/convex/workbench-screen.test.ts`（capability 拒否、HID enqueue、他 Org 隠し）
+- ブリッジ: `tests/runtime-screen-capture.test.ts` / `tests/runtime-screen-input.test.ts`
+- シェル: `tests/workbench.test.ts`（比率、ピッカー、Agent Screen）
 
 **主張しないこと:** この Cloud Agent 環境にオンラインの Mac ブリッジと画面収録許可は無い。実フレームの目視は手元の手動確認が正本。
 
@@ -68,14 +73,9 @@ tahcode への写し方: 同じ「1 枚の正直なフレーム」を既存 tahc
 
 ## 5. 手動確認（Mac・ブリッジ online）
 
-前提: `tahcode@0.1.4`（`npm i -g tahcode@latest`）を入れ直し、`tahcode restart`。システム設定で画面収録を許可。能力 `screen` は **CLI 0.1.4+**。
-
-1. 右レールを開き **リモート**。フレーム待ちのあと、マシン画面が 1 枚以上出る。
-2. タブを離すとキャプチャは止まる（セッション close）。戻すと再開。
-3. ブリッジを止める → 「オンラインのマシンが必要です」。古い CLI → 更新コマンド。
-4. 実行中ジョブがあるときだけ **停止** が有効（Composer と同じ）。
+前提: `tahcode@0.1.5` を入れ直し、`tahcode restart`。画面収録とアクセシビリティを許可。
 
 ```bash
-npm i -g tahcode@0.1.4
+npm i -g tahcode@0.1.5
 tahcode restart
 ```

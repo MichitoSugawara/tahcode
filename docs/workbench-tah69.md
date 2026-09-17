@@ -87,7 +87,7 @@ localhost HTML は `srcdoc` + `<base href>`。公開 https は `iframe src`。�
 3. **プレビュー**。`http://localhost:…`（マシンで listen 中）を開く → HTML が面に出る。
 4. `https://example.com` を開く → iframe。`file:///etc/passwd` は拒否。
 5. ブリッジを止める → 「オンラインのマシンが必要です」+ CTA。古い CLI（capability なし）→ 更新コマンド。
-6. リモートの画面フレームは [TAH-81](https://linear.app/tahcode/issue/TAH-81/) / [`docs/workbench-tah81.md`](workbench-tah81.md)（CLI 0.1.4+ の `screen`）。サイドチャットは Convex 副スレッド（TAH-80）。
+6. リモートの画面フレームと操作は [TAH-81](https://linear.app/tahcode/issue/TAH-81/) / [`docs/workbench-tah81.md`](workbench-tah81.md)（CLI 0.1.4+ の `screen`、0.1.5+ の `screenInput`）。サイドチャットは Convex 副スレッド（TAH-80）。
 
 ---
 

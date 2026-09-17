@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { BRIDGE_CAPABILITIES } from "../runtime/src/runner.ts";
-import { SCREEN_MIN_CLI_VERSION } from "../shared/cliVersion.ts";
+import {
+  SCREEN_INPUT_MIN_CLI_VERSION,
+  SCREEN_MIN_CLI_VERSION,
+} from "../shared/cliVersion.ts";
 import {
   BRIDGE_CAPABILITY_SCREEN,
+  BRIDGE_CAPABILITY_SCREEN_INPUT,
   formatScreenAge,
+  mapScreenPoint,
+  readRasterSize,
   runtimeHasScreen,
+  runtimeHasScreenInput,
+  sanitizeScreenInput,
+  screenControlMode,
   screenFrameDue,
+  screenPointFromClient,
   screenRenderMode,
   SCREEN_POLL_MS,
   SCREEN_STALE_MS,
@@ -18,11 +28,25 @@ const PNG = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
 
 describe("workbench screen contract", () => {
   it("advertises the screen capability bit used by the bridge heartbeat", () => {
-    expect(runtimeHasScreen([BRIDGE_CAPABILITY_SCREEN])).toBeTruthy();
-    expect(runtimeHasScreen([])).toBeFalsy();
-    expect(runtimeHasScreen()).toBeFalsy();
-    expect(BRIDGE_CAPABILITIES).toContain(BRIDGE_CAPABILITY_SCREEN);
-    expect(SCREEN_MIN_CLI_VERSION).toBe("0.1.4");
+    expect({
+      empty: runtimeHasScreen([]),
+      input: runtimeHasScreenInput([BRIDGE_CAPABILITY_SCREEN_INPUT]),
+      missing: runtimeHasScreen(),
+      present: runtimeHasScreen([BRIDGE_CAPABILITY_SCREEN]),
+      versions: [SCREEN_MIN_CLI_VERSION, SCREEN_INPUT_MIN_CLI_VERSION],
+    }).toStrictEqual({
+      empty: false,
+      input: true,
+      missing: false,
+      present: true,
+      versions: ["0.1.4", "0.1.5"],
+    });
+    expect(BRIDGE_CAPABILITIES).toStrictEqual(
+      expect.arrayContaining([
+        BRIDGE_CAPABILITY_SCREEN,
+        BRIDGE_CAPABILITY_SCREEN_INPUT,
+      ])
+    );
   });
 
   it("sniffs JPEG and PNG magic and rejects other bytes", () => {
@@ -80,5 +104,64 @@ describe("workbench screen contract", () => {
     expect(formatScreenAge(1000, 1000)).toBe("たった今");
     expect(formatScreenAge(1000, 4000)).toBe("3秒前");
     expect(formatScreenAge(1000, 121_000)).toBe("2分前");
+  });
+
+  it("maps contain-box clicks and HID events without inventing a connected flag", () => {
+    const png = Uint8Array.of(
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+      0,
+      0,
+      0,
+      13,
+      0x49,
+      0x48,
+      0x44,
+      0x52,
+      0,
+      0,
+      0,
+      4,
+      0,
+      0,
+      0,
+      2
+    );
+    expect({
+      control: screenControlMode({ hasScreenInput: true, mode: "frame" }),
+      mapped: mapScreenPoint(0.5, 0.25, 200, 100),
+      point: screenPointFromClient({
+        clientX: 60,
+        clientY: 40,
+        height: 100,
+        left: 0,
+        naturalHeight: 50,
+        naturalWidth: 100,
+        top: 0,
+        width: 200,
+      }),
+      raster: readRasterSize(png),
+      viewOnly: screenControlMode({ hasScreenInput: false, mode: "frame" }),
+    }).toStrictEqual({
+      control: "control",
+      mapped: { x: 100, y: 25 },
+      point: { x: 0.3, y: 0.4 },
+      raster: { height: 2, width: 4 },
+      viewOnly: "view",
+    });
+    expect(sanitizeScreenInput({ kind: "click", x: 1.4, y: -1 })).toMatchObject(
+      {
+        button: "left",
+        kind: "click",
+        x: 1,
+        y: 0,
+      }
+    );
   });
 });

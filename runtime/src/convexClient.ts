@@ -60,6 +60,24 @@ export type ClaimedScreen = {
   _id: string;
 };
 
+export type ClaimedScreenInputs = {
+  displayHeight?: number;
+  displayWidth?: number;
+  events: {
+    button?: string;
+    code?: string;
+    count?: number;
+    dx?: number;
+    dy?: number;
+    key?: string;
+    kind: string;
+    modifiers?: string[];
+    text?: string;
+    x?: number;
+    y?: number;
+  }[];
+};
+
 export interface ClaimedJob {
   _id: string;
   assistantMessageId: string;
@@ -289,9 +307,21 @@ export class RuntimeClient {
     );
   }
 
+  async claimScreenInputs(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedScreenInputs> {
+    return await this.client.mutation(
+      "workbenchScreen:claimInputs" as never,
+      { runtimeId, token } as never
+    );
+  }
+
   async reportScreenFrame(input: {
     bytes: number;
     contentType: string;
+    displayHeight?: number;
+    displayWidth?: number;
     height?: number;
     runtimeId: string;
     sessionId: string;

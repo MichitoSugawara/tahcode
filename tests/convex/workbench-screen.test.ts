@@ -32,7 +32,7 @@ function asUser(t: ReturnType<typeof fresh>, userId: Id<"users">) {
 
 async function seedOrg(
   t: ReturnType<typeof fresh>,
-  capabilities: string[] = ["screen"]
+  capabilities: string[] = ["screen", "screenInput"]
 ) {
   const alice = await insertUser(t, { handle: "alice" });
   const aliceCtx = asUser(t, alice);
@@ -177,5 +177,46 @@ describe("workbench screen", () => {
         token: TOKEN,
       })
     ).rejects.toThrow(/Unsupported screen frame type/);
+  });
+
+  it("queues HID events only when the bridge advertises screenInput", async () => {
+    const t = fresh();
+    const { aliceCtx, runtimeId } = await seedOrg(t, ["screen"]);
+    const sessionId = await aliceCtx.mutation(api.workbenchScreen.open, {
+      runtimeId,
+    });
+    await expect(
+      aliceCtx.mutation(api.workbenchScreen.enqueueInput, {
+        events: [{ kind: "click", x: 0.5, y: 0.5 }],
+        sessionId,
+      })
+    ).rejects.toThrow(/画面操作に未対応/);
+  });
+
+  it("claims pending pointer events for the owning runtime", async () => {
+    const t = fresh();
+    const { aliceCtx, runtimeId } = await seedOrg(t);
+    const sessionId = await aliceCtx.mutation(api.workbenchScreen.open, {
+      runtimeId,
+    });
+    await aliceCtx.mutation(api.workbenchScreen.enqueueInput, {
+      events: [{ button: "left", kind: "click", x: 0.25, y: 0.75 }],
+      sessionId,
+    });
+    const claimed = await t.mutation(api.workbenchScreen.claimInputs, {
+      runtimeId,
+      token: TOKEN,
+    });
+    const again = await t.mutation(api.workbenchScreen.claimInputs, {
+      runtimeId,
+      token: TOKEN,
+    });
+    expect({
+      againCount: again.events.length,
+      first: claimed.events[0],
+    }).toMatchObject({
+      againCount: 0,
+      first: { kind: "click", x: 0.25, y: 0.75 },
+    });
   });
 });

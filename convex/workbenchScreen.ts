@@ -4,8 +4,12 @@ import {
   clipScreenError,
   DEFAULT_SCREEN_TAB_ID,
   isScreenFrameType,
+  sanitizeScreenInput,
   SCREEN_FRAME_MAX_BYTES,
   SCREEN_HISTORY_CAP,
+  SCREEN_INPUT_BATCH_MAX,
+  SCREEN_INPUT_CLAIM_MAX,
+  SCREEN_INPUT_PENDING_CAP,
   SCREEN_POLL_MS,
   SCREEN_WATCH_TIMEOUT_MS,
   screenFrameDue,
@@ -16,9 +20,10 @@ import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { getRuntimeByToken } from "./lib/runtimeAuth";
-import { screenSessionStatus } from "./lib/validators";
+import { screenInputEvent, screenSessionStatus } from "./lib/validators";
 import {
   canSeeWorkbenchSession,
+  requireScreenInputRuntime,
   requireScreenRuntime,
 } from "./lib/workbenchAccess";
 
@@ -28,6 +33,8 @@ const sessionView = v.object({
   capturedAt: v.optional(v.number()),
   chatId: v.optional(v.id("chats")),
   contentType: v.optional(v.string()),
+  displayHeight: v.optional(v.number()),
+  displayWidth: v.optional(v.number()),
   error: v.optional(v.string()),
   frameUrl: v.union(v.string(), v.null()),
   height: v.optional(v.number()),
@@ -36,6 +43,20 @@ const sessionView = v.object({
   status: screenSessionStatus,
   tabId: v.string(),
   width: v.optional(v.number()),
+});
+
+const claimedInput = v.object({
+  button: v.optional(v.string()),
+  code: v.optional(v.string()),
+  count: v.optional(v.number()),
+  dx: v.optional(v.number()),
+  dy: v.optional(v.number()),
+  key: v.optional(v.string()),
+  kind: v.string(),
+  modifiers: v.optional(v.array(v.string())),
+  text: v.optional(v.string()),
+  x: v.optional(v.number()),
+  y: v.optional(v.number()),
 });
 
 async function pruneOldScreen(ctx: MutationCtx, runtimeId: Id<"runtimes">) {
@@ -181,6 +202,8 @@ export const get = authedQuery({
       capturedAt: row.capturedAt,
       chatId: row.chatId,
       contentType: row.contentType,
+      displayHeight: row.displayHeight,
+      displayWidth: row.displayWidth,
       error: row.error,
       frameUrl,
       height: row.height,
@@ -249,6 +272,8 @@ export const reportFrame = mutation({
   args: {
     bytes: v.number(),
     contentType: v.string(),
+    displayHeight: v.optional(v.number()),
+    displayWidth: v.optional(v.number()),
     height: v.optional(v.number()),
     runtimeId: v.id("runtimes"),
     sessionId: v.id("screenSessions"),
@@ -277,6 +302,8 @@ export const reportFrame = mutation({
       bytes: args.bytes,
       capturedAt: now,
       contentType: args.contentType,
+      displayHeight: args.displayHeight,
+      displayWidth: args.displayWidth,
       error: undefined,
       height: args.height,
       lastBridgeAt: now,
@@ -315,4 +342,145 @@ export const reportError = mutation({
     return null;
   },
   returns: v.null(),
+});
+
+async function prunePendingInputs(
+  ctx: MutationCtx,
+  sessionId: Id<"screenSessions">
+) {
+  const pending = await ctx.db
+    .query("screenInputs")
+    .withIndex("by_session_and_status", (q) =>
+      q.eq("sessionId", sessionId).eq("status", "pending")
+    )
+    .take(SCREEN_INPUT_PENDING_CAP + 16);
+  if (pending.length <= SCREEN_INPUT_PENDING_CAP) {
+    return;
+  }
+  const extra = pending.length - SCREEN_INPUT_PENDING_CAP;
+  for (const row of pending.slice(0, extra)) {
+    await ctx.db.delete("screenInputs", row._id);
+  }
+}
+
+export const enqueueInput = authedMutation({
+  args: {
+    events: v.array(screenInputEvent),
+    sessionId: v.id("screenSessions"),
+  },
+  handler: async (ctx, args) => {
+    if (args.events.length < 1 || args.events.length > SCREEN_INPUT_BATCH_MAX) {
+      throw new Error("Screen input batch must be between 1 and 8 events");
+    }
+    const row = await ctx.db.get("screenSessions", args.sessionId);
+    if (!row) {
+      throw new Error("Screen session not found");
+    }
+    if (row.requestedBy !== ctx.user._id) {
+      throw new Error("Unauthorized");
+    }
+    if (row.status !== "watching") {
+      throw new Error("Screen session is not watching");
+    }
+    await requireScreenInputRuntime(ctx, row.runtimeId, ctx.user._id);
+    const clean = args.events.map((event) => sanitizeScreenInput(event));
+    if (clean.some((event) => event === null)) {
+      throw new Error("Invalid screen input event");
+    }
+    for (const event of clean) {
+      if (!event) {
+        continue;
+      }
+      if (event.kind === "move") {
+        const pending = await ctx.db
+          .query("screenInputs")
+          .withIndex("by_session_and_status", (q) =>
+            q.eq("sessionId", args.sessionId).eq("status", "pending")
+          )
+          .order("desc")
+          .take(1);
+        const last = pending[0];
+        if (last?.kind === "move") {
+          await ctx.db.patch("screenInputs", last._id, {
+            x: event.x,
+            y: event.y,
+          });
+          continue;
+        }
+      }
+      await ctx.db.insert("screenInputs", {
+        button: event.button,
+        code: event.code,
+        count: event.count,
+        dx: event.dx,
+        dy: event.dy,
+        key: event.key,
+        kind: event.kind,
+        modifiers: event.modifiers,
+        orgId: row.orgId,
+        runtimeId: row.runtimeId,
+        sessionId: args.sessionId,
+        status: "pending",
+        text: event.text,
+        x: event.x,
+        y: event.y,
+      });
+    }
+    await prunePendingInputs(ctx, args.sessionId);
+    return null;
+  },
+  returns: v.null(),
+});
+
+export const claimInputs = mutation({
+  args: { runtimeId: v.id("runtimes"), token: v.string() },
+  handler: async (ctx, args) => {
+    await getRuntimeByToken(ctx, args.runtimeId, args.token);
+    const pending = await ctx.db
+      .query("screenInputs")
+      .withIndex("by_runtime_and_status", (q) =>
+        q.eq("runtimeId", args.runtimeId).eq("status", "pending")
+      )
+      .order("asc")
+      .take(SCREEN_INPUT_CLAIM_MAX);
+    if (pending.length === 0) {
+      return { events: [] };
+    }
+    const first = pending[0];
+    const session = first
+      ? await ctx.db.get("screenSessions", first.sessionId)
+      : null;
+    const events = [];
+    for (const item of pending) {
+      const owner = await ctx.db.get("screenSessions", item.sessionId);
+      if (!owner || owner.status !== "watching") {
+        await ctx.db.patch("screenInputs", item._id, { status: "done" });
+        continue;
+      }
+      await ctx.db.patch("screenInputs", item._id, { status: "done" });
+      events.push({
+        button: item.button,
+        code: item.code,
+        count: item.count,
+        dx: item.dx,
+        dy: item.dy,
+        key: item.key,
+        kind: item.kind,
+        modifiers: item.modifiers,
+        text: item.text,
+        x: item.x,
+        y: item.y,
+      });
+    }
+    return {
+      displayHeight: session?.displayHeight,
+      displayWidth: session?.displayWidth,
+      events,
+    };
+  },
+  returns: v.object({
+    displayHeight: v.optional(v.number()),
+    displayWidth: v.optional(v.number()),
+    events: v.array(claimedInput),
+  }),
 });

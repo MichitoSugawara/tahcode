@@ -1,5 +1,8 @@
 import { runtimeHasPreview } from "../../shared/workbenchPreview.ts";
-import { runtimeHasScreen } from "../../shared/workbenchScreen.ts";
+import {
+  runtimeHasScreen,
+  runtimeHasScreenInput,
+} from "../../shared/workbenchScreen.ts";
 import { runtimeHasPty } from "../../shared/workbenchTerminal.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -61,6 +64,20 @@ export async function requireScreenRuntime(
   if (!runtimeHasScreen(loaded.runtime.capabilities)) {
     throw new Error(
       "このブリッジは画面フレームに未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
+    );
+  }
+  return loaded;
+}
+
+export async function requireScreenInputRuntime(
+  ctx: Ctx,
+  runtimeId: Id<"runtimes">,
+  userId: Id<"users">
+) {
+  const loaded = await requireScreenRuntime(ctx, runtimeId, userId);
+  if (!runtimeHasScreenInput(loaded.runtime.capabilities)) {
+    throw new Error(
+      "このブリッジは画面操作に未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
     );
   }
   return loaded;

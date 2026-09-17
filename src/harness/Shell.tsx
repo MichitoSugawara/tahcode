@@ -17,7 +17,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, MouseEvent, ReactNode } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -72,8 +72,12 @@ import type { ContextMenuItem } from "@/harness/ui/ContextMenu";
 import { ProjectPeekHeader } from "@/harness/ui/ProjectPeek";
 import {
   useWorkbenchDocked,
+  useWorkbenchRatio,
   useWorkbenchTabs,
-  useWorkbenchWidth,
+  workbenchRatioFromWidth,
+  workbenchWidthFromRatio,
+  WORKBENCH_RATIO_MAX,
+  WORKBENCH_WIDTH_MIN_PX,
   WorkbenchTabsProvider,
 } from "@/harness/workbench/state";
 import { WorkbenchResizeHandle } from "@/harness/workbench/WorkbenchResizeHandle";
@@ -776,7 +780,9 @@ function ShellFrame({
   const [navOpen, setNavOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [railDocked, setRailDocked] = useWorkbenchDocked();
-  const [railWidth, setRailWidth] = useWorkbenchWidth();
+  const [railRatio, setRailRatio] = useWorkbenchRatio();
+  const chatRowRef = useRef<HTMLDivElement>(null);
+  const [rowWidth, setRowWidth] = useState(0);
   const workbenchTabs = useWorkbenchTabs();
   const palette = useCommandPalette();
   const location = useLocation();
@@ -799,6 +805,25 @@ function ShellFrame({
     setNavOpen(false);
     setRailOpen(false);
   }, [location.pathname]);
+  useLayoutEffect(() => {
+    const node = chatRowRef.current;
+    if (!node) {
+      return;
+    }
+    const update = () => {
+      setRowWidth(node.clientWidth);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, [railVisible]);
+  const railWidth = workbenchWidthFromRatio(railRatio, rowWidth || 1);
+  const setRailWidth = (next: number) => {
+    setRailRatio(workbenchRatioFromWidth(next, rowWidth || 1));
+  };
 
   return (
     <main className="bg-canvas text-ink flex h-[100dvh] gap-0 p-2.5 lg:pl-0">
@@ -879,7 +904,11 @@ function ShellFrame({
                 </>
               }
             />
-            <div className="flex min-h-0 flex-1">
+            <div
+              ref={chatRowRef}
+              data-shell-chat-row
+              className="flex min-h-0 flex-1"
+            >
               <div
                 data-shell-chat-drop
                 role="toolbar"
@@ -888,19 +917,32 @@ function ShellFrame({
                 onDragLeave={chatDrop.onDragLeave}
                 onDragOver={chatDrop.onDragOver}
                 onDrop={chatDrop.onDrop}
-                className={`flex min-h-0 min-w-0 flex-1 flex-col ${
+                className={`flex min-h-0 min-w-0 flex-col ${
                   chatDrop.over ? "bg-hover-2" : ""
                 }`}
+                style={{
+                  flex:
+                    showRail && railVisible
+                      ? `${(1 - railRatio).toFixed(4)} 1 0%`
+                      : "1 1 0%",
+                  minWidth: 0,
+                }}
               >
                 {children}
               </div>
               {showRail && railVisible && (
                 <aside
                   data-shell-workbench
-                  className="border-line relative hidden shrink-0 flex-col border-l xl:flex"
-                  style={{ width: railWidth }}
+                  data-shell-workbench-ratio={railRatio.toFixed(4)}
+                  className="border-line relative hidden min-w-0 flex-col border-l xl:flex"
+                  style={{
+                    flex: `${railRatio.toFixed(4)} 1 0%`,
+                    maxWidth: `${WORKBENCH_RATIO_MAX * 100}%`,
+                    minWidth: WORKBENCH_WIDTH_MIN_PX,
+                  }}
                 >
                   <WorkbenchResizeHandle
+                    available={rowWidth}
                     width={railWidth}
                     onWidthChange={setRailWidth}
                   />
@@ -957,13 +999,17 @@ function ShellFrame({
               style={{
                 animation:
                   "sheet-in-right 260ms cubic-bezier(0.16,1,0.3,1) both",
-                width: `min(${railWidth}px, calc(100vw - 20px))`,
+                maxWidth: "calc(100vw - 20px)",
+                width: `min(${Math.max(railWidth, WORKBENCH_WIDTH_MIN_PX)}px, ${WORKBENCH_RATIO_MAX * 100}vw)`,
               }}
             >
               <DialogPrimitive.Title className="sr-only">
                 右サイドバー
               </DialogPrimitive.Title>
               <WorkbenchResizeHandle
+                available={
+                  typeof window === "undefined" ? railWidth : window.innerWidth
+                }
                 width={railWidth}
                 onWidthChange={setRailWidth}
               />

@@ -96,6 +96,9 @@ import { BRAND, bold, code, dim, fail, heading, info, ok, warn } from "./ui.ts";
  * 0.1.2 adds Cursor headless `--force` so `tahcode tool` is not rejected.
  * 0.1.3 adds workbench pty / preview capabilities on the bridge.
  * 0.1.4 adds workbench screen frames on the bridge.
+ * 0.1.5 adds keyboard / mouse input on the remote screen.
+ * 0.1.5 adds keyboard / mouse input on the remote screen.
+ * 0.1.5 adds keyboard / mouse input on the remote screen.
  * ───────────────────────────────────────────────────────── */
 
 type Flags = Record<string, string | boolean>;

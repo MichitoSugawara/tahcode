@@ -4,11 +4,15 @@
  * 0.1.2 adds Cursor headless `--force` so `tahcode tool` is not rejected (TAH-63).
  * 0.1.3 adds workbench pty / preview capabilities on the bridge (TAH-69).
  * 0.1.4 adds workbench screen frames on the bridge (TAH-81).
+ * 0.1.5 adds keyboard / mouse input on those frames (`screenInput`).
  */
-export const CLI_VERSION = "0.1.4";
+export const CLI_VERSION = "0.1.5";
 
 /** First CLI that advertises `screen` and captures a display frame. */
 export const SCREEN_MIN_CLI_VERSION = "0.1.4";
+
+/** First CLI that injects keyboard / mouse into the watched display. */
+export const SCREEN_INPUT_MIN_CLI_VERSION = "0.1.5";
 
 /** First CLI that understands `tahcode tool` / `tahcode tool-mcp` (TAH-54 / TAH-55). */
 export const AGENT_TOOLS_MIN_CLI_VERSION = "0.1.1";

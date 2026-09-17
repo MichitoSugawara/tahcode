@@ -26,10 +26,14 @@ import {
   parseWorkbenchStoredRaw,
   WORKBENCH_DOCKED_KEY,
   WORKBENCH_HOME_SCOPE,
+  WORKBENCH_RATIO_DEFAULT,
+  WORKBENCH_RATIO_MAX,
+  WORKBENCH_RATIO_MIN,
+  WORKBENCH_RATIO_REFERENCE_PX,
   WORKBENCH_WIDTH_KEY,
-  WORKBENCH_WIDTH_MAX_PX,
   WORKBENCH_WIDTH_MIN_PX,
-  WORKBENCH_WIDTH_PX,
+  parseWorkbenchRatio,
+  workbenchWidthFromRatio,
   WORKBENCH_TABS_KEY,
   workbenchDockedKey,
   workbenchPanelKey,
@@ -154,22 +158,25 @@ describe("workbench chrome persistence", () => {
     expect(parseWorkbenchPanel("Remote")).toBe("chat");
   });
 
-  it("clamps persisted rail width between min and max", () => {
+  it("persists rail width as a ratio so both panes grow with the window", () => {
     expect({
-      defaultPx: WORKBENCH_WIDTH_PX,
-      high: clampWorkbenchWidth(2000),
-      invalid: clampWorkbenchWidth("nope"),
+      defaultRatio: WORKBENCH_RATIO_DEFAULT,
+      high: parseWorkbenchRatio(0.9),
+      invalid: parseWorkbenchRatio("nope"),
       key: WORKBENCH_WIDTH_KEY,
-      low: clampWorkbenchWidth(200),
+      legacyPx: parseWorkbenchRatio(360),
+      low: parseWorkbenchRatio(0.01),
     }).toStrictEqual({
-      defaultPx: 360,
-      high: WORKBENCH_WIDTH_MAX_PX,
-      invalid: WORKBENCH_WIDTH_PX,
+      defaultRatio: 0.36,
+      high: WORKBENCH_RATIO_MAX,
+      invalid: WORKBENCH_RATIO_DEFAULT,
       key: "th:workbench:width",
-      low: WORKBENCH_WIDTH_MIN_PX,
+      legacyPx: 360 / WORKBENCH_RATIO_REFERENCE_PX,
+      low: WORKBENCH_RATIO_MIN,
     });
-    expect(clampWorkbenchWidth(400)).toBe(400);
-    expect(clampWorkbenchWidth(Number.NaN)).toBe(WORKBENCH_WIDTH_PX);
+    expect(workbenchWidthFromRatio(0.36, 2000)).toBe(720);
+    expect(workbenchWidthFromRatio(0.36, 1000)).toBe(360);
+    expect(clampWorkbenchWidth(200, 1000)).toBe(WORKBENCH_WIDTH_MIN_PX);
   });
 });
 
@@ -268,11 +275,20 @@ describe("workbench source contracts", () => {
       "src/harness/workbench/WorkbenchTabStrip.tsx",
       "utf-8"
     );
-    expect(strip).toContain("data-workbench-tablist");
-    expect(strip).toContain("data-workbench-tab-close");
-    expect(strip).toContain("data-workbench-open-panel");
+    expect({
+      close: strip.includes("data-workbench-tab-close"),
+      list: strip.includes("data-workbench-tablist"),
+      open: strip.includes("data-workbench-open-panel"),
+      picker: rail.includes("data-workbench-panel-picker"),
+      pointer: strip.includes("pointer-events-auto"),
+    }).toStrictEqual({
+      close: true,
+      list: true,
+      open: true,
+      picker: true,
+      pointer: true,
+    });
     expect(rail).toContain("workbenchPickerIds");
-    expect(rail).toContain("data-workbench-panel-picker");
   });
 
   it("does not keep a four-way segmented nav of every panel", () => {
@@ -321,15 +337,19 @@ describe("workbench source contracts", () => {
       "utf-8"
     );
     expect({
+      agent: remote.includes("data-workbench-agent-screen"),
       cancel: remote.includes("useCancelJob"),
       frame: remote.includes("ScreenFrame"),
+      input: remote.includes("enqueueInput"),
       leak: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(remote),
       mode: remote.includes("screenRenderMode"),
       open: remote.includes("api.workbenchScreen.open"),
       stub: remote.includes("画面共有は未接続"),
     }).toStrictEqual({
+      agent: true,
       cancel: true,
       frame: true,
+      input: true,
       leak: false,
       mode: true,
       open: true,
@@ -394,8 +414,22 @@ describe("workbench source contracts", () => {
       "utf-8"
     );
     const rail = readFileSync("src/harness/rail/RightRail.tsx", "utf-8");
-    expect(shell).toContain("WorkbenchResizeHandle");
-    expect(handle).toContain("data-workbench-resize");
-    expect(rail).not.toMatch(/OpenConnector|OOMOL|workers\.dev|gateway/i);
+    expect({
+      handle: handle.includes("data-workbench-resize"),
+      leak: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(rail),
+      ratio: shell.includes("useWorkbenchRatio"),
+      row: shell.includes("data-shell-chat-row"),
+      tabsClear: handle.includes("top-7"),
+      wired: shell.includes("WorkbenchResizeHandle"),
+      workbenchRatio: shell.includes("data-shell-workbench-ratio"),
+    }).toStrictEqual({
+      handle: true,
+      leak: false,
+      ratio: true,
+      row: true,
+      tabsClear: true,
+      wired: true,
+      workbenchRatio: true,
+    });
   });
 });
