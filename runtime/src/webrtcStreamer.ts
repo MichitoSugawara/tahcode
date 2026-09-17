@@ -53,17 +53,32 @@ export function resolveWebRtcStreamer(
   return null;
 }
 
+/**
+ * webrtc-streamer argv (v0.8.20 Darwin/Linux Release `--help` + README).
+ *
+ * `-H/--http` is a required bind (`arg`). Keep it `127.0.0.1:port`.
+ * `-s/--stun` is an **external** STUN (`[=arg]`). `-S/--stun-server`
+ * starts an embedded STUN listener — never use that for Google STUN.
+ * `-a/--audio-layer` is the audio capture layer; omit the value for
+ * dummy audio. Screen source is a positional `[urls...]` (`screen://0`).
+ *
+ * cxxopts optional flags do **not** consume the next argv token:
+ * `-s host` registers `host` as a video URL and uses implicit
+ * `0.0.0.0:3478`. `-s=host` / `-a=` fail (`Option '=' does not exist`).
+ * `-shost` is clustered shorts. Attach the STUN value as `--stun=host`.
+ * A bare `-a` then the positional URL is dummy audio + `screen://0`.
+ */
 export function webrtcStreamerArgv(input: {
   httpBind: string;
   source?: string;
   stun?: string;
 }): string[] {
   const httpBind = assertScreenRtcHttpBind(input.httpBind);
+  const stun = input.stun ?? SCREEN_RTC_STUN_HOST;
   return [
-    "--http",
+    "-H",
     httpBind,
-    "--stun-server",
-    input.stun ?? SCREEN_RTC_STUN_HOST,
+    `--stun=${stun}`,
     "-a",
     input.source ?? SCREEN_RTC_SOURCE,
   ];

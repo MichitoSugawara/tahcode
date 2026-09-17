@@ -73,19 +73,26 @@ describe("webrtc-streamer sidecar adapter", () => {
         resolve();
       });
     });
+    const argv = webrtcStreamerArgv({ httpBind: "127.0.0.1:9" });
     expect({
       answerSdp,
-      bind: webrtcStreamerArgv({ httpBind: "127.0.0.1:9" })[1],
+      argv,
       body: JSON.parse(seen[0]?.body ?? "{}"),
       parsed: readStreamerAnswer({ sdp: ANSWER, type: "answer" }),
       url: seen[0]?.url,
     }).toMatchObject({
       answerSdp: ANSWER,
-      bind: "127.0.0.1:9",
-      body: { type: "offer" },
+      argv: [
+        "-H",
+        "127.0.0.1:9",
+        "--stun=stun.l.google.com:19302",
+        "-a",
+        "screen://0",
+      ],
+      body: { sdp: expect.stringContaining("v=0"), type: "offer" },
       parsed: ANSWER,
-      url: expect.stringContaining("/api/call?peerid=tah-peer-1"),
+      url: "/api/call?peerid=tah-peer-1&url=screen%3A%2F%2F0",
     });
-    expect(seen[0]?.url).toContain("url=screen%3A%2F%2F0");
+    expect(argv.includes("-S") || argv.includes("--stun-server")).toBeFalsy();
   });
 });

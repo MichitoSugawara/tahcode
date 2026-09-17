@@ -107,18 +107,39 @@ describe("workbench screen WebRTC contract", () => {
   });
 
   it("forces the sidecar HTTP bind onto loopback", () => {
-    expect(screenRtcLoopbackBind(8123)).toBe("127.0.0.1:8123");
+    const argv = webrtcStreamerArgv({ httpBind: "127.0.0.1:8123" });
+    const stunFlag = argv.find((flag) => flag.startsWith("--stun="));
+    expect({
+      afterAudio: argv[argv.indexOf("-a") + 1],
+      argv,
+      bind: screenRtcLoopbackBind(8123),
+      dummyAudio: argv.includes("-a"),
+      hasBareShortStun: argv.includes("-s"),
+      hasEmbeddedStun:
+        argv.includes("-S") ||
+        argv.includes("--stun-server") ||
+        argv.some((flag) => flag.startsWith("--stun-server=")),
+      positional: argv.at(-1),
+      stunFlag,
+    }).toStrictEqual({
+      afterAudio: "screen://0",
+      argv: [
+        "-H",
+        "127.0.0.1:8123",
+        "--stun=stun.l.google.com:19302",
+        "-a",
+        "screen://0",
+      ],
+      bind: "127.0.0.1:8123",
+      dummyAudio: true,
+      hasBareShortStun: false,
+      hasEmbeddedStun: false,
+      positional: "screen://0",
+      stunFlag: "--stun=stun.l.google.com:19302",
+    });
     expect(() => assertScreenRtcHttpBind("0.0.0.0:8000")).toThrow(
       /127\.0\.0\.1/
     );
-    expect(webrtcStreamerArgv({ httpBind: "127.0.0.1:8123" })).toStrictEqual([
-      "--http",
-      "127.0.0.1:8123",
-      "--stun-server",
-      "stun.l.google.com:19302",
-      "-a",
-      "screen://0",
-    ]);
     expect(() => webrtcStreamerArgv({ httpBind: "0.0.0.0:8000" })).toThrow(
       /127\.0\.0\.1/
     );

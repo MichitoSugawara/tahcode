@@ -36,7 +36,7 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。製品面
 
 - [mpromonet/webrtc-streamer](https://github.com/mpromonet/webrtc-streamer)
 - HTTP API: [`docs/api.md`](https://github.com/mpromonet/webrtc-streamer/blob/master/docs/api.md)
-  - `POST /api/call?peerid=&url=` — offer JSON → answer JSON
+  - `POST /api/call?peerid=&url=` — offer JSON `{type,sdp}` → answer JSON（[webrtcstreamer.js](https://github.com/mpromonet/webrtc-streamer-html/blob/master/webrtcstreamer.js) と同じ。`peerid` と `url` はクエリ）
   - `POST /api/addIceCandidate?peerid=` / `GET /api/getIceCandidate?peerid=`
   - `GET /api/hangup?peerid=`
 - ブラウザ実装: [webrtc-streamer-html](https://github.com/mpromonet/webrtc-streamer-html) `WebRtcStreamer` が **ブラウザで offer を作り** `/api/call` に POST する
@@ -104,12 +104,18 @@ Phase A の JPEG 締め（100ms 等）は本 issue の必須ではない。JPEG 
 ### サイドカーの起動
 
 ```
-webrtc-streamer --http 127.0.0.1:<ephemeral> --stun-server stun.l.google.com:19302 -a screen://0
+webrtc-streamer -H 127.0.0.1:<ephemeral> --stun=stun.l.google.com:19302 -a screen://0
 ```
 
-- **bind:** 必ず `127.0.0.1`。`0.0.0.0` は拒否。
-- **STUN:** ブラウザとサイドカーの両方で Google 公開 STUN。TURN は本 PR 外（対称 NAT では失敗しうる → 嘘をつかず error / JPEG）。
-- **音声:** `-a`（dummy）。マイクは取らない。
+上流 [README](https://github.com/mpromonet/webrtc-streamer/blob/master/README.md) と Darwin/Linux **v0.8.20 Release** `--help`（`H,http` / `s,stun` = Use an external STUN / `S,stun-server` = Start embedded STUN / `a,audio-layer` omit value for dummy / `[urls...]`）:
+
+- **`-H/--http`:** HTTP bind（必須 `arg`）。必ず `127.0.0.1`。`0.0.0.0` は拒否。
+- **`-s/--stun`:** **外部** STUN。cxxopts は `[=arg]` なので次トークンを値にしない。`-s host` は `host` を位置 URL にし、暗黙の `0.0.0.0:3478` を使う。短い `-s=host` と `-a=` は `Option '=' does not exist`。`-shost` は短いオプションの連結。Google 公開 STUN は **`--stun=stun.l.google.com:19302`**（`-s` の long）。`-S/--stun-server` は埋め込み STUN リスナーなので使わない。
+- **`-a/--audio-layer`:** 音声キャプチャ層。値なしの `-a` で dummy。`screen://0` を `-a` の値にしない（このバイナリでは次トークンは位置引数になる）。
+- **位置引数:** `screen://0`（`webrtc::DesktopCapturer::CreateScreenCapturer`）。
+
+TURN は本 PR 外（対称 NAT では失敗しうる → 嘘をつかず error / JPEG）。マイクは取らない。
+
 - **認証トークン:** HTTP はブリッジプロセスだけが叩く。ブラウザには base URL を渡さない。civetweb `-A` は起動失敗しやすいので本スライスでは付けない（localhost bind が境界）。
 - **パッケージ:** 自動取得しない。手動で GitHub Release の Darwin arm64 を `~/.tahcode/bin/webrtc-streamer` に置くか、PATH に通す。
 
@@ -181,8 +187,11 @@ tahcode doctor    # 「WebRTC 画面: …」が ✓
 
 ## 8. 実装パス
 
-- `shared/workbenchScreenRtc.ts` — 契約、能力、SDP / ICE
-- `convex/workbenchScreenRtc.ts` + `screenRtcSessions` / `screenRtcIce`
-- `runtime/src/webrtcStreamer.ts` + `runner.ts` / `convexClient.ts`
-- `src/harness/workbench/screen/useScreenRtc.ts` / `ScreenLive`（`AgentScreenCanvas` の `<video>`）
-- `src/harness/workbench/RemotePane.tsx` — WebRTC 優先、JPEG 明示フォールバック
+- [`shared/workbenchScreenRtc.ts`](../shared/workbenchScreenRtc.ts) — 契約、能力、SDP / ICE
+- [`convex/workbenchScreenRtc.ts`](../convex/workbenchScreenRtc.ts) + schema の `screenRtcSessions` / `screenRtcIce`
+- [`runtime/src/webrtcStreamer.ts`](../runtime/src/webrtcStreamer.ts)（`webrtcStreamerArgv` / `/api/call`）
+- [`runtime/src/runner.ts`](../runtime/src/runner.ts) / [`runtime/src/convexClient.ts`](../runtime/src/convexClient.ts)
+- [`src/harness/workbench/screen/useScreenRtc.ts`](../src/harness/workbench/screen/useScreenRtc.ts)
+- [`src/harness/workbench/screen/ScreenFrame.tsx`](../src/harness/workbench/screen/ScreenFrame.tsx) の `ScreenLive`
+- [`src/harness/workbench/screen/AgentScreenCanvas.tsx`](../src/harness/workbench/screen/AgentScreenCanvas.tsx) の `<video>`
+- [`src/harness/workbench/RemotePane.tsx`](../src/harness/workbench/RemotePane.tsx) — WebRTC 優先、JPEG 明示フォールバック
