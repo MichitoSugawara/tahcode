@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -334,6 +335,91 @@ describe("workbench source contracts", () => {
     expect(browser).toContain("api.workbenchPreview.navigate");
     expect(browser).toContain("PreviewFrame");
     expect(browser).toContain('placeholder="http://localhost:3000"');
+  });
+
+  it("requires an honest WorkbenchEmpty badge instead of a future-phase default", () => {
+    const empty = readFileSync(
+      "src/harness/workbench/WorkbenchEmpty.tsx",
+      "utf-8"
+    );
+    const workbenchDir = "src/harness/workbench";
+    const callers: {
+      badgeCount: number;
+      file: string;
+      futurePhase: boolean;
+      hasFutureBadge: boolean;
+      opens: number;
+    }[] = [];
+    const allBadges: string[] = [];
+    for (const name of readdirSync(workbenchDir)) {
+      if (!name.endsWith(".tsx") || name === "WorkbenchEmpty.tsx") {
+        continue;
+      }
+      const text = readFileSync(join(workbenchDir, name), "utf-8");
+      if (!text.includes("<WorkbenchEmpty")) {
+        continue;
+      }
+      const badges = [...text.matchAll(/\bbadge="([^"]+)"/g)].flatMap(
+        (match) => (match[1] ? [match[1]] : [])
+      );
+      allBadges.push(...badges);
+      callers.push({
+        badgeCount: badges.length,
+        file: name,
+        futurePhase: text.includes("次のフェーズで接続"),
+        hasFutureBadge: badges.includes("次のフェーズで接続"),
+        opens: (text.match(/<WorkbenchEmpty\b/g) ?? []).length,
+      });
+    }
+    callers.sort((left, right) => left.file.localeCompare(right.file));
+    expect({
+      callers,
+      default: {
+        futurePhase: empty.includes("次のフェーズで接続"),
+        optional: empty.includes("badge?: string"),
+        required: empty.includes("badge: string"),
+      },
+      hasCapabilityGap: allBadges.some((badge) => badge.includes("未対応")),
+      hasMachineNeeded: allBadges.includes("マシンが必要"),
+    }).toStrictEqual({
+      callers: [
+        {
+          badgeCount: 3,
+          file: "BrowserPane.tsx",
+          futurePhase: false,
+          hasFutureBadge: false,
+          opens: 3,
+        },
+        {
+          badgeCount: 3,
+          file: "RemotePane.tsx",
+          futurePhase: false,
+          hasFutureBadge: false,
+          opens: 3,
+        },
+        {
+          badgeCount: 3,
+          file: "SideChatPane.tsx",
+          futurePhase: false,
+          hasFutureBadge: false,
+          opens: 3,
+        },
+        {
+          badgeCount: 2,
+          file: "TerminalPane.tsx",
+          futurePhase: false,
+          hasFutureBadge: false,
+          opens: 2,
+        },
+      ],
+      default: {
+        futurePhase: false,
+        optional: false,
+        required: true,
+      },
+      hasCapabilityGap: true,
+      hasMachineNeeded: true,
+    });
   });
 
   it("wires Remote to a screen session instead of a lying connected desktop", () => {

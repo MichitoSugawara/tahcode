@@ -7,10 +7,10 @@ export function WorkbenchEmpty({
   title,
   children,
   action,
-  badge = "次のフェーズで接続",
+  badge,
 }: {
   action?: ReactNode;
-  badge?: string;
+  badge: string;
   children: ReactNode;
   icon: ReactNode;
   title: string;
