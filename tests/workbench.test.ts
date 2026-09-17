@@ -433,8 +433,10 @@ describe("workbench source contracts", () => {
       frame: remote.includes("ScreenFrame"),
       input: remote.includes("enqueueInput"),
       leak: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(remote),
+      live: remote.includes("ScreenLive"),
       mode: remote.includes("screenRenderMode"),
       open: remote.includes("api.workbenchScreen.open"),
+      rtc: remote.includes("useScreenRtc"),
       stub: remote.includes("画面共有は未接続"),
     }).toStrictEqual({
       agent: true,
@@ -442,8 +444,10 @@ describe("workbench source contracts", () => {
       frame: true,
       input: true,
       leak: false,
+      live: true,
       mode: true,
       open: true,
+      rtc: true,
       stub: false,
     });
   });

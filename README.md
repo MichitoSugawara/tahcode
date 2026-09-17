@@ -187,7 +187,7 @@ tahcode start        # tahcode ブリッジをバックグラウンドで常駐
 ```
 
 2. エージェント CLI は 1 つ以上ログイン済みにする: `codex login` / `claude auth login` / `agent login` / `grok login` / `opencode auth login`
-3. 確認: `tahcode doctor`（Node / 検出 CLI / tahcode 接続 / `tahcode tool`）、`tahcode status`、`tahcode logs -f`。モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。エージェントツール（`@linear` 含む）には **tahcode CLI 0.1.1+**。Cursor の `tahcode tool` シェルには **0.1.2+**（`--force`）。ワークベンチの端末 / プレビューには **0.1.3+**（pty / preview）。リモートの画面フレームには **0.1.4+**（`screen`）。キー / マウス操作には **0.1.5+**（`screenInput`）。`npm i -g tahcode@0.1.5` のあと `tahcode restart`（`service install` は launchd 環境を消すので使わない）。
+3. 確認: `tahcode doctor`（Node / 検出 CLI / tahcode 接続 / `tahcode tool`）、`tahcode status`、`tahcode logs -f`。モデル一覧: `tahcode models [provider]`、CLI の更新: `tahcode update <provider|all> --yes`（Web UI の「CLI を更新」と同じ許可リスト）。エージェントツール（`@linear` 含む）には **tahcode CLI 0.1.1+**。Cursor の `tahcode tool` シェルには **0.1.2+**（`--force`）。ワークベンチの端末 / プレビューには **0.1.3+**（pty / preview）。リモートの画面フレームには **0.1.4+**（`screen`）。キー / マウス操作には **0.1.5+**（`screenInput`）。WebRTC 映像には **0.1.6+**（`screenWebRtc`、webrtc-streamer が必要）。`npm i -g tahcode@0.1.6` のあと `tahcode restart`（`service install` は launchd 環境を消すので使わない）。
 
 役割分担: tahcode バックエンドが Org・ランタイム・トークン・default deny の許可を持ち、 `tahcode start` のブリッジがチャットのジョブをローカルの CLI（t3code 由来の 6 プロバイダ）に流します。
 

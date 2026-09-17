@@ -3,6 +3,7 @@ import {
   runtimeHasScreen,
   runtimeHasScreenInput,
 } from "../../shared/workbenchScreen.ts";
+import { runtimeHasScreenWebRtc } from "../../shared/workbenchScreenRtc.ts";
 import { runtimeHasPty } from "../../shared/workbenchTerminal.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -78,6 +79,20 @@ export async function requireScreenInputRuntime(
   if (!runtimeHasScreenInput(loaded.runtime.capabilities)) {
     throw new Error(
       "このブリッジは画面操作に未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
+    );
+  }
+  return loaded;
+}
+
+export async function requireScreenWebRtcRuntime(
+  ctx: Ctx,
+  runtimeId: Id<"runtimes">,
+  userId: Id<"users">
+) {
+  const loaded = await requireScreenRuntime(ctx, runtimeId, userId);
+  if (!runtimeHasScreenWebRtc(loaded.runtime.capabilities)) {
+    throw new Error(
+      "このブリッジは WebRTC 画面に未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
     );
   }
   return loaded;

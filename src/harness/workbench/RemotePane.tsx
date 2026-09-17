@@ -3,6 +3,10 @@ import {
   screenRenderMode,
 } from "@shared/workbenchScreen.ts";
 import type { ScreenInputEvent } from "@shared/workbenchScreen.ts";
+import {
+  pickRemoteLiveMode,
+  screenRtcJpegFallbackLabel,
+} from "@shared/workbenchScreenRtc.ts";
 import { useMutation, useQuery } from "convex/react";
 import { Monitor, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +19,12 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { BridgeUpdateAction, MachineNeededAction } from "./MachineNeeded";
 import { WORKBENCH_PANELS } from "./panels";
-import { AgentScreenConnecting, ScreenFrame } from "./screen/ScreenFrame";
+import {
+  AgentScreenConnecting,
+  ScreenFrame,
+  ScreenLive,
+} from "./screen/ScreenFrame";
+import { useScreenRtc } from "./screen/useScreenRtc";
 import { useWorkbenchMachine } from "./useWorkbenchMachine";
 import { WorkbenchEmpty } from "./WorkbenchEmpty";
 
@@ -34,11 +43,15 @@ function remoteStage(input: {
   capturedAt?: number;
   control: ReturnType<typeof screenControlMode>;
   error?: string;
+  fallbackJpeg: boolean;
   frameUrl?: string | null;
   hasScreen: boolean;
+  liveMode: ReturnType<typeof pickRemoteLiveMode>;
   now: number;
   onInput?: (event: ScreenInputEvent) => void;
+  onPlaying?: () => void;
   online: boolean;
+  stream: MediaStream | null;
 }): ReactNode {
   const mode = screenRenderMode({
     capturedAt: input.capturedAt,
@@ -73,7 +86,36 @@ function remoteStage(input: {
       </WorkbenchEmpty>
     );
   }
-  if (mode === "error") {
+  if (input.liveMode === "webrtc" && input.stream) {
+    return (
+      <ScreenLive
+        control={input.control}
+        error={input.error}
+        now={input.now}
+        onInput={input.onInput}
+        onPlaying={input.onPlaying}
+        stream={input.stream}
+      />
+    );
+  }
+  if ((mode === "frame" || mode === "stale") && input.frameUrl) {
+    return (
+      <ScreenFrame
+        capturedAt={input.capturedAt}
+        control={input.control}
+        error={
+          input.fallbackJpeg
+            ? `${screenRtcJpegFallbackLabel()}${input.error ? ` · ${input.error}` : ""}`
+            : input.error
+        }
+        frameUrl={input.frameUrl}
+        now={input.now}
+        onInput={input.onInput}
+        stale={mode === "stale"}
+      />
+    );
+  }
+  if (mode === "error" && input.liveMode !== "webrtc") {
     return (
       <WorkbenchEmpty
         icon={<Monitor size={22} />}
@@ -85,24 +127,25 @@ function remoteStage(input: {
       </WorkbenchEmpty>
     );
   }
-  if ((mode === "frame" || mode === "stale") && input.frameUrl) {
-    return (
-      <ScreenFrame
-        capturedAt={input.capturedAt}
-        control={input.control}
-        error={input.error}
-        frameUrl={input.frameUrl}
-        now={input.now}
-        onInput={input.onInput}
-        stale={mode === "stale"}
-      />
-    );
-  }
   return (
     <div className="bg-inset flex min-h-0 flex-1 flex-col p-2 pt-0">
-      <AgentScreenConnecting />
+      {input.stream ? (
+        <div className="relative min-h-0 flex-1">
+          <ScreenLive
+            control="none"
+            now={input.now}
+            onPlaying={input.onPlaying}
+            stream={input.stream}
+          />
+          <div className="absolute inset-0">
+            <AgentScreenConnecting />
+          </div>
+        </div>
+      ) : (
+        <AgentScreenConnecting />
+      )}
       <p className="text-ink-3 px-1 pt-1.5 text-[11px]">
-        {input.blurb} フレームが届くまで接続済みにはしません。
+        {input.blurb} 映像が再生されるまで接続済みにはしません。
       </p>
     </div>
   );
@@ -124,20 +167,31 @@ export function RemotePane() {
     api.workbenchScreen.get,
     sessionId ? { sessionId } : "skip"
   );
+  const rtc = useScreenRtc({
+    enabled: Boolean(machine.hasScreenWebRtc && sessionId),
+    sessionId,
+  });
+  const [playing, setPlaying] = useState(false);
   const meta = WORKBENCH_PANELS.remote;
   const canStop = Boolean(activeJob) && !stopping;
   const [now, setNow] = useState(() => Date.now());
   const mode = screenRenderMode({
     capturedAt: session?.capturedAt,
-    error: session?.error,
+    error: session?.error ?? rtc.error,
     frameUrl: session?.frameUrl,
     hasScreen: machine.hasScreen,
     now,
     online: machine.online,
   });
+  const liveMode = pickRemoteLiveMode({
+    hasScreenWebRtc: machine.hasScreenWebRtc,
+    jpegReady: mode === "frame" || mode === "stale",
+    playing,
+    stream: rtc.stream,
+  });
   const control = screenControlMode({
     hasScreenInput: machine.hasScreenInput,
-    mode,
+    mode: liveMode === "webrtc" ? "frame" : mode === "stale" ? "stale" : mode,
   });
 
   useEffect(() => {
@@ -148,6 +202,10 @@ export function RemotePane() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    setPlaying(false);
+  }, [rtc.stream]);
 
   useEffect(() => {
     if (!machine.runtime || !machine.hasScreen) {
@@ -188,13 +246,20 @@ export function RemotePane() {
           <p className="text-ink truncate text-[13px] font-semibold">
             {machine.runtime?.name ?? "リモート"}
           </p>
-          {mode === "frame" ? (
+          {liveMode === "webrtc" ? (
             <span className="bg-green-tint text-green inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
               <span className="bg-green size-2 rounded-full" />
               ライブ
             </span>
           ) : null}
-          {mode === "waiting" ? (
+          {liveMode === "jpeg" && mode === "frame" ? (
+            <span className="text-ink-3 bg-inset inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
+              {machine.hasScreenWebRtc
+                ? screenRtcJpegFallbackLabel()
+                : "フレーム"}
+            </span>
+          ) : null}
+          {liveMode === "empty" && mode === "waiting" ? (
             <span className="text-ink-3 bg-inset inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-[11.5px] font-medium">
               フレーム待ち
             </span>
@@ -227,14 +292,33 @@ export function RemotePane() {
           停止
         </Button>
       </div>
+      {rtc.stream && liveMode !== "webrtc" ? (
+        <video
+          hidden
+          autoPlay
+          muted
+          playsInline
+          aria-hidden
+          ref={(element) => {
+            if (element) {
+              element.srcObject = rtc.stream;
+            }
+          }}
+          onPlaying={() => {
+            setPlaying(true);
+          }}
+        />
+      ) : null}
       <div data-workbench-remote className="flex min-h-0 flex-1 flex-col">
         {remoteStage({
           blurb: meta.blurb,
           capturedAt: session?.capturedAt,
           control,
-          error: session?.error,
+          error: rtc.error ?? session?.error,
+          fallbackJpeg: machine.hasScreenWebRtc && liveMode === "jpeg",
           frameUrl: session?.frameUrl,
           hasScreen: machine.hasScreen,
+          liveMode,
           now,
           onInput:
             sessionId && control === "control"
@@ -242,7 +326,11 @@ export function RemotePane() {
                   void enqueueInput({ events: [event], sessionId });
                 }
               : undefined,
+          onPlaying: () => {
+            setPlaying(true);
+          },
           online: machine.online,
+          stream: rtc.stream,
         })}
       </div>
     </div>

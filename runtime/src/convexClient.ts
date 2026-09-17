@@ -60,6 +60,23 @@ export type ClaimedScreen = {
   _id: string;
 };
 
+export type ClaimedScreenRtc = {
+  _id: string;
+  offerSdp: string;
+  peerId: string;
+  sessionId: string;
+};
+
+export type ClaimedScreenRtcIce = {
+  events: {
+    candidate: string;
+    peerId: string;
+    rtcSessionId: string;
+    sdpMLineIndex?: number;
+    sdpMid?: string;
+  }[];
+};
+
 export type ClaimedScreenInputs = {
   displayHeight?: number;
   displayWidth?: number;
@@ -344,6 +361,76 @@ export class RuntimeClient {
   }): Promise<void> {
     await this.client.mutation(
       "workbenchScreen:reportError" as never,
+      input as never
+    );
+  }
+
+  async claimNextScreenRtc(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedScreenRtc | null> {
+    return await this.client.mutation(
+      "workbenchScreenRtc:claimNext" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async listActiveScreenRtc(
+    runtimeId: string,
+    token: string
+  ): Promise<{ _id: string; peerId: string }[]> {
+    return await this.client.mutation(
+      "workbenchScreenRtc:listActive" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async reportScreenRtcAnswer(input: {
+    answerSdp: string;
+    rtcSessionId: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchScreenRtc:reportAnswer" as never,
+      input as never
+    );
+  }
+
+  async reportScreenRtcError(input: {
+    error: string;
+    rtcSessionId: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchScreenRtc:reportError" as never,
+      input as never
+    );
+  }
+
+  async claimScreenRtcIce(
+    runtimeId: string,
+    token: string
+  ): Promise<ClaimedScreenRtcIce> {
+    return await this.client.mutation(
+      "workbenchScreenRtc:claimIce" as never,
+      { runtimeId, token } as never
+    );
+  }
+
+  async reportScreenRtcIce(input: {
+    events: {
+      candidate: string;
+      sdpMLineIndex?: number;
+      sdpMid?: string;
+    }[];
+    rtcSessionId: string;
+    runtimeId: string;
+    token: string;
+  }): Promise<void> {
+    await this.client.mutation(
+      "workbenchScreenRtc:reportIce" as never,
       input as never
     );
   }

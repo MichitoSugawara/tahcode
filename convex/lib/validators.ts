@@ -267,6 +267,24 @@ export const screenInputStatus = v.union(
   v.literal("done")
 );
 
+export const screenRtcSessionStatus = v.union(
+  v.literal("negotiating"),
+  v.literal("answered"),
+  v.literal("failed"),
+  v.literal("closed")
+);
+
+export const screenRtcIceFrom = v.union(
+  v.literal("browser"),
+  v.literal("bridge")
+);
+
+export const screenRtcIce = v.object({
+  candidate: v.string(),
+  sdpMLineIndex: v.optional(v.number()),
+  sdpMid: v.optional(v.string()),
+});
+
 export const screenInputEvent = v.object({
   button: v.optional(screenPointerButton),
   code: v.optional(v.string()),
