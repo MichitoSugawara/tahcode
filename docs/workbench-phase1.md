@@ -19,7 +19,7 @@ UI に OpenConnector / OOMOL / gateway / workers.dev は出さない。
 ヘッダー右: 検索（⌘K）+ レール開閉（TAH-39 の固定クラスタ）
 ```
 
-本線チャットはメンション規則とジョブ履歴の正本。サイドチャットは副スレッドで、Phase 1 はブラウザ localStorage の下書きだけ。Remote の「停止」は Remote *stop 単独パネルではなく、リモートセッション面のコントロール（既存 `jobs.cancel`）。
+本線チャットはメンション規則とジョブ履歴の正本。サイドチャットは副スレッドで、Convex `sideChatTurns` に残る（本線 `messages` には混ぜない。@メンションでもジョブは始まらない）。Remote の「停止」は Remote *stop 単独パネルではなく、リモートセッション面のコントロール（既存 `jobs.cancel`）。
 
 ---
 
@@ -104,7 +104,7 @@ tahcode への写し方: タブラベルは **リモートデスクトップ**�
 | --- | --- | --- |
 | シェル | 開閉・幅 360px・4 タブ切替。xl ドック / 未満シート | リサイズ、最大化、スレッドごとの開いている面インジケータ |
 | 永続 | `th:workbench:docked` / `th:workbench:panel`（`useStoredState`） | スレッド単位のパネルセット（Codex #41406） |
-| サイドチャット | ローカル下書きスレッド。Convex スキーマなし | 別 `kind`、ACL、メンション、本線と履歴分離 |
+| サイドチャット | Convex `sideChatTurns`（親 chatId + org。ACL は本線チャット）。メンションはジョブを起こさない | エージェント応答 / メンション補完 |
 | ターミナル | 端末枠 + PTY 待ち empty。オフラインは「オンラインのマシンが必要」 | **TAH-69 で実 PTY**（Ghostty + ブリッジ）。複数 split / tool ログは残件 |
 | ブラウザ | disabled アドレス欄 + プレビュー枠 | **TAH-69 で URL→マシン fetch→描画**。Chromium guest / 注釈は残件 |
 | リモート | セッション枠 + **停止**（active job → `jobs.cancel`） | RDP / VNC / 画面ストリーム |
@@ -116,12 +116,12 @@ tahcode への写し方: タブラベルは **リモートデスクトップ**�
 
 ## 4. 本線とサイドチャット
 
-|  | 本線 | サイドチャット |
-| --- | --- | --- |
-| 役割 | チーム会話 + エージェントジョブ | 検証中の短いメモ / 副質問 |
-| 履歴 | Convex `messages` | Phase 1 は `localStorage` のみ |
-| メンション | `@provider/model` がジョブを起こす | 起こさない |
-| タブ | 上部チャットタブ | 右デッキの一面 |
+|            | 本線                               | サイドチャット            |
+| ---------- | ---------------------------------- | ------------------------- |
+| 役割       | チーム会話 + エージェントジョブ    | 検証中の短いメモ / 副質問 |
+| 履歴       | Convex `messages`                  | Convex `sideChatTurns`    |
+| メンション | `@provider/model` がジョブを起こす | 起こさない                |
+| タブ       | 上部チャットタブ                   | 右デッキの一面            |
 
 ---
 
@@ -131,4 +131,5 @@ tahcode への写し方: タブラベルは **リモートデスクトップ**�
 - `src/harness/workbench/state.ts` — 開閉 / アクティブ面の永続
 - `src/harness/rail/RightRail.tsx` — デッキシェル
 - `src/harness/Shell.tsx` — `rail` が true ならトグル常設
+- `convex/workbenchSideChat.ts` — 副スレッド（TAH-80）。本線 `messages.send` は使わない
 - Settings の Runtime / Team は `src/pages/SettingsPage.tsx` のまま

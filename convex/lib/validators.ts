@@ -233,6 +233,16 @@ export const previewNavStatus = v.union(
   v.literal("failed")
 );
 
+export const sideChatTurnView = v.object({
+  _creationTime: v.number(),
+  _id: v.id("sideChatTurns"),
+  authorHandle: v.optional(v.string()),
+  authorId: v.id("users"),
+  authorName: v.optional(v.string()),
+  body: v.string(),
+  chatId: v.id("chats"),
+});
+
 export const projectSummary = v.object({
   _id: v.id("projects"),
   cwd: v.optional(v.string()),

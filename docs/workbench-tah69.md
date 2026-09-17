@@ -61,7 +61,7 @@ tahcode への写し方: Ghostty の描画・キー・history replay はその�
 | オフライン | `MachineNeeded` empty + CTA（#71） | — |
 | 旧ブリッジ | 「更新コマンドをコピー」（`pty` / `preview` 未報告） | — |
 | リモートデスクトップ | #71 の薄い枠 + ジョブ停止 | RDP / VNC |
-| サイドチャット | #71 の localStorage 下書き | Convex の別 `kind` |
+| サイドチャット | TAH-80: Convex `sideChatTurns`（本線と分離、メンションはジョブなし） | エージェント応答 |
 
 localhost HTML は `srcdoc` + `<base href>`。公開 https は `iframe src`。ホストされた Web からユーザマシンの localhost には届かないので、**描画の正本はブリッジが取ったスナップショット**。t3code の guest ほどインタラクティブではない。
 
@@ -87,7 +87,7 @@ localhost HTML は `srcdoc` + `<base href>`。公開 https は `iframe src`。�
 3. **プレビュー**。`http://localhost:…`（マシンで listen 中）を開く → HTML が面に出る。
 4. `https://example.com` を開く → iframe。`file:///etc/passwd` は拒否。
 5. ブリッジを止める → 「オンラインのマシンが必要です」+ CTA。古い CLI（capability なし）→ 更新コマンド。
-6. リモート / サイドは薄い（画面共有と Convex 副チャットは未配線）。
+6. リモートは薄い（画面共有は未配線）。サイドチャットは Convex 副スレッド（TAH-80）。
 
 ---
 

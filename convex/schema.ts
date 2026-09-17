@@ -380,6 +380,17 @@ export default defineSchema({
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_runtime_owner_tab", ["runtimeId", "requestedBy", "tabId"]),
 
+  /* Secondary verification thread (TAH-80). Not `messages` — @mentions
+   * never launch jobs. Scoped to the parent chat's org + ACL. */
+  sideChatTurns: defineTable({
+    authorId: v.id("users"),
+    body: v.string(),
+    chatId: v.id("chats"),
+    orgId: v.id("orgs"),
+  })
+    .index("by_chat", ["chatId"])
+    .index("by_org_and_chat", ["orgId", "chatId"]),
+
   runtimeGrants: defineTable({
     runtimeId: v.id("runtimes"),
     targetType: grantTarget,
