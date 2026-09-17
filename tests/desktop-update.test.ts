@@ -93,6 +93,27 @@ describe("desktop update helpers", () => {
     expect(parseDesktopReleaseTag("v0.2.0")).toBeNull();
   });
 
+  it("treats desktop-v0.1.1 as newer than installed 0.1.0", () => {
+    expect(desktopReleaseTag("0.1.1")).toBe("desktop-v0.1.1");
+    expect(parseDesktopReleaseTag("desktop-v0.1.1")).toBe("0.1.1");
+    expect(isNewerVersion("0.1.1", "0.1.0")).toBeTruthy();
+  });
+
+  it("accepts 0.1.1 mac arm64 installers and ignores blockmaps", () => {
+    expect(
+      isMacInstallerName("tahcode-0.1.1-mac-arm64.dmg", "arm64", "dmg")
+    ).toBeTruthy();
+    expect(
+      isMacInstallerName("tahcode-0.1.1-mac-arm64.zip", "arm64", "zip")
+    ).toBeTruthy();
+    expect(
+      isMacInstallerName("tahcode-0.1.1-mac-arm64.dmg.blockmap", "arm64", "dmg")
+    ).toBeFalsy();
+    expect(
+      isMacInstallerName("tahcode-0.1.1-mac-arm64.zip.blockmap", "arm64", "zip")
+    ).toBeFalsy();
+  });
+
   it("compares semver newest-first", () => {
     expect(compareSemver("0.2.0", "0.1.0")).toBe(1);
     expect(isNewerVersion("0.2.0", "0.1.0")).toBeTruthy();

@@ -1,6 +1,6 @@
 {
   "name": "@tahcode/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "tahcode Desktop — Electron shell around the tahcode web app with system-browser OAuth.",
   "homepage": "https://tahcode.gawara.workers.dev",

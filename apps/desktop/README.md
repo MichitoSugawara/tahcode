@@ -18,11 +18,11 @@ npm run desktop:dev
 # .app（未署名、apps/desktop/release/mac-arm64/tahcode.app）— Google ログインの deep link 検証はこちらで
 npm run desktop:pack
 
-# 配布物: apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg / .zip（未署名）
+# 配布物: apps/desktop/release/tahcode-0.1.1-mac-arm64.dmg / .zip（未署名）
 npm run desktop:build
 # Developer ID + 公証（CSC_* / APPLE_* が必要。下記「署名と公証」）
 # npm run desktop:build:signed
-open apps/desktop/release/tahcode-0.1.0-mac-arm64.dmg
+open apps/desktop/release/tahcode-0.1.1-mac-arm64.dmg
 ```
 
 ワークスペース指定で直接叩く場合: `npm run <script> -w @tahcode/desktop`（`dev` / `build` / `pack` / `dist:mac`（未署名 arm64）/ `dist:mac:signed`（Developer ID + 公証）/ `dist:mac:universal`（arm64 + x64）/ `dist:mac:intel` / `smoke`）。ルートからは `npm run desktop:build`（未署名）と `npm run desktop:build:signed`。
@@ -170,7 +170,7 @@ Linux でできなかったこと: `.dmg` / `.app` の生成（`hdiutil` と mac
 
 ## アップデート（TAH-22）
 
-配布ソースは公開リポ [MichitoSugawara/tahcode-releases](https://github.com/MichitoSugawara/tahcode-releases) の GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.0`）。ソース本体の `tahcode` は非公開のまま。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。クライアントに GitHub トークンは埋め込まない。
+配布ソースは公開リポ [MichitoSugawara/tahcode-releases](https://github.com/MichitoSugawara/tahcode-releases) の GitHub Releases（タグ `desktop-v<semver>`、例 `desktop-v0.1.1`）。ソース本体の `tahcode` は非公開のまま。シェルは Releases API から `desktop-v*` を探し、新しい semver があれば「今すぐ更新」で相当アーキの `.dmg` を Downloads に落として開く。クライアントに GitHub トークンは埋め込まない。
 
 - **UI**: Org 設定の「デスクトップ」、ワークスペースメニュー / ⌘K、macOS の tahcode / Help メニュー。進捗は「確認中 / ダウンロード / ディスクイメージを開く」。失敗は日本語。新しいシェル + 古い Web（未デプロイ）のときはメニュー確認がネイティブダイアログにフォールバックする。
 - **自動アップデート**: `~/Library/Application Support/tahcode/settings.json` の `autoUpdateEnabled`。**既定オフ**（未署名のため安全側）。オンなら起動約 20 秒後と 4 時間ごとに確認し、更新があればトースト / ダイアログ。適用はユーザー確認のまま。
