@@ -1,4 +1,5 @@
 import { runtimeHasPreview } from "../../shared/workbenchPreview.ts";
+import { runtimeHasScreen } from "../../shared/workbenchScreen.ts";
 import { runtimeHasPty } from "../../shared/workbenchTerminal.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -46,6 +47,20 @@ export async function requirePreviewRuntime(
   if (!runtimeHasPreview(loaded.runtime.capabilities)) {
     throw new Error(
       "このブリッジはプレビューに未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
+    );
+  }
+  return loaded;
+}
+
+export async function requireScreenRuntime(
+  ctx: Ctx,
+  runtimeId: Id<"runtimes">,
+  userId: Id<"users">
+) {
+  const loaded = await requireUsableRuntime(ctx, runtimeId, userId);
+  if (!runtimeHasScreen(loaded.runtime.capabilities)) {
+    throw new Error(
+      "このブリッジは画面フレームに未対応です。npm i -g tahcode@latest && tahcode restart を実行してください。"
     );
   }
   return loaded;

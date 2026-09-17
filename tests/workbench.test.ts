@@ -315,6 +315,28 @@ describe("workbench source contracts", () => {
     expect(browser).toContain('placeholder="http://localhost:3000"');
   });
 
+  it("wires Remote to a screen session instead of a lying connected desktop", () => {
+    const remote = readFileSync(
+      "src/harness/workbench/RemotePane.tsx",
+      "utf-8"
+    );
+    expect({
+      cancel: remote.includes("useCancelJob"),
+      frame: remote.includes("ScreenFrame"),
+      leak: /OpenConnector|OOMOL|workers\.dev|gateway/i.test(remote),
+      mode: remote.includes("screenRenderMode"),
+      open: remote.includes("api.workbenchScreen.open"),
+      stub: remote.includes("画面共有は未接続"),
+    }).toStrictEqual({
+      cancel: true,
+      frame: true,
+      leak: false,
+      mode: true,
+      open: true,
+      stub: false,
+    });
+  });
+
   it("vendors the same Ghostty wasm magic t3code ships", () => {
     const wasm = readFileSync(
       "src/harness/workbench/terminal/ghostty/vendor/ghostty-vt.wasm"

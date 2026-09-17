@@ -233,6 +233,12 @@ export const previewNavStatus = v.union(
   v.literal("failed")
 );
 
+export const screenSessionStatus = v.union(
+  v.literal("watching"),
+  v.literal("error"),
+  v.literal("closed")
+);
+
 export const sideChatTurnView = v.object({
   _creationTime: v.number(),
   _id: v.id("sideChatTurns"),
