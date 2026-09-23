@@ -41,10 +41,8 @@ export function SideChatPane() {
     api.toolApprovals.listForChat,
     serverChatId ? { chatId: serverChatId } : "skip"
   );
-  const requestDemo = useMutation(api.toolApprovals.requestDemo);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [demoBusy, setDemoBusy] = useState(false);
   const migratedForChat = useRef<string | null>(null);
   const meta = WORKBENCH_PANELS.chat;
 
@@ -138,7 +136,7 @@ export function SideChatPane() {
         ) : null}
         {page.turns.length === 0 ? (
           <li className="text-ink-3 px-0.5 py-6 text-center text-[12.5px] leading-relaxed">
-            まだメモはありません。検証中の短いメモを残せます。危険な操作の前には承認カードが出ます。
+            まだメモはありません。検証中の短いメモを残せます。
           </li>
         ) : (
           page.turns.map((turn) => (
@@ -156,46 +154,29 @@ export function SideChatPane() {
         )}
       </ol>
       <form
-        className="border-line flex shrink-0 flex-col gap-2 border-t px-3 py-2.5"
+        className="border-line flex shrink-0 items-center gap-2 border-t px-3 py-2.5"
         onSubmit={(event) => {
           event.preventDefault();
           send();
         }}
       >
-        <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="workbench-side-chat">
-            サイドチャットのメモ
-          </label>
-          <Input
-            id="workbench-side-chat"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="メモを残す（ジョブは始まらない）"
-            autoComplete="off"
-          />
-          <Button
-            type="submit"
-            size="xs"
-            variant="accent"
-            disabled={!draft.trim() || sending}
-          >
-            送る
-          </Button>
-        </div>
+        <label className="sr-only" htmlFor="workbench-side-chat">
+          サイドチャットのメモ
+        </label>
+        <Input
+          id="workbench-side-chat"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="メモを残す（ジョブは始まらない）"
+          autoComplete="off"
+        />
         <Button
-          type="button"
+          type="submit"
           size="xs"
-          variant="quiet"
-          data-hitl-demo
-          disabled={demoBusy || !serverChatId}
-          onClick={() => {
-            setDemoBusy(true);
-            void requestDemo({ chatId: serverChatId }).finally(() => {
-              setDemoBusy(false);
-            });
-          }}
+          variant="accent"
+          disabled={!draft.trim() || sending}
         >
-          確認カードを試す（実行しない）
+          送る
         </Button>
       </form>
     </div>

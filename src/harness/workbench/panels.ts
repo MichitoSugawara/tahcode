@@ -33,7 +33,7 @@ export const WORKBENCH_PANELS: Record<WorkbenchPanelId, WorkbenchPanelDef> = {
     blurb: "本線スレッドを邪魔しない副チャット",
     id: "chat",
     label: "サイド",
-    next: "本線の履歴とは別の Convex スレッドです。危険な操作の承認カードもここに出ます。@メンションではジョブは始まりません。",
+    next: "本線の履歴とは別の Convex スレッドです。@メンションではジョブは始まりません。",
     title: "サイドチャット",
   },
   remote: {

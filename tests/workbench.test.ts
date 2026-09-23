@@ -474,13 +474,13 @@ describe("workbench source contracts", () => {
       "utf-8"
     );
     expect({
-      demo: pane.includes("確認カードを試す"),
+      demo: pane.includes("data-hitl-demo") || pane.includes("requestDemo"),
       messages: pane.includes("api.messages.send"),
       stored: pane.includes("useStoredState"),
       tools: pane.includes("api.toolApprovals"),
       turns: pane.includes("api.workbenchSideChat"),
     }).toStrictEqual({
-      demo: true,
+      demo: false,
       messages: false,
       stored: false,
       tools: true,
@@ -502,15 +502,55 @@ describe("workbench source contracts", () => {
     expect(card).not.toMatch(/CopilotKit|OpenConnector|workers\.dev|gateway/i);
   });
 
+  it("puts the write-tool HITL demo on the main composer", () => {
+    const composer = readFileSync("src/harness/Composer.tsx", "utf-8");
+    const strip = readFileSync(
+      "src/harness/workbench/HitlApprovalStrip.tsx",
+      "utf-8"
+    );
+    const reply = readFileSync("src/harness/thread/AgentReply.tsx", "utf-8");
+    const pane = readFileSync(
+      "src/harness/workbench/SideChatPane.tsx",
+      "utf-8"
+    );
+    expect({
+      composerStrip: composer.includes("HitlApprovalStrip"),
+      demo: strip.includes("書き込みの確認を試す（実行しない）"),
+      demoAttr: strip.includes("data-hitl-demo"),
+      jobCards:
+        reply.includes("HitlApprovalList") && reply.includes("listForJob"),
+      sideDemo:
+        pane.includes("requestDemo") ||
+        pane.includes("data-hitl-demo") ||
+        pane.includes("危険な操作"),
+    }).toStrictEqual({
+      composerStrip: true,
+      demo: true,
+      demoAttr: true,
+      jobCards: true,
+      sideDemo: false,
+    });
+    expect(`${composer}\n${strip}\n${reply}`).not.toMatch(
+      /CopilotKit|OpenConnector|workers\.dev|gateway/i
+    );
+  });
+
   it("keeps the side chat backend off the main message and job path", () => {
     const backend = readFileSync("convex/workbenchSideChat.ts", "utf-8");
-    expect(backend).not.toContain("sendUserMessage");
-    expect(backend).not.toContain("shouldDispatchAgent");
+    expect({
+      jobs: backend.includes('insert("jobs"'),
+      mention: backend.includes("shouldDispatchAgent"),
+      messages: backend.includes("sendUserMessage"),
+      nextHasHitl: WORKBENCH_PANELS.chat.next.includes("承認カード"),
+      nextHasJob: WORKBENCH_PANELS.chat.next.includes("ジョブは始まりません"),
+    }).toStrictEqual({
+      jobs: false,
+      mention: false,
+      messages: false,
+      nextHasHitl: false,
+      nextHasJob: true,
+    });
     expect(backend).not.toContain('insert("messages"');
-    expect(backend).not.toContain('insert("jobs"');
-    expect(WORKBENCH_PANELS.chat.next).toMatch(
-      /ジョブは始まりません[\s\S]*承認カード|承認カード[\s\S]*ジョブは始まりません/
-    );
   });
 
   it("wires the header toggle and drops the old visibility gate", () => {

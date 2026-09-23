@@ -48,6 +48,7 @@ import { useSetChatAgent } from "@/harness/optimisticMutations";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import type { Chat } from "@/harness/OrgContext";
 import { NoRuntimeChrome } from "@/harness/ui/NoRuntimeChrome";
+import { HitlApprovalStrip } from "@/harness/workbench/HitlApprovalStrip";
 import {
   CONNECTOR_CARD_COPY,
   CONNECTOR_CATALOG,
@@ -880,6 +881,7 @@ export function Composer({
         </div>
       )}
       <div className="flex flex-col gap-2">
+        {serverChatId ? <HitlApprovalStrip chatId={serverChatId} /> : null}
         <div
           data-composer-shell
           className={`border-line bg-surface shadow-card focus-within:border-line-strong border transition-[border-color] duration-150 ${

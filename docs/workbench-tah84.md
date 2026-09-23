@@ -1,10 +1,9 @@
-# TAH-84 — CopilotKit HITL 承認 UI スパイク
+# TAH-84 — 書き込みツールの HITL 承認
 
 Issue: [TAH-84](https://linear.app/tahcode/issue/TAH-84/)  
-親: [TAH-69](https://linear.app/tahcode/issue/TAH-69/) / [`docs/workbench-tah69.md`](workbench-tah69.md)  
-サイドチャット本線分離: [TAH-80](https://linear.app/tahcode/issue/TAH-80/)（PR #79）
+親: [TAH-69](https://linear.app/tahcode/issue/TAH-69/) / [`docs/workbench-tah69.md`](workbench-tah69.md)
 
-危険／破壊的なツールの前に **承認／拒否** カードを出す垂直スライス。製品の CLI ブリッジ・Convex ジョブ本線は置き換えない。UI に OpenConnector / gateway / workers.dev は出さない。
+危険／破壊的な **tahcode 所有ツール** の実行前に **承認／拒否** カードを出す垂直スライス。承認はチャット面（本線／右レール）の機能ではなく、`agentTools:invoke` の実行ゲート。製品の CLI ブリッジ・Convex ジョブ本線は置き換えない。UI に OpenConnector / gateway / workers.dev は出さない。
 
 ---
 
@@ -28,11 +27,11 @@ tahcode に載せるとこうなる:
 
 **判断: パッケージは入れない（defer / reject）。** プロバイダでアプリを包むと Convex Auth と戦い、エージェント runtime を置き換える方向になる。依存も `@copilotkit/*` 一式で最小にならない。
 
-### 既存 side chat / tool 面にカードだけ挿す
+### 本線チャットにカードだけ挿す
 
-右レールのサイドチャットは検証面。本線の tool イベントは `ToolChips` で「実行済み」行になる。承認待ちを ToolChips に載せると「もう走った」ように見える。
+本線の tool イベントは `ToolChips` で「実行済み」行になる。承認待ちを ToolChips に載せると「もう走った」ように見える。右レールの副スレッドにデモを置くと、承認がサイド専用機能に見える。
 
-**判断: 採用。** 新しい `toolApprovals` 行を正本にし、カードをサイドチャット（主）と本線 `AgentReply`（見逃し防止）に出す。ToolChips には承認前の行を書かない。
+**判断: 採用。** 新しい `toolApprovals` 行を正本にする。カードは本線 Composer（試用）と本線 `AgentReply`（ジョブ中）に出す。右レールに同じカードが出てもよいが、面の機能ではない。ToolChips には承認前の行を書かない。
 
 ---
 
@@ -47,6 +46,7 @@ tahcode に載せるとこうなる:
 | プロバイダ CLI の shell / ファイル書き込み HITL | **見送り** | `--force` / `--trust` の headless を止めない。tahcode 所有ツールだけゲート |
 | CLI ブリッジ / Remote / Terminal / WebRTC の置き換え | **却下** | 制約。I/O は既存のまま |
 | 嘘の「実行済み」 | **却下** | pending 中は tool イベントを書かない。resultJson も `ok: false` |
+| サイドチャット専用の承認 UI | **却下** | チャットはチャット。ゲートは書き込みツールの前 |
 
 ---
 
@@ -56,7 +56,7 @@ tahcode に載せるとこうなる:
 
 1. Convex が `toolApprovals` を `pending` で挿す。ツール本体は走らない。
 2. 戻りは `{ approval: { status: "pending" }, resultJson: { ok: false, status: "pending_approval" } }`。mutation を throw しない（throw すると insert が巻き戻る）。
-3. サイドチャットと本線返信に承認カードが出る。
+3. 本線 Composer と、ジョブ付きの本線返信に承認カードが出る。
 4. 人が承認すると、ブリッジ（in-repo `RuntimeClient.invokeTool`）が再 invoke して実行する。拒否なら実行せず `cancelled` を返す。
 5. 旧 npm CLI（待ちループ無し）は pending JSON をエージェントに渡す。**実行はしない**（fail-closed）。
 
@@ -68,7 +68,7 @@ tahcode に載せるとこうなる:
 
 読み取り系（`list_*` / `get_*` / `suggest_connector`）は通す。
 
-プレビュー用に「確認カードを試す（実行しない）」がある。`source: "demo"` なので承認しても Linear もジョブも動かない。
+プレビュー用に本線 Composer の「書き込みの確認を試す（実行しない）」がある。`source: "demo"` なので承認しても Linear もジョブも動かない。右レールを開く必要はない。
 
 ---
 
@@ -77,7 +77,7 @@ tahcode に載せるとこうなる:
 - 契約: `tests/tool-approvals.test.ts`（ゲート分類、args プレビュー、待ちループ）
 - Convex: `tests/convex/toolApprovals.test.ts`（approve 後に実行、reject は未実行、demo はジョブ無し、他 Org 隠し、ジョブ完了で pending を cancel）
 - 既存: `tests/convex/agentTools.test.ts` の write 系は承認してから実行
-- シェル: `tests/workbench.test.ts`（カード文言、CopilotKit / OpenConnector を出さない）
+- シェル: `tests/workbench.test.ts`（本線 Composer に試用ボタン、カード文言、CopilotKit / OpenConnector を出さない）
 
 **主張しないこと:** この Cloud Agent 環境にオンラインの Mac ブリッジは無い。ライブジョブの目視は手元の手動確認が正本。プレビューでは demo カードで pending / approved / rejected を踏める。
 
@@ -85,10 +85,10 @@ tahcode に載せるとこうなる:
 
 ## 5. 手動確認
 
-1. 右レール **サイド** を開く。
-2. 「確認カードを試す（実行しない）」→ 確認待ちカード。本文は「承認するまで実行しません」。
+1. チャットを開く（右レールは不要）。
+2. Composer 上の「書き込みの確認を試す（実行しない）」→ 確認待ちカード。本文は「承認するまで実行しません」。
 3. **承認して実行** → 「試用のためツールは実行していません」（Linear は増えない）。
 4. もう一度試して **拒否する** → 「実行していません」。
-5. （任意・ブリッジ online）ジョブ中にエージェントが `create_session` 等を呼ぶ → 同じカード。承認するまでセッションは増えない。拒否後も増えない。
+5. （任意・ブリッジ online）ジョブ中にエージェントが `create_session` 等を呼ぶ → 同じカードが本線返信に出る。承認するまでセッションは増えない。拒否後も増えない。
 
 旧 CLI（待ち無し）: ツール結果は pending JSON。カードは出る。実行はしない。in-repo ブリッジは承認後に再開する。
