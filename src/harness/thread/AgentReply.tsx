@@ -25,6 +25,7 @@ import ToolChips from "@/components/primitives/ToolChips";
 import type { ToolStep } from "@/components/primitives/ToolChips";
 import { isLive, useOrg } from "@/harness/OrgContext";
 import { Notice } from "@/harness/ui/Notice";
+import { HitlApprovalList } from "@/harness/workbench/HitlApprovalList";
 import { copyText, clockTime } from "@/lib/format";
 import { providerLabel } from "@/lib/providers";
 
@@ -239,6 +240,10 @@ export function AgentReply({
   const artifacts = useQuery(api.files.listByMessage, {
     messageId: message._id,
   });
+  const approvals = useQuery(
+    api.toolApprovals.listForJob,
+    message.jobId ? { jobId: message.jobId } : "skip"
+  );
   useEffect(() => {
     if (job && streaming) {
       setSeen(true);
@@ -375,6 +380,12 @@ export function AgentReply({
             active={`実行中 · ${rows.length} ステップ`}
             done={`${rows.length} ステップ実行`}
           />
+        </div>
+      )}
+
+      {approvals?.items && approvals.items.length > 0 && (
+        <div className="mb-3">
+          <HitlApprovalList items={approvals.items} />
         </div>
       )}
 

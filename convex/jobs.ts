@@ -21,6 +21,7 @@ import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
 import { MAX_JOB_ATTEMPTS, STALE_JOB_MS } from "./lib/runtimeHealth";
 import { upsertProviderReports } from "./lib/runtimeReports";
 import { loadJobSkills } from "./lib/skills";
+import { cancelOpenApprovalsForJob } from "./lib/toolApprovals";
 import {
   jobOpsBundle,
   jobSkillPayload,
@@ -327,6 +328,7 @@ export const complete = mutation({
       type: failed ? "error" : "done",
       text: (args.error ?? args.finalText ?? "done").slice(0, 5000),
     });
+    await cancelOpenApprovalsForJob(ctx, job._id);
     return null;
   },
   returns: v.null(),

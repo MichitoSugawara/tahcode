@@ -10,6 +10,7 @@ import { isPlaceholderId } from "@/lib/optimistic";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { HitlApprovalList } from "./HitlApprovalList";
 import { WORKBENCH_PANELS } from "./panels";
 import {
   clearLocalSideChat,
@@ -36,8 +37,14 @@ export function SideChatPane() {
   const migrateLocalDrafts = useMutation(
     api.workbenchSideChat.migrateLocalDrafts
   );
+  const approvals = useQuery(
+    api.toolApprovals.listForChat,
+    serverChatId ? { chatId: serverChatId } : "skip"
+  );
+  const requestDemo = useMutation(api.toolApprovals.requestDemo);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
   const migratedForChat = useRef<string | null>(null);
   const meta = WORKBENCH_PANELS.chat;
 
@@ -124,9 +131,14 @@ export function SideChatPane() {
         data-side-chat-state={page.turns.length === 0 ? "empty" : "ready"}
         className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3"
       >
+        {approvals?.items && approvals.items.length > 0 ? (
+          <li>
+            <HitlApprovalList items={approvals.items} />
+          </li>
+        ) : null}
         {page.turns.length === 0 ? (
           <li className="text-ink-3 px-0.5 py-6 text-center text-[12.5px] leading-relaxed">
-            まだメモはありません。検証中の短いメモを残せます。
+            まだメモはありません。検証中の短いメモを残せます。危険な操作の前には承認カードが出ます。
           </li>
         ) : (
           page.turns.map((turn) => (
@@ -144,29 +156,46 @@ export function SideChatPane() {
         )}
       </ol>
       <form
-        className="border-line flex shrink-0 items-center gap-2 border-t px-3 py-2.5"
+        className="border-line flex shrink-0 flex-col gap-2 border-t px-3 py-2.5"
         onSubmit={(event) => {
           event.preventDefault();
           send();
         }}
       >
-        <label className="sr-only" htmlFor="workbench-side-chat">
-          サイドチャットのメモ
-        </label>
-        <Input
-          id="workbench-side-chat"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="メモを残す（ジョブは始まらない）"
-          autoComplete="off"
-        />
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="workbench-side-chat">
+            サイドチャットのメモ
+          </label>
+          <Input
+            id="workbench-side-chat"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="メモを残す（ジョブは始まらない）"
+            autoComplete="off"
+          />
+          <Button
+            type="submit"
+            size="xs"
+            variant="accent"
+            disabled={!draft.trim() || sending}
+          >
+            送る
+          </Button>
+        </div>
         <Button
-          type="submit"
+          type="button"
           size="xs"
-          variant="accent"
-          disabled={!draft.trim() || sending}
+          variant="quiet"
+          data-hitl-demo
+          disabled={demoBusy || !serverChatId}
+          onClick={() => {
+            setDemoBusy(true);
+            void requestDemo({ chatId: serverChatId }).finally(() => {
+              setDemoBusy(false);
+            });
+          }}
         >
-          送る
+          確認カードを試す（実行しない）
         </Button>
       </form>
     </div>

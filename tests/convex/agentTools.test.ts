@@ -108,7 +108,47 @@ async function invoke(
     runtimeId,
     token,
   });
+  if (result.approval?.status === "pending") {
+    throw new Error(`unexpected pending approval for ${name}`);
+  }
   return JSON.parse(result.resultJson) as Record<string, unknown>;
+}
+
+async function approveThenInvoke(
+  t: ReturnType<typeof fresh>,
+  aliceCtx: ReturnType<typeof asUser>,
+  claimed: { _id: Id<"jobs">; leaseId: string },
+  runtimeId: Id<"runtimes">,
+  name: "create_session" | "send_message",
+  args: Record<string, unknown> = {}
+) {
+  const first = await t.mutation(api.agentTools.invoke, {
+    argsJson: JSON.stringify(args),
+    jobId: claimed._id,
+    leaseId: claimed.leaseId,
+    name,
+    runtimeId,
+    token: TOKEN,
+  });
+  expect(first.approval?.status).toBe("pending");
+  expect(JSON.parse(first.resultJson)).toMatchObject({
+    ok: false,
+    status: "pending_approval",
+  });
+  const page = await aliceCtx.query(api.toolApprovals.listForJob, {
+    jobId: claimed._id,
+  });
+  const card = page?.items.find(
+    (item) => item.status === "pending" && item.name === name
+  );
+  if (!card) {
+    throw new Error("expected a pending approval card");
+  }
+  await aliceCtx.mutation(api.toolApprovals.decide, {
+    approvalId: card._id,
+    decision: "approved",
+  });
+  return await invoke(t, claimed, runtimeId, name, args);
 }
 
 describe("agent tools authz", () => {
@@ -256,15 +296,29 @@ describe("agent tools authz", () => {
     });
     expect(switched.session).toMatchObject({ title: "Other" });
 
-    const sentHere = await invoke(t, claimed, runtimeId, "send_message", {
-      body: "note on the running job chat",
-      chatId,
-    });
+    const sentHere = await approveThenInvoke(
+      t,
+      aliceCtx,
+      claimed,
+      runtimeId,
+      "send_message",
+      {
+        body: "note on the running job chat",
+        chatId,
+      }
+    );
     expect(sentHere.dispatched).toBeFalsy();
 
-    const sentOther = await invoke(t, claimed, runtimeId, "send_message", {
-      body: "plain note",
-    });
+    const sentOther = await approveThenInvoke(
+      t,
+      aliceCtx,
+      claimed,
+      runtimeId,
+      "send_message",
+      {
+        body: "plain note",
+      }
+    );
     expect(sentOther.dispatched).toBeFalsy();
     const page = await aliceCtx.query(api.messages.list, {
       chatId: other,
@@ -275,11 +329,18 @@ describe("agent tools authz", () => {
 
   it("creates a session and reports runtime status without the token hash", async () => {
     const t = fresh();
-    const { claimed, projectId, runtimeId } = await seedJob(t);
-    const created = await invoke(t, claimed, runtimeId, "create_session", {
-      projectId,
-      title: "From agent",
-    });
+    const { aliceCtx, claimed, projectId, runtimeId } = await seedJob(t);
+    const created = await approveThenInvoke(
+      t,
+      aliceCtx,
+      claimed,
+      runtimeId,
+      "create_session",
+      {
+        projectId,
+        title: "From agent",
+      }
+    );
     expect(created.session).toMatchObject({ title: "From agent" });
 
     const status = await invoke(t, claimed, runtimeId, "get_runtime_status");

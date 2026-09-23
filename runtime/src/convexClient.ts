@@ -11,6 +11,8 @@ import type {
   MaintenanceKind,
 } from "../../shared/providerMaintenance.ts";
 import type { ProviderDriverKind } from "../../shared/providers.ts";
+import type { ToolApprovalStatus } from "../../shared/toolApprovals.ts";
+import { settleGatedToolInvoke } from "../../shared/toolApprovals.ts";
 
 /** One provider row in a heartbeat — mirrors `runtimeProviderReport` in convex/lib/validators.ts. */
 export type ProviderReport = {
@@ -381,16 +383,40 @@ export class RuntimeClient {
     runtimeId: string;
     token: string;
   }): Promise<{ name: string; resultJson: string }> {
-    if (isConnectorActionToolName(input.name)) {
-      return await this.client.action(
-        "agentTools:invokeConnector" as never,
-        input as never
-      );
-    }
-    return await this.client.mutation(
-      "agentTools:invoke" as never,
-      input as never
-    );
+    return await settleGatedToolInvoke({
+      invoke: async () => {
+        if (isConnectorActionToolName(input.name)) {
+          return await this.client.action(
+            "agentTools:invokeConnector" as never,
+            input as never
+          );
+        }
+        return await this.client.mutation(
+          "agentTools:invoke" as never,
+          input as never
+        );
+      },
+      isAbort: async () =>
+        await this.shouldAbort({
+          jobId: input.jobId,
+          leaseId: input.leaseId,
+          runtimeId: input.runtimeId,
+          token: input.token,
+        }),
+      poll: async (approvalId) => {
+        const row = await this.client.mutation(
+          "toolApprovals:poll" as never,
+          {
+            approvalId,
+            jobId: input.jobId,
+            leaseId: input.leaseId,
+            runtimeId: input.runtimeId,
+            token: input.token,
+          } as never
+        );
+        return (row as { status: ToolApprovalStatus }).status;
+      },
+    });
   }
 
   async ingestArtifact(input: {

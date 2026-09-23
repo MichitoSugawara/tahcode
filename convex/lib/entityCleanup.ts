@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { deleteChatToolApprovals } from "./toolApprovals";
 
 const DELETE_BATCH = 200;
 const DELETE_ROUNDS = 20;
@@ -118,6 +119,7 @@ export async function deleteChatTree(
   await deleteChatJobs(ctx, chatId);
   await deleteChatMessages(ctx, chatId);
   await deleteChatSideTurns(ctx, chatId);
+  await deleteChatToolApprovals(ctx, chatId);
   await deleteChatFiles(ctx, chatId);
   await deleteChatMembers(ctx, chatId);
   await ctx.db.delete("chats", chatId);

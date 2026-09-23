@@ -27,6 +27,8 @@ import {
   screenModifier,
   screenPointerButton,
   screenSessionStatus,
+  toolApprovalSource,
+  toolApprovalStatus,
   visibility,
 } from "./lib/validators";
 
@@ -430,6 +432,28 @@ export default defineSchema({
   })
     .index("by_runtime_and_status", ["runtimeId", "status"])
     .index("by_session_and_status", ["sessionId", "status"]),
+
+  /* HITL interrupt rows (TAH-84). Destructive tahcode tools pause here
+   * until a chat-visible human approves. Demo rows have no job. */
+  toolApprovals: defineTable({
+    argsHash: v.string(),
+    argsJson: v.string(),
+    chatId: v.id("chats"),
+    decidedAt: v.optional(v.number()),
+    decidedBy: v.optional(v.id("users")),
+    executedAt: v.optional(v.number()),
+    jobId: v.optional(v.id("jobs")),
+    name: v.string(),
+    orgId: v.id("orgs"),
+    requestedBy: v.optional(v.id("users")),
+    source: toolApprovalSource,
+    status: toolApprovalStatus,
+    summary: v.string(),
+  })
+    .index("by_chat", ["chatId"])
+    .index("by_chat_and_status", ["chatId", "status"])
+    .index("by_job", ["jobId"])
+    .index("by_job_name_hash", ["jobId", "name", "argsHash"]),
 
   /* Secondary verification thread (TAH-80). Not `messages` — @mentions
    * never launch jobs. Scoped to the parent chat's org + ACL. */
