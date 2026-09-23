@@ -130,6 +130,40 @@ export const jobStatus = v.union(
   v.literal("cancelled")
 );
 
+export const toolApprovalStatus = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("cancelled")
+);
+
+export const toolApprovalSource = v.union(v.literal("job"), v.literal("demo"));
+
+export const toolApprovalView = v.object({
+  _creationTime: v.number(),
+  _id: v.id("toolApprovals"),
+  argsPreview: v.string(),
+  chatId: v.id("chats"),
+  decidedAt: v.union(v.number(), v.null()),
+  executedAt: v.union(v.number(), v.null()),
+  jobId: v.union(v.id("jobs"), v.null()),
+  name: v.string(),
+  source: toolApprovalSource,
+  status: toolApprovalStatus,
+  summary: v.string(),
+  title: v.string(),
+});
+
+export const toolApprovalDecision = v.union(
+  v.literal("approved"),
+  v.literal("rejected")
+);
+
+export const toolInvokeApproval = v.object({
+  id: v.id("toolApprovals"),
+  status: v.union(v.literal("pending"), v.literal("rejected")),
+});
+
 export const userSummary = v.object({
   _id: v.id("users"),
   email: v.optional(v.string()),

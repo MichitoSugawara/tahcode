@@ -2,6 +2,7 @@ import { JOB_CANCELLED_MESSAGE } from "../../shared/jobs.ts";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { assertChatVisible, getMembership } from "./access";
+import { cancelOpenApprovalsForJob } from "./toolApprovals";
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -99,4 +100,5 @@ export async function markJobCancelled(
     text: JOB_CANCELLED_MESSAGE,
     type: "cancelled",
   });
+  await cancelOpenApprovalsForJob(ctx, job._id);
 }

@@ -10,6 +10,7 @@ import { isPlaceholderId } from "@/lib/optimistic";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { HitlApprovalList } from "./HitlApprovalList";
 import { WORKBENCH_PANELS } from "./panels";
 import {
   clearLocalSideChat,
@@ -35,6 +36,10 @@ export function SideChatPane() {
   const sendTurn = useMutation(api.workbenchSideChat.send);
   const migrateLocalDrafts = useMutation(
     api.workbenchSideChat.migrateLocalDrafts
+  );
+  const approvals = useQuery(
+    api.toolApprovals.listForChat,
+    serverChatId ? { chatId: serverChatId } : "skip"
   );
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -124,6 +129,11 @@ export function SideChatPane() {
         data-side-chat-state={page.turns.length === 0 ? "empty" : "ready"}
         className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3"
       >
+        {approvals?.items && approvals.items.length > 0 ? (
+          <li>
+            <HitlApprovalList items={approvals.items} />
+          </li>
+        ) : null}
         {page.turns.length === 0 ? (
           <li className="text-ink-3 px-0.5 py-6 text-center text-[12.5px] leading-relaxed">
             まだメモはありません。検証中の短いメモを残せます。

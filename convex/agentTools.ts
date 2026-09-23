@@ -10,6 +10,7 @@ import {
   connectorProviderLabel,
   isConnectorActionToolName,
 } from "../shared/connectorActionCatalog.ts";
+import type { ConnectorActionToolName } from "../shared/connectorActionCatalog.ts";
 import { selectInjectedConnections } from "../shared/connectorMentions.ts";
 import { mentionedConnectorsFromText } from "../shared/opsMcp.ts";
 import { internal } from "./_generated/api";
@@ -21,7 +22,16 @@ import { runConnectorAction } from "./lib/connectorActionTools";
 import { isVisibleConnectorConnection } from "./lib/connectors";
 import { listVisibleJobConnectors } from "./lib/jobOps";
 import { getRuntimeByToken, requireJobLease } from "./lib/runtimeAuth";
-import { agentToolName, connectorActionToolName } from "./lib/validators";
+import {
+  gateResultJson,
+  markToolApprovalExecuted,
+  requireToolApproval,
+} from "./lib/toolApprovals";
+import {
+  agentToolName,
+  connectorActionToolName,
+  toolInvokeApproval,
+} from "./lib/validators";
 
 /**
  * Runtime-authenticated dispatcher for in-job tahcode tools.
@@ -55,7 +65,21 @@ export const invoke = mutation({
       throw new Error("Acting user not found");
     }
     const parsed = parseAgentToolArgsJson(args.argsJson);
+    const gate = await requireToolApproval(ctx, {
+      argsJson: args.argsJson,
+      job,
+      name: args.name,
+      userId: user._id,
+    });
+    if (gate.status === "pending" || gate.status === "rejected") {
+      return {
+        approval: { id: gate.approvalId, status: gate.status },
+        name: args.name,
+        resultJson: gateResultJson(gate.status),
+      };
+    }
     const result = await runAgentTool(ctx, { job, user }, args.name, parsed);
+    await markToolApprovalExecuted(ctx, gate.approvalId);
     await ctx.db.patch("jobs", job._id, { lastHeartbeatAt: Date.now() });
     await ctx.db.insert("jobEvents", {
       jobId: job._id,
@@ -68,6 +92,7 @@ export const invoke = mutation({
     };
   },
   returns: v.object({
+    approval: v.optional(toolInvokeApproval),
     name: agentToolName,
     resultJson: v.string(),
   }),
@@ -78,6 +103,24 @@ export const invoke = mutation({
  * `invoke`. HTTP stays in this action so tokens never enter the prompt or
  * the MCP / `tahcode tool` catalog. Linear is the first catalog slice.
  */
+type PreparedConnectorInvoke =
+  | {
+      approvalId: Id<"toolApprovals">;
+      kind: "pending" | "rejected";
+    }
+  | {
+      approvalId: Id<"toolApprovals"> | null;
+      connectedAccountId: string;
+      kind: "ready";
+      oauthAlias: string | null;
+    };
+
+type ConnectorInvokeResult = {
+  approval?: { id: Id<"toolApprovals">; status: "pending" | "rejected" };
+  name: ConnectorActionToolName;
+  resultJson: string;
+};
+
 export const invokeConnector = action({
   args: {
     argsJson: v.string(),
@@ -87,22 +130,29 @@ export const invokeConnector = action({
     runtimeId: v.id("runtimes"),
     token: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ConnectorInvokeResult> => {
     if (!isConnectorActionToolName(args.name)) {
       throw new Error("Unknown tool");
     }
     const parsed = parseAgentToolArgsJson(args.argsJson);
-    const prepared: {
-      connectedAccountId: string;
-      oauthAlias: string | null;
-    } = await ctx.runMutation(internal.agentTools.prepareConnectorInvoke, {
-      argsJson: args.argsJson,
-      jobId: args.jobId,
-      leaseId: args.leaseId,
-      name: args.name,
-      runtimeId: args.runtimeId,
-      token: args.token,
-    });
+    const prepared: PreparedConnectorInvoke = await ctx.runMutation(
+      internal.agentTools.prepareConnectorInvoke,
+      {
+        argsJson: args.argsJson,
+        jobId: args.jobId,
+        leaseId: args.leaseId,
+        name: args.name,
+        runtimeId: args.runtimeId,
+        token: args.token,
+      }
+    );
+    if (prepared.kind !== "ready") {
+      return {
+        approval: { id: prepared.approvalId, status: prepared.kind },
+        name: args.name,
+        resultJson: gateResultJson(prepared.kind),
+      };
+    }
     const result = await runConnectorAction({
       args: parsed,
       connectedAccountId: prepared.connectedAccountId,
@@ -110,6 +160,7 @@ export const invokeConnector = action({
       oauthAlias: prepared.oauthAlias,
     });
     await ctx.runMutation(internal.agentTools.finishConnectorInvoke, {
+      approvalId: prepared.approvalId,
       jobId: args.jobId,
       name: args.name,
     });
@@ -119,6 +170,7 @@ export const invokeConnector = action({
     };
   },
   returns: v.object({
+    approval: v.optional(toolInvokeApproval),
     name: connectorActionToolName,
     resultJson: v.string(),
   }),
@@ -197,23 +249,47 @@ export const prepareConnectorInvoke = internalMutation({
     if (row.status !== "connected") {
       throw new Error(`${label} is not connected. Reconnect it from Plugins.`);
     }
+    const gate = await requireToolApproval(ctx, {
+      argsJson: args.argsJson,
+      job,
+      name: args.name,
+      userId: user._id,
+    });
+    if (gate.status === "pending" || gate.status === "rejected") {
+      return {
+        approvalId: gate.approvalId,
+        kind: gate.status,
+      };
+    }
     return {
+      approvalId: gate.approvalId ?? null,
       connectedAccountId: row.connectedAccountId,
+      kind: "ready" as const,
       oauthAlias: row.oauthAlias ?? null,
     };
   },
-  returns: v.object({
-    connectedAccountId: v.string(),
-    oauthAlias: v.union(v.string(), v.null()),
-  }),
+  returns: v.union(
+    v.object({
+      approvalId: v.id("toolApprovals"),
+      kind: v.union(v.literal("pending"), v.literal("rejected")),
+    }),
+    v.object({
+      approvalId: v.union(v.id("toolApprovals"), v.null()),
+      connectedAccountId: v.string(),
+      kind: v.literal("ready"),
+      oauthAlias: v.union(v.string(), v.null()),
+    })
+  ),
 });
 
 export const finishConnectorInvoke = internalMutation({
   args: {
+    approvalId: v.optional(v.union(v.id("toolApprovals"), v.null())),
     jobId: v.id("jobs"),
     name: connectorActionToolName,
   },
   handler: async (ctx, args) => {
+    await markToolApprovalExecuted(ctx, args.approvalId ?? undefined);
     await ctx.db.patch("jobs", args.jobId, { lastHeartbeatAt: Date.now() });
     await ctx.db.insert("jobEvents", {
       jobId: args.jobId,
