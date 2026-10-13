@@ -1,0 +1,6 @@
+tahcode infrastructure is paused (2026-10-13).
+
+Public Workers serve 503. Automatic deploy / prune / publish / desktop
+workflows are disabled. Convex prod/staging data and R2 buckets are kept.
+
+Resume: docs/infra-pause.md

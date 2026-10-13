@@ -1,13 +1,14 @@
 import { cronJobs } from "convex/server";
 
-import { internal } from "./_generated/api";
+// Infrastructure is paused (docs/infra-pause.md). Do not schedule work
+// while infra/PAUSED exists. Restore failUnclaimedSweep when lifting:
+//
+//   crons.interval(
+//     "fail unclaimed queued jobs",
+//     { seconds: 30 },
+//     internal.jobs.failUnclaimedSweep
+//   );
 
 const crons = cronJobs();
-
-crons.interval(
-  "fail unclaimed queued jobs",
-  { seconds: 30 },
-  internal.jobs.failUnclaimedSweep
-);
 
 export default crons;

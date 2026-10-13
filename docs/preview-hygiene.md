@@ -1,5 +1,7 @@
 # Preview 資源の掃除と手元デプロイ
 
+> 2026-10-13 時点でインフラは一時停止中。週次 prune と PR preview デプロイは止まっている。[docs/infra-pause.md](infra-pause.md) を先に読む。
+
 Convex チームの **deployment quota（例: 40）** に当たると新しい preview が作れない。GitHub Actions が課金切れで止まっても、PR レビュー用の preview は必要になる。Cloudflare の `tahcode-preview` にも version / preview-alias が溜まる。この文書は **課金や枠で止まらない** ための掃除と、Actions なし手元デプロイの手順。
 
 本番 Convex / 本番 Worker / staging は対象外。開いている PR の `pr-N` は消さない。

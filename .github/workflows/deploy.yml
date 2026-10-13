@@ -1,9 +1,10 @@
 name: Deploy
 
+# INFRA PAUSED 2026-10-13 — automatic triggers disabled.
+# See docs/infra-pause.md. Restore pull_request + push to production/staging
+# when lifting the pause. workflow_dispatch stays so a resume can be manual.
 on:
-  pull_request:
-  push:
-    branches: [production, staging]
+  workflow_dispatch:
 
 permissions:
   contents: read

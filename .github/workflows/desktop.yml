@@ -7,24 +7,10 @@ name: Desktop
 # minutes unexpectedly. Both jobs install from the single root lockfile
 # (npm workspaces); Electron's binary is fetched lazily on first run.
 
+# INFRA PAUSED 2026-10-13 — automatic PR/push/tag desktop jobs disabled.
+# See docs/infra-pause.md. Restore pull_request, push, and desktop-v* tags
+# when lifting the pause.
 on:
-  pull_request:
-    paths:
-      - "apps/desktop/**"
-      - "packages/core/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/desktop.yml"
-  push:
-    branches: [main, staging, production]
-    paths:
-      - "apps/desktop/**"
-      - "packages/core/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/desktop.yml"
-    tags:
-      - "desktop-v*"
   workflow_dispatch:
     inputs:
       build_mac:

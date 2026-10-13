@@ -1,0 +1,90 @@
+name: Infra pause
+
+# Live stop. Same-repo PRs that touch the pause files apply immediately
+# (environments have no reviewers). workflow_dispatch can retarget.
+# Never deletes production/staging Convex or R2.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/infra-pause.yml"
+      - "convex/crons.ts"
+      - "docs/infra-pause.md"
+      - "infra/PAUSED"
+      - "scripts/infra-pause.mjs"
+      - "worker/paused.ts"
+      - "wrangler.paused.jsonc"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which stack to pause
+        type: choice
+        options: [all, production, staging, preview]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  production:
+    if: >-
+      github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'production') || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    name: Pause production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://tahcode.com
+    env:
+      DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Pause production Worker and Convex crons
+        run: |
+          node scripts/infra-pause.mjs \
+            --apply \
+            --decrypt \
+            --target production
+
+  staging:
+    if: >-
+      github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'staging') || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    name: Pause staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: https://tahcode-staging.gawara.workers.dev
+    env:
+      DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Pause staging Worker and Convex crons
+        run: |
+          node scripts/infra-pause.mjs \
+            --apply \
+            --decrypt \
+            --target staging
+
+  preview:
+    if: >-
+      github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'preview') || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    name: Pause preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: preview
+      url: https://tahcode-preview.gawara.workers.dev
+    env:
+      DOTENV_PRIVATE_KEY_PREVIEW: ${{ secrets.DOTENV_PRIVATE_KEY_PREVIEW }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Pause preview Worker and delete preview Convex
+        run: |
+          node scripts/infra-pause.mjs \
+            --apply \
+            --decrypt \
+            --target preview
