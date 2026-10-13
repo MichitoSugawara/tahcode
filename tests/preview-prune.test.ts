@@ -197,12 +197,12 @@ describe(deployedVersionIdsFrom, () => {
 describe("preview-prune workflow", () => {
   const yml = readFileSync(".github/workflows/preview-prune.yml", "utf-8");
 
-  it("defaults workflow_dispatch to dry-run and applies on close/cron", () => {
-    expect(yml).toContain("pull_request:");
-    expect(yml).toContain("types: [closed]");
-    expect(yml).toContain("schedule:");
+  it("keeps workflow_dispatch only while infrastructure is paused", () => {
+    expect(yml).toContain("INFRA PAUSED");
     expect(yml).toContain("workflow_dispatch:");
     expect(yml).toContain("default: false");
+    expect(yml).not.toContain("pull_request:");
+    expect(yml).not.toContain("schedule:");
   });
 
   it("runs the prune CLI with dry-run default and sweep", () => {

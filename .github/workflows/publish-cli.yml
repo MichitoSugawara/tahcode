@@ -5,16 +5,9 @@ name: Publish CLI
 # Requires repository secret NPM_TOKEN. If it is missing the job verifies
 # the artifact and prints the one-shot publish command instead of failing.
 
+# INFRA PAUSED 2026-10-13 — automatic npm publish on main is disabled.
+# See docs/infra-pause.md. Restore the push-to-main trigger when lifting.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/cli/**"
-      - "shared/cliVersion.ts"
-      - "shared/agentTools.ts"
-      - "runtime/src/**"
-      - "scripts/verify-cli-agent-tools.mjs"
-      - ".github/workflows/publish-cli.yml"
   workflow_dispatch:
     inputs:
       dry_run:

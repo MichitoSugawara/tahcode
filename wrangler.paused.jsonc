@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tahcode",
+  "main": "worker/paused.ts",
+  "compatibility_date": "2026-09-12",
+  // No assets / R2: the pause Worker only serves 503. Buckets stay.
+  // Custom domain tahcode.com stays attached to Worker name `tahcode`.
+  "workers_dev": true,
+  "preview_urls": false,
+  "env": {
+    "preview": {
+      "name": "tahcode-preview",
+      "workers_dev": true,
+      "preview_urls": false,
+    },
+    "staging": {
+      "name": "tahcode-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+    },
+  },
+}

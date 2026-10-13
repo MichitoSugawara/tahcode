@@ -1,10 +1,9 @@
 name: Preview prune
 
+# INFRA PAUSED 2026-10-13 — automatic close/cron prune disabled.
+# See docs/infra-pause.md. Restore pull_request closed + weekly cron
+# when lifting the pause.
 on:
-  pull_request:
-    types: [closed]
-  schedule:
-    - cron: "17 7 * * 1"
   workflow_dispatch:
     inputs:
       apply:
