@@ -79,7 +79,7 @@ describe(convexPausePlan, () => {
   it("deploys empty crons on production and staging only", () => {
     expect(convexPausePlan(PAUSE_TARGETS.production)).toMatchObject({
       action: "deploy-crons",
-      argv: ["convex", "deploy", "--prod", "--yes"],
+      argv: ["convex", "deploy", "--yes"],
     });
     expect(convexPausePlan(PAUSE_TARGETS.staging).argv).toStrictEqual([
       "convex",

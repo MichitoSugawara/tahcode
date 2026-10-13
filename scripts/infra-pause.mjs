@@ -20,7 +20,7 @@ export const PAUSE_TARGETS = {
     worker: "tahcode-preview",
   },
   production: {
-    convexArgs: ["--prod", "--yes"],
+    convexArgs: ["--yes"],
     dotenv: ".env.production",
     env: "",
     name: "production",

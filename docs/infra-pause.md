@@ -43,6 +43,6 @@ CI は `.github/workflows/infra-pause.yml` が同じコマンドを production /
 5. 通常どおり staging → production をデプロイする。
 
 ```bash
-npx dotenvx run -f .env.production -- npx convex deploy --prod --yes
+npx dotenvx run -f .env.production -- npx convex deploy --yes
 npx dotenvx run -f .env.production -- npx wrangler deploy
 ```
